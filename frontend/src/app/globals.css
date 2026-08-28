@@ -1,0 +1,584 @@
+@import "tailwindcss";
+
+@theme {
+  --color-midnight-950: #070f1a;
+  --color-midnight-900: #0b1626;
+  --color-midnight-800: #122033;
+  --color-midnight-700: #1b2c42;
+
+  --color-gold-300: #d8cdb8;
+  --color-gold-400: #c4b697;
+  --color-gold-500: #a8936f;
+  --color-gold-600: #8f7c59;
+  --color-gold-700: #7d6a42; /* or soutenu — lisible sur fond clair (≥ 4.6:1) */
+
+  --color-ivory-50: #f5f0eb;
+  --color-ivory-100: #efe7dd;
+  --color-ivory-200: #e6dacb;
+
+  --color-african-green: #2d6a4f;
+  --color-terracotta: #c87a5a;
+
+  /* ——— Dashboard clair « Papier & Or » ———
+     Fond blanc légèrement bleuté (comme la boutique), textes bleu profond,
+     accents or et touches de bleu pour les données (design system ui-ux-pro-max). */
+  --color-paper: #f6f8fb; /* fond de page — blanc bleuté */
+  --color-surface: #ffffff; /* cartes */
+  --color-line: #e7ebf2; /* bordures */
+  --color-ink-950: #0b1626; /* titres — bleu profond (midnight) */
+  --color-ink-900: #1a2942;
+  --color-ink-800: #263752;
+  --color-ink-700: #34465f;
+  --color-ink-600: #4d5f79;
+  --color-ink-500: #66758c;
+  --color-ink-400: #75839a; /* contraste ≥ 3.5:1 — timestamps, placeholders */
+  --color-ink-300: #9aa8bc; /* disclaimers */
+  --color-ink-200: #ccd5e1;
+  --color-ink-100: #e8edf4; /* wells / hover */
+  --color-ink-50: #f3f6fa; /* fonds doux */
+  --color-gold-strong: #7d6a42; /* ≥ 4.6:1 sur blanc et gold-wash */
+  --color-gold-mid: #a8936f;
+  --color-gold-soft: #d9cdb4;
+  --color-gold-wash: #f7f2e8;
+  --color-blue-700: #1d4ed8;
+  --color-blue-600: #2563eb;
+  --color-blue-100: #dbeafe;
+  --color-green-700: #1f5c43;
+  --color-green-100: #e4f1ea;
+  --color-red-600: #c2413a;
+  --color-red-100: #fdeeec;
+
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+:root {
+  --background: #070f1a;
+  --foreground: #f5f0eb;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Compense la hauteur du header fixe + bandeau essai gratuit */
+  scroll-padding-top: 7rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #c4b697;
+  color: #070f1a;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #070f1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #1b2c42;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8936f;
+}
+
+/* Texture dorée discrète sur fonds sombres */
+.gold-grid {
+  background-image:
+    linear-gradient(rgba(196, 182, 151, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(196, 182, 151, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.mask-fade-b {
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+/* ——— Dashboard clair : scrollbar adaptée au fond papier ——— */
+.dashboard-scroll ::-webkit-scrollbar {
+  width: 10px;
+}
+.dashboard-scroll ::-webkit-scrollbar-track {
+  background: #f3f6fa;
+}
+.dashboard-scroll ::-webkit-scrollbar-thumb {
+  background: #ccd5e1;
+  border-radius: 8px;
+}
+.dashboard-scroll ::-webkit-scrollbar-thumb:hover {
+  background: #a8936f;
+}
+
+/* Grain cinématique */
+.film-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
+
+/* ——— Motif lumière (subtil & premium) ——— */
+
+/* Gradient de texte doré luxueux */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #efe7dd 0%, #d8cdb8 35%, #c4b697 70%, #a8936f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Halo radial derrière les titres de section (la lumière qui éclaire le texte) */
+.title-halo {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(216, 205, 184, 0.12) 0%,
+    rgba(216, 205, 184, 0.04) 45%,
+    transparent 72%
+  );
+  filter: blur(14px);
+}
+
+/* Liseré doré en haut des cartes : la lumière passe sur le bord */
+.card-lux {
+  position: relative;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.4s ease, box-shadow 0.4s ease;
+}
+.card-lux::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 5%,
+    rgba(216, 205, 184, 0.65) 50%,
+    transparent 95%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.card-lux:hover::before {
+  opacity: 1;
+}
+
+/* Halo de fond doux pour les sections claires (lumière ambiante) */
+.section-veil-light {
+  background: radial-gradient(
+    120% 80% at 50% 0%,
+    rgba(196, 182, 151, 0.09) 0%,
+    transparent 65%
+  );
+}
+
+/* ——— Textes vivants ——— */
+
+/* Mot de titre : révélation verticale (masqué puis révélé par GSAP) */
+.word-mask {
+  overflow: hidden;
+}
+.word-inner {
+  display: inline-block;
+  will-change: transform;
+}
+
+/* Halo de lumière derrière les textes */
+.glow-gold {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(216, 205, 184, 0.16) 0%,
+    rgba(216, 205, 184, 0.05) 45%,
+    transparent 72%
+  );
+  filter: blur(8px);
+}
+
+/* ——— Hero : le film s'adapte à n'importe quel appareil ——— */
+
+/* Hauteur réelle du viewport : sur mobile, la barre du navigateur (svh) ne
+   coupe plus le bas du film — le CTA reste toujours visible. */
+.hero-viewport {
+  height: 100vh;
+  height: 100svh;
+}
+
+.hero-min-viewport {
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+/* Écrans en hauteur réduite (paysage mobile, laptops compacts) : le texte se
+   compacte pour que le film et le CTA restent visibles — jamais coupés. */
+@media (max-height: 640px) {
+  .hero-text .hero-badge {
+    margin-bottom: 0.6rem;
+  }
+  .hero-text h1 {
+    font-size: clamp(2.1rem, 8vw, 3.4rem);
+    line-height: 1.05;
+  }
+  .hero-text .hero-subline {
+    margin-top: 0.6rem;
+    font-size: 1rem;
+  }
+  .hero-text .hero-cta {
+    margin-top: 1rem;
+  }
+}
+
+/* Très petits écrans en hauteur (téléphone en paysage) : hiérarchie ultra compacte */
+@media (max-height: 430px) {
+  .hero-text .hero-badge {
+    margin-bottom: 0.4rem;
+  }
+  .hero-text .hero-badge span {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+  }
+  .hero-text h1 {
+    font-size: clamp(1.7rem, 7vw, 2.6rem);
+  }
+  .hero-text .hero-subline {
+    margin-top: 0.4rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+  }
+  .hero-text .hero-cta {
+    margin-top: 0.6rem;
+  }
+}
+
+/* Flottement continu des produits */
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.floaty {
+  animation: floaty 7s ease-in-out infinite;
+}
+
+/* ——— Curseur / doigt (hors Hero) ——— */
+
+/* Halo doré qui suit le curseur de la souris (desktop) */
+.pointer-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(216, 205, 184, 0.2) 0%,
+    rgba(216, 205, 184, 0.06) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 60;
+  will-change: transform, opacity;
+}
+
+/* Conteneur des ondes de contact (mobile) */
+.pointer-ripples {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 60;
+}
+
+/* Onde de lumière à chaque impact du doigt */
+.pointer-ripple {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 205, 184, 0.65);
+  background: radial-gradient(circle, rgba(216, 205, 184, 0.18), transparent 70%);
+  animation: pointerRipple 0.9s ease-out forwards;
+}
+
+@keyframes pointerRipple {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+/* ——— Badge promotion : halo doré + respiration — intensité ∝ % ——— */
+@keyframes promo-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes promo-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+/* Apparition du badge promotion (pop-in avec léger retour) */
+@keyframes promo-pop {
+  0% {
+    transform: scale(0.4) rotate(-10deg);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.15) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Le prix barré glisse doucement en place */
+@keyframes promo-strike {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Étoile qui scintille à côté du prix remisé */
+@keyframes promo-twinkle {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.7) rotate(-15deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(15deg);
+  }
+}
+
+/* Halo doré qui respire derrière le prix remisé */
+@keyframes promo-glow {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.08);
+  }
+}
+
+/* ——— Messagerie : points « en train d'écrire… » ——— */
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+.typing-dot {
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+/* ——— Notifications : secousse de la cloche quand une nouvelle arrive ——— */
+@keyframes bell-ring {
+  0% {
+    transform: rotate(0deg);
+  }
+  12% {
+    transform: rotate(16deg);
+  }
+  24% {
+    transform: rotate(-13deg);
+  }
+  36% {
+    transform: rotate(10deg);
+  }
+  48% {
+    transform: rotate(-7deg);
+  }
+  60% {
+    transform: rotate(4deg);
+  }
+  72% {
+    transform: rotate(-2deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+.bell-ring {
+  animation: bell-ring 0.9s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  transform-origin: 50% 0%;
+}
+
+/* ——— Marketplace : Shimmer doré sur les bannières promo ——— */
+@keyframes shimmer-gold {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.shimmer-gold {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-gold::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(216, 205, 184, 0.08) 45%,
+    rgba(216, 205, 184, 0.15) 50%,
+    rgba(216, 205, 184, 0.08) 55%,
+    transparent 70%
+  );
+  animation: shimmer-gold 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ——— Marketplace : Pulsation du compte à rebours ——— */
+@keyframes countdown-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+.countdown-box {
+  animation: countdown-pulse 2s ease-in-out infinite;
+}
+
+/* ——— Marketplace : Barre de stock (fill animé) ——— */
+@keyframes stock-fill {
+  from {
+    width: 0%;
+  }
+}
+.stock-bar-fill {
+  animation: stock-fill 1.2s ease-out forwards;
+}
+
+/* ——— Marketplace : Sidebar catégories (hover sweep) ——— */
+.cat-item {
+  position: relative;
+  overflow: hidden;
+}
+.cat-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(196, 182, 151, 0.06), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
+  pointer-events: none;
+}
+.cat-item:hover::before {
+  transform: translateX(100%);
+}
+
+/* ——— Marketplace : Entrée échelonnée des cartes ——— */
+@keyframes fade-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up-in {
+  animation: fade-up-in 0.5s ease-out both;
+}
+
+/* ——— Marketplace : Badge DEAL clignotant ——— */
+@keyframes deal-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+.deal-badge {
+  animation: deal-blink 1.8s ease-in-out infinite;
+}
+
+/* ——— Marketplace : Top bar info strip ——— */
+.marketplace-topbar {
+  background: linear-gradient(90deg, #070f1a 0%, #0b1626 50%, #070f1a 100%);
+}
+
+/* ——— Touch targets pour mobile (min 44px) ——— */
+@layer utilities {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .snap-container {
+    scroll-snap-type: y proximity;
+  }
+
+  .snap-section {
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
