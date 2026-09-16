@@ -1,5 +1,5 @@
 /**
- * Seller Dashboard Types — Afrique Commerce OS
+ * Seller Dashboard Types — ZennShop
  * Architecture de données SaaS pour la gestion de commerce africain
  */
 
@@ -102,6 +102,8 @@ export interface MerchantProfile {
   country: string;
   avatarInitials: string;
   plan: string;
+  productsCount?: number;
+  boutiquesCount?: number;
 }
 
 import type { ShopConfig, NotificationSetting as NS } from "@/lib/shopConfig";
@@ -125,6 +127,7 @@ export interface StatsData {
   repeatCustomerRate: number;
   customerSegments: CustomerSegmentBreakdown;
   bestSellers: ProductItem[];
+  requiresBusiness?: boolean;
 }
 
 export interface KPIStat {

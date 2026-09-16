@@ -1,0 +1,37 @@
+export const fr = {
+  common: {
+    loading: "Chargement...",
+    error: "Une erreur est survenue",
+    save: "Enregistrer",
+    cancel: "Annuler",
+    search: "Rechercher",
+    currency: "Devise",
+    language: "Langue",
+  },
+  navbar: {
+    marketplace: "Marketplace",
+    pricing: "Tarifs",
+    about: "À propos",
+    login: "Se connecter",
+    register: "Créer un compte",
+    logout: "Déconnexion",
+    sellerSpace: "Espace Vendeur",
+    adminSpace: "Console Admin",
+    clientSpace: "Espace Client",
+    searchPlaceholder: "Rechercher un produit, une boutique...",
+  },
+  hero: {
+    badge: "Plateforme e-commerce · Afrique · Démarrage immédiat",
+    titleLine1: "Donnez à votre commerce",
+    titleLine2: "la vitrine qu'il mérite.",
+    subtitle: "Créez votre boutique professionnelle en quelques minutes. Présentez vos articles, encaissez par Mobile Money et développez vos ventes en toute simplicité.",
+    searchPlaceholder: "Rechercher un produit, une boutique, une catégorie…",
+    ctaOpenStore: "Lancer ma boutique en ligne",
+    ctaExplore: "Explorer le marketplace",
+    trust1: "Sans carte bancaire",
+    trust2: "0 FCFA pour commencer",
+    trust3: "Sans engagement",
+    activeShops: "boutiques actives",
+    products: "produits",
+  }
+};

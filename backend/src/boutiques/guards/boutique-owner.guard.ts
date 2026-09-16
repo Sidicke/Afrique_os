@@ -36,6 +36,9 @@ export class BoutiqueOwnerGuard implements CanActivate {
       select: { id: true, ownerId: true },
     });
     if (!boutique) throw new NotFoundException('Boutique introuvable');
+    if (user.role === 'ADMIN') {
+      return true;
+    }
     if (boutique.ownerId !== user.id) {
       throw new ForbiddenException('Vous ne pouvez pas accéder à cette boutique');
     }

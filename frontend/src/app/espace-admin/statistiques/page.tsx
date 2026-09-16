@@ -69,27 +69,47 @@ export default function StatistiquesPage() {
         <>
           {/* Indicateurs de la période */}
           <KPICardsGroup
-            kpis={[data.kpis.revenue, data.kpis.orders, data.kpis.avgBasket, data.kpis.conversion]}
+            kpis={[data.kpis.revenue, data.kpis.orders, data.kpis.avgBasket || { title: 'Panier moyen', value: '-', type: 'metric' }, data.kpis.conversion || { title: 'Conversion', value: '-', type: 'metric' }]}
           />
 
-          {/* Chiffre d'affaires + fidélisation */}
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <RevenueChart dataPoints={data.revenueChart} />
-            </div>
-            <RepeatCustomerGauge rate={data.repeatCustomerRate} />
-          </div>
+          {data.requiresBusiness ? (
+            <DashboardCard className="relative overflow-hidden flex flex-col items-center justify-center p-12 text-center mt-6 border-gold-strong/20 bg-gold-wash/10">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gold-wash text-gold-strong">
+                <Icon name="star" size={28} />
+              </div>
+              <h3 className="mb-2 font-display text-xl font-bold text-ink-950">Analytics Avancées</h3>
+              <p className="mb-6 max-w-md text-sm text-ink-600">
+                La segmentation des clients, les rapports de fidélisation et les meilleures ventes sont exclusifs au plan Business. Passez à Business pour mieux piloter votre croissance.
+              </p>
+              <a
+                href="/espace-admin/parametres/formule"
+                className="rounded-xl bg-gold-strong px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-gold-900"
+              >
+                Passer à Business — 12 500 FCFA/mois
+              </a>
+            </DashboardCard>
+          ) : (
+            <>
+              {/* Chiffre d'affaires + fidélisation */}
+              <div className="grid gap-6 lg:grid-cols-3 mt-6">
+                <div className="lg:col-span-2">
+                  <RevenueChart dataPoints={data.revenueChart} />
+                </div>
+                <RepeatCustomerGauge rate={data.repeatCustomerRate} />
+              </div>
 
-          {/* Activité hebdo + typologie clients */}
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <ActiveDaysChart days={data.activeDays} />
-            </div>
-            <CustomerSegments segments={data.customerSegments} />
-          </div>
+              {/* Activité hebdo + typologie clients */}
+              <div className="grid gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <ActiveDaysChart days={data.activeDays} />
+                </div>
+                <CustomerSegments segments={data.customerSegments} />
+              </div>
 
-          {/* Meilleures ventes */}
-          <BestSellersTable products={data.bestSellers} />
+              {/* Meilleures ventes */}
+              <BestSellersTable products={data.bestSellers} />
+            </>
+          )}
         </>
       )}
     </div>

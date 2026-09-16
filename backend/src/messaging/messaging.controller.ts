@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { ApplyDiscountDto } from './dto/apply-discount.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { StartConversationDto } from './dto/start-conversation.dto';
 import { MessagingService } from './messaging.service';
@@ -21,15 +22,15 @@ import { MessagingService } from './messaging.service';
 @Controller('conversations')
 export class MessagingController {
   
-  @Post('conversations/:id/discount')
-  @Roles('VENDEUR')
+  @Post(':id/discount')
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiOperation({ summary: 'Appliquer un prix négocié sur une discussion (vendeur)' })
   applyDiscount(
     @Param('id') conversationId: string,
-    @Body('agreedPrice') agreedPrice: number,
-    @CurrentUser() user: any
+    @Body() dto: ApplyDiscountDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    // Note: Pour simplifier, on prend la première boutique du vendeur
-    return this.messagingService.applyDiscountSeller(conversationId, user.id, agreedPrice);
+    return this.messagingService.applyDiscountSeller(conversationId, user.id, dto.agreedPrice);
   }
   
   constructor(private readonly messagingService: MessagingService) {}

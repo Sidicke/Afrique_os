@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn, publicShopHref } from "@/lib/utils";
 import { useSession } from "@/lib/useSession";
 import { merchantProfile } from "@/services/dashboardService";
@@ -18,10 +19,19 @@ export default function DashboardTopbar({
   dateFilter = "30_days",
   onDateFilterChange,
 }: TopbarProps) {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   // Vitrine publique du vendeur connecté (repli : la démo /boutique)
   const session = useSession();
   const shopHref = publicShopHref(session?.user.boutiqueSlug);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (q) {
+      router.push(`/espace-admin/commandes?search=${encodeURIComponent(q)}`);
+    }
+  };
 
   return (
     <header className="shrink-0 z-30 flex h-16 w-full items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur-xl sm:px-8">
@@ -40,7 +50,7 @@ export default function DashboardTopbar({
         </button>
 
         {/* Global Search Bar */}
-        <div className="relative hidden sm:block w-64 md:w-80">
+        <form onSubmit={handleSearchSubmit} className="relative hidden sm:block w-64 md:w-80">
           <svg
             className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
             viewBox="0 0 24 24"
@@ -61,9 +71,9 @@ export default function DashboardTopbar({
             className="w-full rounded-xl border border-line bg-ink-50 py-2 pl-10 pr-9 text-xs text-ink-950 placeholder-ink-400 shadow-sm transition-colors focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-100"
           />
           <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[10px] text-ink-400">
-            ⌘K
+            ↵
           </kbd>
-        </div>
+        </form>
       </div>
 
       {/* Right: Actions, Notifications & Profile */}

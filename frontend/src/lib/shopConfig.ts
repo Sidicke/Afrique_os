@@ -212,7 +212,7 @@ export function mailtoLink(email: string, subject: string, body: string): string
  * Store localStorage (lecture/écriture + abonnés)
  * ———————————————————————————————————————————————— */
 
-const CONFIG_KEY = "afrique-commerce-os:shop-config";
+const CONFIG_KEY = "zennshop:shop-config";
 
 /** Fusionne un objet parsé avec les défauts (tolérant aux champs manquants) */
 function normalize(raw: unknown): ShopConfig {

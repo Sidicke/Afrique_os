@@ -823,7 +823,7 @@ async function main() {
   // ---- Paramètres globaux de la plateforme ----
   const defaultSettings = {
     general: {
-      platformName: 'Afrique Commerce OS',
+      platformName: 'ZennShop',
       description: 'Plateforme e-commerce multi-vendeur',
       supportEmail: 'support@plateforme.com',
       contactPhone: '+225 07 00 00 00 00',

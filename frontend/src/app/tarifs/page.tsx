@@ -10,10 +10,11 @@ import {
   PRICING_FAQ,
 } from "@/lib/plans/plans";
 
+import Navbar from "@/components/sections/Navbar";
 import Footer from "@/components/sections/Footer";
 
 export const metadata: Metadata = {
-  title: "Tarifs | Afrique Commerce OS",
+  title: "Tarifs | ZennShop",
   description: "Commencez gratuitement, développez votre activité. Plans Starter, Business et Enterprise adaptés au marché africain.",
 };
 
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 const ADVANTAGES: Array<{ title: string; desc: string; icon: React.ReactNode }> = [
   {
     title: "Commission qui diminue",
-    desc: "8 % en Starter, 5 % en Business, négociée en Enterprise. Plus vous grandissez, moins la plateforme prend sur vos ventes.",
+    desc: "5 % en Starter, 2 % en Business, négociée en Enterprise. Plus vous grandissez, moins la plateforme prend sur vos ventes.",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-gold-300">
         <path d="M3 17l6-6 4 4 8-8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -67,9 +68,10 @@ const ADVANTAGES: Array<{ title: string; desc: string; icon: React.ReactNode }> 
 export default function TarifsPage() {
   return (
     <>
-      <main className="relative overflow-hidden bg-midnight-950 text-ivory-50">
+      <Navbar />
+      <main id="main-content" className="relative overflow-hidden bg-midnight-950 text-ivory-50">
         {/* Hero */}
-        <section className="relative pt-28 pb-16 sm:pt-36 sm:pb-24">
+        <section className="relative pt-24 pb-16 sm:pt-36 sm:pb-24">
           <div className="gold-grid pointer-events-none absolute inset-0 opacity-20" aria-hidden />
           <div className="pointer-events-none absolute -top-40 left-1/2 h-[640px] w-[980px] -translate-x-1/2 rounded-full bg-gradient-to-b from-gold-400/15 via-gold-300/5 to-transparent blur-[120px]" aria-hidden />
 
@@ -78,10 +80,10 @@ export default function TarifsPage() {
               <BackButton label="Retour" />
             </div>
             <div className="text-center">
-              <h1 className="font-display text-5xl font-bold leading-[1.05] tracking-tight text-ivory-50 sm:text-7xl lg:text-8xl">
+              <h1 className="font-display text-3xl min-[400px]:text-4xl sm:text-7xl lg:text-8xl font-bold leading-[1.05] tracking-tight text-ivory-50">
                 Grandissez à votre rythme.
               </h1>
-              <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-ivory-50/70 sm:text-xl">
+              <p className="mx-auto mt-6 max-w-2xl text-base sm:text-xl leading-relaxed text-ivory-50/70 px-2">
                 Commencez gratuitement, développez votre activité et accédez à des outils conçus pour vous aider à vendre davantage.
               </p>
             </div>

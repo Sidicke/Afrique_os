@@ -17,7 +17,7 @@ import { PublicShopLoader } from "@/components/store/PublicShopLoader";
 import { store } from "@/constants/store";
 
 export const metadata: Metadata = {
-  title: `${store.name} · ${store.tagline} | Afrique Commerce OS`,
+  title: `${store.name} · ${store.tagline} | ZennShop`,
   description: store.description,
 };
 

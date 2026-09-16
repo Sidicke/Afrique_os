@@ -2,14 +2,42 @@ export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-/** Formate un montant en FCFA avec séparateur de milliers (« 1 250 000 FCFA ») */
-export function formatFcfa(amount: number): string {
+type SupportedCurrency = "XOF" | "XAF" | "NGN" | "GHS" | "KES" | "ZAR";
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  XOF: "FCFA",
+  XAF: "FCFA",
+  NGN: "₦",
+  GHS: "GH₵",
+  KES: "KSh",
+  ZAR: "R",
+};
+
+/** Formate un montant dynamiquement selon la devise sélectionnée */
+export function formatCurrency(amount: number, forceCurrency?: string): string {
+  let currency = forceCurrency;
+  if (!currency && typeof window !== "undefined") {
+    currency = localStorage.getItem("zennshop_curr") || "XOF";
+  }
+  currency = currency || "XOF";
+
   const formatted = new Intl.NumberFormat("fr-FR", {
     maximumFractionDigits: 0,
   })
     .format(amount)
     .replace(/[\u202f\u00a0]/g, " ");
-  return `${formatted} FCFA`;
+  
+  const symbol = CURRENCY_SYMBOLS[currency] || currency;
+  // Par convention, le Naira, Cedi et Rand ont le symbole avant, les autres après
+  if (["NGN", "GHS", "ZAR"].includes(currency)) {
+    return `${symbol} ${formatted}`;
+  }
+  return `${formatted} ${symbol}`;
+}
+
+/** Legacy alias (backward compatibility) - uses dynamic currency now! */
+export function formatFcfa(amount: number | string): string {
+  return formatCurrency(Number(amount) || 0);
 }
 
 /** Initiales d'un nom complet (« Awa Diallo » → « AD ») */

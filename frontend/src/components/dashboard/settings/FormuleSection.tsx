@@ -13,51 +13,50 @@ import {
 
 /** Slug de plan (boutique.plan, source backend) → carte du comparatif */
 const PLAN_TO_CARD: Record<string, string> = {
-  starter: "essentiel",
-  pro: "pro",
-  business: "pro",
+  starter: "starter",
+  business: "business",
+  enterprise: "enterprise",
 };
 
 /** Offres de la plateforme — la carte « Actuelle » suit le vrai plan du marchand */
 const PLANS = [
   {
-    id: "essentiel",
-    name: "Essentiel",
+    id: "starter",
+    name: "Starter",
     price: 0,
     period: "gratuit",
-    tagline: "Pour découvrir le commerce en ligne",
+    tagline: "Commencez à vendre gratuitement",
     features: [
-      "Boutique en ligne",
       "Jusqu'à 20 produits",
-      "Paiement Mobile Money",
-      "Support par email",
+      "1 boutique",
+      "Commission : 5 %",
+      "Support standard",
     ],
   },
   {
-    id: "lumiere",
-    name: "Lumière",
-    price: 4900,
+    id: "business",
+    name: "Business",
+    price: 12500,
     period: "/ mois",
-    tagline: "Pour les boutiques qui se développent",
+    tagline: "Pour les vendeurs réguliers",
+    highlight: true,
     features: [
-      "Tout Essentiel",
+      "Jusqu'à 150 produits",
+      "Jusqu'à 3 boutiques",
+      "Commission : 3 %",
+      "Analytics & Segmentation",
+    ],
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    price: "Sur mesure",
+    period: "",
+    tagline: "Besoins spécifiques",
+    features: [
       "Produits illimités",
-      "Promotions & packs de livraison",
-      "Rapports de ventes",
-      "Support prioritaire",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: 12900,
-    period: "/ mois",
-    tagline: "Pour les vendeurs à grande échelle",
-    features: [
-      "Tout Lumière",
-      "Équipe multi-vendeurs",
-      "API & automatisations",
-      "Marketplace",
+      "Multi-boutiques avancé",
+      "Commission négociée",
       "Accompagnement dédié",
     ],
   },
@@ -136,7 +135,7 @@ export function FormuleSection() {
                   <span className="font-display text-3xl font-bold text-ink-950">
                     {plan.price === 0 ? "Gratuit" : plan.price.toLocaleString("fr-FR")}
                   </span>
-                  {plan.price > 0 && (
+                  {Number(plan.price) > 0 && (
                     <span className="ml-1 text-xs text-ink-400">FCFA {plan.period}</span>
                   )}
                 </p>
@@ -206,7 +205,7 @@ export function FormuleSection() {
       </DashboardCard>
 
       <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-300">
-        <SectionLabel className="text-ink-300">Formule</SectionLabel> · Afrique Commerce OS
+        <SectionLabel className="text-ink-300">Formule</SectionLabel> · ZennShop
       </p>
 
       <Toast message={toast} onDismiss={() => setToast(null)} />

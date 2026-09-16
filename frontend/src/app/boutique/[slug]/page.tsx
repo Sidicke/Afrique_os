@@ -16,7 +16,7 @@ import CartDrawer from "@/components/store/CartDrawer";
 import { PublicShopLoader } from "@/components/store/PublicShopLoader";
 
 export const metadata: Metadata = {
-  title: "Boutique | Afrique Commerce OS",
+  title: "Boutique | ZennShop",
   description:
     "Découvrez la boutique et son catalogue : produits, livraison et discussion avec le vendeur.",
 };

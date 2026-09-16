@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -8,6 +9,7 @@ import { MessageSender, Prisma } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StartConversationDto } from './dto/start-conversation.dto';
+import { MessageCrypto } from '../common/crypto/message-crypto';
 
 /** Contexte d'un utilisateur authentifié (HTTP ou WebSocket) */
 export interface Actor {
@@ -19,34 +21,45 @@ export interface Actor {
 export class MessagingService {
   private readonly logger = new Logger(MessagingService.name);
 
-  
-  async applyDiscountSeller(conversationId: string, sellerId: string, agreedPrice: number) {
-    const conv = await this.prisma.conversation.findUnique({ where: { id: conversationId } });
-    if (!conv) throw new Error("Conversation invalide");
-    const boutique = await this.prisma.boutique.findUnique({ where: { id: conv.boutiqueId } });
-    if (!boutique || boutique.ownerId !== sellerId) throw new Error("Conversation invalide");
-    
-    await this.prisma.conversation.update({
-      where: { id: conversationId },
-      data: { agreedPrice }
-    });
-    
-    // Ajouter un message système
-    await this.prisma.message.create({
-      data: {
-        conversationId,
-        senderRole: 'VENDEUR',
-        content: `Le vendeur a appliqué une réduction. Nouveau prix convenu : ${agreedPrice} FCFA.`,
-      }
-    });
-    
-    return { success: true };
-  }
-  
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  async applyDiscountSeller(conversationId: string, sellerId: string, agreedPrice: number) {
+    if (!agreedPrice || agreedPrice <= 0 || !Number.isFinite(agreedPrice)) {
+      throw new BadRequestException('Le prix convenu doit être un montant strictement positif');
+    }
+
+    const conv = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { boutique: { select: { id: true, ownerId: true } } },
+    });
+    if (!conv) {
+      throw new NotFoundException('Conversation introuvable');
+    }
+    if (conv.boutique.ownerId !== sellerId) {
+      throw new ForbiddenException('Vous n’êtes pas autorisé à modifier cette discussion');
+    }
+    
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { agreedPrice },
+    });
+    
+    // Ajouter un message système visible dans la discussion (chiffré en base)
+    const formatted = new Intl.NumberFormat('fr-FR').format(agreedPrice);
+    const plainContent = `Le vendeur a appliqué un prix négocié : ${formatted} FCFA.`;
+    await this.prisma.message.create({
+      data: {
+        conversationId,
+        senderRole: 'VENDEUR',
+        content: MessageCrypto.encrypt(plainContent),
+      },
+    });
+    
+    return { success: true, agreedPrice };
+  }
 
   /**
    * Conversations accessibles à l'acteur :
@@ -117,7 +130,7 @@ export class MessagingService {
         clientPhone: c.clientPhone,
         lastMessageAt: c.lastMessageAt,
         /** Aperçu du dernier message (liste « Mes discussions ») */
-        lastMessage: last?.content ?? null,
+        lastMessage: MessageCrypto.decrypt(last?.content ?? null),
         lastMessageFrom: last ? (last.senderRole === 'CLIENT' ? 'client' : 'vendeur') : null,
         /** Contexte commercial (produit / commande) — la messagerie comprend le commerce */
         productId: c.productId ?? null,
@@ -148,7 +161,7 @@ export class MessagingService {
       conversationId,
       ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
     };
-    return this.prisma.message.findMany({
+    const messages = await this.prisma.message.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: Math.min(limit, 100),
@@ -161,6 +174,11 @@ export class MessagingService {
         createdAt: true,
       },
     });
+
+    return messages.map((m) => ({
+      ...m,
+      content: MessageCrypto.decrypt(m.content),
+    }));
   }
 
   /**
@@ -219,6 +237,42 @@ export class MessagingService {
       : null;
     if (existing) return existing;
 
+    // Sécurisation du contexte commercial : extraction exclusive depuis les données réelles en base
+    let productName = null;
+    let productPrice = null;
+    let productDescription = null;
+    let productImage = null;
+
+    if (dto.productId) {
+      const product = await this.prisma.product.findFirst({
+        where: { id: dto.productId, boutiqueId, isActive: true },
+      });
+      if (product) {
+        productName = product.name;
+        productPrice = `${product.price} ${product.currency}`;
+        productDescription = product.description ?? null;
+        productImage =
+          Array.isArray(product.images) && product.images.length > 0
+            ? String(product.images[0])
+            : null;
+      }
+    }
+
+    let orderReference = null;
+    if (dto.orderId) {
+      const order = await this.prisma.order.findFirst({
+        where: {
+          id: dto.orderId,
+          boutiqueId,
+          ...(actor.role === 'CLIENT' ? { userId: actor.id } : {}),
+        },
+        select: { id: true, reference: true },
+      });
+      if (order) {
+        orderReference = `#${order.reference}`;
+      }
+    }
+
     const conversation = await this.prisma.conversation.create({
       data: {
         boutiqueId,
@@ -226,14 +280,14 @@ export class MessagingService {
         clientName: dto.clientName,
         clientPhone: dto.clientPhone,
         lastMessageAt: new Date(),
-        // Contexte commercial (snapshots pour l'affichage sans jointure)
+        // Contexte commercial certifié serveur
         productId: dto.productId ?? null,
-        productName: dto.productName ?? null,
-        productPrice: dto.productPrice ?? null,
-        productDescription: dto.productDescription ?? null,
-        productImage: dto.productImage ?? null,
+        productName,
+        productPrice,
+        productDescription,
+        productImage,
         orderId: dto.orderId ?? null,
-        orderReference: dto.orderReference ?? null,
+        orderReference,
       },
       include: {
         boutique: { select: { id: true, name: true, slug: true, logoImage: true } },
@@ -264,13 +318,15 @@ export class MessagingService {
       },
     });
 
+    const encryptedContent = MessageCrypto.encrypt(content);
+
     const message = await this.prisma.message.create({
       data: {
         conversationId,
         senderRole:
           actor.role === 'CLIENT' ? MessageSender.CLIENT : MessageSender.VENDEUR,
         senderId: actor.id,
-        content,
+        content: encryptedContent,
       },
       select: {
         id: true,
@@ -288,9 +344,11 @@ export class MessagingService {
       void this.notifySellerNewMessage(conversation, content);
     }
 
-
     return {
-      message,
+      message: {
+        ...message,
+        content, // Renvoyé en clair aux membres autorisés de la conversation
+      },
       conversation: { id: conversation.id, boutiqueId: conversation.boutiqueId },
     };
   }
@@ -341,6 +399,7 @@ export class MessagingService {
   // ===== Helpers =====
 
   private async assertAccess(actor: Actor, conversationId: string) {
+    if (actor.role === 'ADMIN') return;
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
       include: { boutique: { select: { ownerId: true } } },

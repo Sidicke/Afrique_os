@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { routes } from "@/lib/urls/routes";
 import { productChatHref } from "@/lib/chat";
 import { formatFcfa } from "@/lib/utils";
 import { publicProductImage } from "@/lib/api/mappers";
@@ -70,13 +71,16 @@ export default function ProductCard({ product }: { product: ApiPublicProduct }) 
       })
     : null;
 
-  const shopHref = boutique ? `/boutique/${boutique.slug}` : "/boutique";
+  const shopHref = boutique ? routes.shop(boutique.slug) : "/marketplace";
+  const productHref = boutique
+    ? routes.product(boutique.slug, product.slug)
+    : `/produit/${product.slug}`;
 
   return (
     <div className="group flex h-full flex-col overflow-hidden rounded-3xl border border-midnight-950/8 bg-white shadow-sm shadow-midnight-950/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-gold-400/50 hover:shadow-lg hover:shadow-midnight-950/10">
-      {/* Clic principal → page produit (lien profond /produit/:slug) */}
+      {/* Clic principal → page produit canonique (/b/:boutiqueSlug/p/:productSlug) */}
       <Link
-        href={`/produit/${product.slug}`}
+        href={productHref}
         className="flex h-full flex-col"
         aria-label={`Voir le produit ${product.name}`}
       >
@@ -161,21 +165,21 @@ export default function ProductCard({ product }: { product: ApiPublicProduct }) 
 
       {/* Actions : boutique d'origine + discussion — empilées sur mobile
           (zone tactile ≥ 44px, règle UX) puis côte à côte dès sm */}
-      <div className="flex flex-col items-stretch gap-2 border-t border-midnight-950/8 p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col items-stretch gap-2 border-t border-midnight-950/8 p-2.5 sm:p-3 sm:flex-row sm:items-center">
         <Link
           href={shopHref}
-          className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border border-midnight-950/15 px-3 py-2 text-xs font-semibold text-midnight-950/70 transition-all duration-200 hover:border-gold-400/70 hover:bg-gold-400/5 hover:text-midnight-950"
+          className="flex min-h-[40px] sm:min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border border-midnight-950/15 px-2.5 sm:px-3 py-2 text-xs font-semibold text-midnight-950/70 transition-all duration-200 hover:border-gold-400/70 hover:bg-gold-400/5 hover:text-midnight-950"
         >
-          <IconStore className="h-3.5 w-3.5 text-gold-600" />
-          Voir la boutique
+          <IconStore className="h-3.5 w-3.5 shrink-0 text-gold-600" />
+          <span className="truncate">Boutique</span>
         </Link>
         {discussHref && (
           <Link
             href={discussHref}
-            className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border border-midnight-950/15 px-3 py-2 text-xs font-semibold text-midnight-950/70 transition-all duration-200 hover:border-gold-400/70 hover:bg-gold-400/5 hover:text-midnight-950"
+            className="flex min-h-[40px] sm:min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border border-midnight-950/15 px-2.5 sm:px-3 py-2 text-xs font-semibold text-midnight-950/70 transition-all duration-200 hover:border-gold-400/70 hover:bg-gold-400/5 hover:text-midnight-950"
           >
-            <IconChat className="h-3.5 w-3.5 text-gold-600" />
-            Discuter
+            <IconChat className="h-3.5 w-3.5 shrink-0 text-gold-600" />
+            <span className="truncate">Discuter</span>
           </Link>
         )}
       </div>

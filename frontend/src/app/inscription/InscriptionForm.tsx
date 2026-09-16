@@ -29,6 +29,7 @@ import { authApi } from "@/lib/api/auth";
 import { setSession } from "@/lib/api/session";
 import { friendlyAuthError } from "@/lib/api/errorMessages";
 import type { FriendlyError } from "@/lib/api/errorMessages";
+import SocialAuthButtons from "@/components/auth/SocialAuthButtons";
 
 /**
  * Inscription unifiée en 3 étapes — friction minimale :
@@ -129,7 +130,7 @@ function OtpInput({
   };
 
   return (
-    <div className="flex justify-between gap-2 sm:gap-3" role="group" aria-label="Code de vérification à 6 chiffres">
+    <div className="flex justify-between gap-1.5 sm:gap-3" role="group" aria-label="Code de vérification à 6 chiffres">
       {digits.map((digit, i) => (
         <input
           key={i}
@@ -146,7 +147,7 @@ function OtpInput({
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onFocus={(e) => e.target.select()}
-          className="h-14 w-full min-w-0 rounded-xl border border-line bg-surface text-center font-display text-2xl font-bold text-ink-950 shadow-sm transition-all focus:border-gold-mid focus:outline-none focus:ring-2 focus:ring-gold-soft/60 focus:bg-white disabled:opacity-50"
+          className="h-11 sm:h-14 w-full min-w-0 rounded-lg sm:rounded-xl border border-line bg-surface text-center font-display text-lg sm:text-2xl font-bold text-ink-950 shadow-sm transition-all focus:border-gold-mid focus:outline-none focus:ring-2 focus:ring-gold-soft/60 focus:bg-white disabled:opacity-50"
         />
       ))}
     </div>
@@ -548,7 +549,15 @@ export default function InscriptionForm() {
 
             <AuthSubmit busy={busy}>Continuer</AuthSubmit>
 
-            <div className="flex justify-start">
+            <SocialAuthButtons
+              mode="register"
+              role={intent === "vendre" ? "VENDEUR" : "CLIENT"}
+              referralCode={referralCode}
+              phone={phone}
+              onError={(err) => setError(err)}
+            />
+
+            <div className="flex justify-start pt-2">
               <AuthBackButton onClick={() => setStep("intent")} busy={busy} />
             </div>
           </motion.form>

@@ -29,6 +29,14 @@ export interface SearchBoutiqueHit {
   productsCount: number;
 }
 
+/** Un résultat « catégorie » de la recherche globale */
+export interface SearchCategoryHit {
+  id: string;
+  name: string;
+  slug: string;
+  productsCount: number;
+}
+
 /**
  * Moteur de recherche globale (accueil client).
  * --------------------------------------------------------------------------
@@ -36,43 +44,55 @@ export interface SearchBoutiqueHit {
  * `mode: insensitive`) sur :
  *  - boutiques : nom, description, ville, pays, tagline
  *  - produits  : nom, description (+ le nom de la boutique et la catégorie)
- *
- * Architecture volontairement simple et isolée (module dédié) pour évoluer
- * vers le moteur du Marketplace : filtres, autocomplétion, tolérance aux
- * fautes, tri par pertinence — sans toucher au reste de l'API.
+ *  - catégories: nom
  */
 @Injectable()
 export class SearchService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Recherche globale : boutiques + produits (boutiques ACTIVE uniquement).
+   * Recherche globale : boutiques + produits + catégories (boutiques ACTIVE uniquement).
    * `q` tronqué à 100 caractères ; résultats plafonnés pour rester rapide.
    */
   async search(q: string) {
     const query = q.trim().slice(0, 100);
-    if (!query) return { boutiques: [], produits: [] };
+    if (!query) return { boutiques: [], produits: [], categories: [] };
 
-    const [boutiques, produits] = await Promise.all([
+    const [boutiques, produits, categories] = await Promise.all([
       this.searchBoutiques(query),
       this.searchProduits(query),
+      this.searchCategories(query),
     ]);
 
-    return { boutiques, produits };
+    return { boutiques, produits, categories };
   }
 
   /** Boutiques ACTIVE dont nom / description / ville / pays / tagline matchent */
   private async searchBoutiques(query: string): Promise<SearchBoutiqueHit[]> {
+    const tokens = query.split(/\s+/).filter((t) => t.length > 0);
+    const orConditions: any[] = [
+      { name: { contains: query, mode: 'insensitive' } },
+      { description: { contains: query, mode: 'insensitive' } },
+      { tagline: { contains: query, mode: 'insensitive' } },
+      { city: { contains: query, mode: 'insensitive' } },
+      { country: { contains: query, mode: 'insensitive' } },
+    ];
+
+    for (const token of tokens) {
+      if (token !== query) {
+        orConditions.push(
+          { name: { contains: token, mode: 'insensitive' } },
+          { tagline: { contains: token, mode: 'insensitive' } },
+          { description: { contains: token, mode: 'insensitive' } },
+          { city: { contains: token, mode: 'insensitive' } },
+        );
+      }
+    }
+
     const boutiques = await this.prisma.boutique.findMany({
       where: {
         status: BoutiqueStatus.ACTIVE,
-        OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { description: { contains: query, mode: 'insensitive' } },
-          { tagline: { contains: query, mode: 'insensitive' } },
-          { city: { contains: query, mode: 'insensitive' } },
-          { country: { contains: query, mode: 'insensitive' } },
-        ],
+        OR: orConditions,
       },
       select: {
         id: true,
@@ -139,16 +159,31 @@ export class SearchService {
 
   /** Produits actifs (boutique ACTIVE) dont nom / description matchent */
   private async searchProduits(query: string): Promise<SearchProductHit[]> {
+    const tokens = query.split(/\s+/).filter((t) => t.length > 0);
+    const orConditions: any[] = [
+      { name: { contains: query, mode: 'insensitive' } },
+      { description: { contains: query, mode: 'insensitive' } },
+      { brand: { name: { contains: query, mode: 'insensitive' } } },
+      { boutique: { name: { contains: query, mode: 'insensitive' } } },
+      { category: { name: { contains: query, mode: 'insensitive' } } },
+    ];
+
+    for (const token of tokens) {
+      if (token !== query) {
+        orConditions.push(
+          { name: { contains: token, mode: 'insensitive' } },
+          { description: { contains: token, mode: 'insensitive' } },
+          { brand: { name: { contains: token, mode: 'insensitive' } } },
+          { boutique: { name: { contains: token, mode: 'insensitive' } } },
+        );
+      }
+    }
+
     const produits = await this.prisma.product.findMany({
       where: {
         isActive: true,
         boutique: { status: BoutiqueStatus.ACTIVE },
-        OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { description: { contains: query, mode: 'insensitive' } },
-          // La marque compte : « samsung » doit retrouver le Smartphone Pro
-          { brand: { name: { contains: query, mode: 'insensitive' } } },
-        ],
+        OR: orConditions,
       },
       // Projection partagée avec le catalogue public : zéro dérive possible
       select: ProductsService.publicProductSelect,
@@ -157,5 +192,29 @@ export class SearchService {
     });
 
     return produits.map(ProductsService.mapPublicProduct);
+  }
+
+  /** Catégories dont le nom matche */
+  private async searchCategories(query: string): Promise<SearchCategoryHit[]> {
+    const categories = await this.prisma.category.findMany({
+      where: {
+        name: { contains: query, mode: 'insensitive' },
+        boutique: { status: BoutiqueStatus.ACTIVE },
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        _count: { select: { products: { where: { isActive: true } } } },
+      },
+      take: 6,
+    });
+
+    return categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      productsCount: c._count.products,
+    }));
   }
 }

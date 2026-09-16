@@ -74,7 +74,7 @@ export default function AffiliationPage() {
               Affiliation & Points Fidélité
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-white/75 sm:text-base">
-              Invitez vos proches et gagnez <span className="font-semibold text-gold-300">0.75%</span> de commission en points sur <span className="font-semibold text-white">tous leurs achats</span>. Gagnez aussi <span className="font-semibold text-gold-300">0.75%</span> de cashback sur vos propres commandes !
+              Invitez vos proches et gagnez des commissions en points sur <span className="font-semibold text-white">tous leurs achats</span>. Gagnez aussi du cashback sur vos propres commandes !
             </p>
           </div>
         </section>
@@ -167,7 +167,7 @@ export default function AffiliationPage() {
                 Partagez et commencez à gagner
               </h2>
               <p className="text-sm text-midnight-950/70">
-                Transmettez votre code de parrainage ou votre lien direct d&apos;inscription. Vos amis l&apos;utilisent lors de leur inscription, et vous touchez automatiquement 0.75% sur toutes leurs commandes finalisées.
+                Transmettez votre code de parrainage ou votre lien direct d&apos;inscription. Vos amis l&apos;utilisent lors de leur inscription, et vous touchez automatiquement des points sur toutes leurs commandes finalisées.
               </p>
             </div>
 
@@ -265,7 +265,7 @@ export default function AffiliationPage() {
               <div>
                 <h3 className="text-sm font-bold text-midnight-950">Vous gagnez</h3>
                 <p className="mt-0.5 text-xs text-midnight-950/60">
-                  Recevez 0.75% en points utilisables comme argent réel à la caisse.
+                  Recevez des points utilisables comme argent réel à la caisse.
                 </p>
               </div>
             </div>
@@ -369,8 +369,8 @@ export default function AffiliationPage() {
                   {data.transactions.map((tx) => {
                     const isPositive = tx.amount > 0;
                     let label = "Gain de points";
-                    if (tx.reason === "CASHBACK_PURCHASE") label = "Cashback sur achat (0.75%)";
-                    if (tx.reason === "CASHBACK_REFERRAL") label = "Commission parrainage (0.75%)";
+                    if (tx.reason === "CASHBACK_PURCHASE") label = "Cashback sur achat ";
+                    if (tx.reason === "CASHBACK_REFERRAL") label = "Commission parrainage ";
                     if (tx.reason === "SPENT_ON_ORDER") label = "Utilisation lors d'une commande";
 
                     return (

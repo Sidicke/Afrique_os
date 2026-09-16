@@ -13,19 +13,19 @@ const VisionFAQ = dynamic(() => import('@/components/sections/VisionFAQ'), { ssr
 const Footer = dynamic(() => import('@/components/sections/Footer'), { ssr: true });
 
 export const metadata: Metadata = {
-  title: 'Afrique Commerce OS | Votre commerce en pleine lumière',
+  title: 'ZennShop | Votre commerce en pleine lumière',
   description: 'Créez votre boutique en ligne en 10 minutes. Gérez catalogue, commandes et discussions clients. Rejoignez le marketplace africain connecté. ',
   keywords: ['e-commerce Afrique', 'boutique en ligne', 'marketplace africain', 'FCFA', 'mobile money'],
   openGraph: {
-    title: 'Afrique Commerce OS | Votre commerce en pleine lumière',
+    title: 'ZennShop | Votre commerce en pleine lumière',
     description: 'Créez votre boutique en ligne en 10 minutes. Marketplace multi-vendeur pour le commerce africain.',
     type: 'website',
     locale: 'fr_FR',
-    siteName: 'Afrique Commerce OS',
+    siteName: 'ZennShop',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Afrique Commerce OS',
+    title: 'ZennShop',
     description: 'Votre boutique en ligne en 10 minutes. Commerce connecté pour l\'Afrique.',
   },
 };

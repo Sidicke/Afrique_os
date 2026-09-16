@@ -24,7 +24,7 @@ const C = {
   red: '#b03a3a',
 } as const;
 
-const BRAND_NAME = 'Afrique Commerce OS';
+const BRAND_NAME = 'ZennShop';
 
 /** Échappe le HTML pour éviter toute injection dans le corps du mail */
 export function escapeHtml(value: string): string {
@@ -79,7 +79,7 @@ function brandLayout(input: BrandLayoutInput): string {
                     <div style="width:42px;height:42px;line-height:42px;text-align:center;background:${C.gold};border-radius:12px;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:bold;color:${C.midnight};">AC</div>
                   </td>
                   <td style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;">
-                    <div style="font-size:17px;font-weight:bold;color:${C.white};letter-spacing:0.3px;">Afrique Commerce&nbsp;<span style="color:${C.gold};">OS</span></div>
+                    <div style="font-size:17px;font-weight:bold;color:${C.white};letter-spacing:0.3px;">ZennShop&nbsp;<span style="color:${C.gold};">OS</span></div>
                     <div style="font-size:10px;letter-spacing:2.5px;color:#8a94a2;text-transform:uppercase;margin-top:2px;">Le commerce, sans friction</div>
                   </td>
                 </tr>

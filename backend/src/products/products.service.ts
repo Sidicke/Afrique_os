@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -40,6 +41,49 @@ export class ProductsService {
   // ===== Admin (scopé boutique) =====
 
   async create(boutiqueId: string, dto: CreateProductDto) {
+    // 1. Contrôle des limites de plan (au niveau du compte vendeur total)
+    const boutique = await this.prisma.boutique.findUnique({
+      where: { id: boutiqueId },
+      select: { ownerId: true }
+    });
+    
+    if (boutique) {
+      const userBoutiques = await this.prisma.boutique.findMany({
+        where: { ownerId: boutique.ownerId },
+        select: { plan: true, _count: { select: { products: true } } }
+      });
+
+      let userPlan = 'starter';
+      if (userBoutiques.some(b => b.plan === 'enterprise')) userPlan = 'enterprise';
+      else if (userBoutiques.some(b => b.plan === 'business')) userPlan = 'business';
+
+      const totalProducts = userBoutiques.reduce((sum, b) => sum + b._count.products, 0);
+      
+      if (userPlan === 'starter' && totalProducts >= 20) {
+        throw new ForbiddenException("Vous avez atteint la limite totale de 20 produits de votre plan Starter. Passez à Business pour en gérer jusqu'à 150.");
+      }
+      if (userPlan === 'business' && totalProducts >= 150) {
+        throw new ForbiddenException("Vous avez atteint la limite totale de 150 produits de votre plan Business. Contactez-nous pour l'offre Enterprise.");
+      }
+    }
+
+    if (dto.categoryId) {
+      const category = await this.prisma.category.findFirst({
+        where: { id: dto.categoryId, boutiqueId },
+      });
+      if (!category) {
+        throw new BadRequestException('Catégorie invalide pour cette boutique');
+      }
+    }
+    if (dto.brandId) {
+      const brand = await this.prisma.brand.findFirst({
+        where: { id: dto.brandId, boutiqueId },
+      });
+      if (!brand) {
+        throw new BadRequestException('Marque invalide pour cette boutique');
+      }
+    }
+
     const { variants, ...data } = dto;
     const slug = await this.uniqueSlug(boutiqueId, this.slugify(dto.name));
 
@@ -84,6 +128,23 @@ export class ProductsService {
 
   async update(boutiqueId: string, id: string, dto: UpdateProductDto) {
     await this.findOneForAdmin(boutiqueId, id);
+    if (dto.categoryId) {
+      const category = await this.prisma.category.findFirst({
+        where: { id: dto.categoryId, boutiqueId },
+      });
+      if (!category) {
+        throw new BadRequestException('Catégorie invalide pour cette boutique');
+      }
+    }
+    if (dto.brandId) {
+      const brand = await this.prisma.brand.findFirst({
+        where: { id: dto.brandId, boutiqueId },
+      });
+      if (!brand) {
+        throw new BadRequestException('Marque invalide pour cette boutique');
+      }
+    }
+
     const { variants, ...data } = dto;
 
     const updateData: Prisma.ProductUpdateInput = {
@@ -94,26 +155,28 @@ export class ProductsService {
     };
     if (data.name) updateData.slug = await this.uniqueSlug(boutiqueId, this.slugify(data.name));
 
-    if (variants) {
-      // Réécriture des variantes (simple : deleteMany + create)
-      await this.prisma.variant.deleteMany({ where: { productId: id } });
-      if (variants.length > 0) {
-        await this.prisma.variant.createMany({
-          data: variants.map((v) => ({
-            productId: id,
-            name: v.name,
-            value: v.value,
-            priceDelta: v.priceDelta !== undefined ? new Prisma.Decimal(v.priceDelta) : undefined,
-            stock: v.stock ?? 0,
-          })),
-        });
+    return this.prisma.$transaction(async (tx) => {
+      if (variants) {
+        // Réécriture des variantes atomique (deleteMany + createMany)
+        await tx.variant.deleteMany({ where: { productId: id } });
+        if (variants.length > 0) {
+          await tx.variant.createMany({
+            data: variants.map((v) => ({
+              productId: id,
+              name: v.name,
+              value: v.value,
+              priceDelta: v.priceDelta !== undefined ? new Prisma.Decimal(v.priceDelta) : undefined,
+              stock: v.stock ?? 0,
+            })),
+          });
+        }
       }
-    }
 
-    return this.prisma.product.update({
-      where: { id },
-      data: updateData,
-      select: adminProductSelect,
+      return tx.product.update({
+        where: { id },
+        data: updateData,
+        select: adminProductSelect,
+      });
     });
   }
 

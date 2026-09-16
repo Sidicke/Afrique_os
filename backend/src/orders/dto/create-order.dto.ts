@@ -19,7 +19,13 @@ export class CreateOrderItemDto {
   @IsInt() @Min(1) quantity: number;
 }
 
-const PAYMENT_METHODS = ['MOBILE_MONEY', 'CASH_ON_DELIVERY', 'CARD', 'WHATSAPP_DIRECT'] as const;
+const PAYMENT_METHODS = [
+  'MOBILE_MONEY',
+  'CASH_ON_DELIVERY',
+  'CARD',
+  'WHATSAPP_DIRECT',
+  'FEDAPAY',
+] as const;
 
 export class CreateOrderDto {
   @IsString() @MinLength(2) @MaxLength(120)
@@ -33,7 +39,11 @@ export class CreateOrderDto {
 
   @IsOptional() @IsString()
   conversationId?: string;
+
   @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Les points utilisés doivent être un entier' })
+  @Min(0, { message: 'Les points utilisés ne peuvent pas être négatifs' })
   pointsToUse?: number;
 
   @IsOptional() @IsEmail() @MaxLength(160)

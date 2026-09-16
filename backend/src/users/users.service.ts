@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -15,6 +16,8 @@ export interface MerchantProfile {
   avatarInitials: string;
   avatarUrl?: string;
   plan: string;
+  productsCount?: number;
+  boutiquesCount?: number;
 }
 
 @Injectable()
@@ -39,16 +42,25 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable');
 
-    const boutique = await this.prisma.boutique.findFirst({
+    const boutiques = await this.prisma.boutique.findMany({
       where: { ownerId: userId },
       select: {
         name: true,
         city: true,
         country: true,
         plan: true,
+        _count: { select: { products: true } }
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    const mainBoutique = boutiques[0];
+    const productsCount = boutiques.reduce((sum, b) => sum + (b._count?.products || 0), 0);
+    const boutiquesCount = boutiques.length;
+    
+    let highestPlan = 'starter';
+    if (boutiques.some(b => b.plan === 'enterprise')) highestPlan = 'enterprise';
+    else if (boutiques.some(b => b.plan === 'business')) highestPlan = 'business';
 
     const name = user.name ?? '';
     const initials = name
@@ -60,14 +72,16 @@ export class UsersService {
 
     return {
       name,
-      shopName: boutique?.name ?? '',
+      shopName: mainBoutique?.name ?? '',
       email: user.email,
       phone: user.phone ?? '',
-      city: boutique?.city ?? '',
-      country: boutique?.country ?? '',
+      city: mainBoutique?.city ?? '',
+      country: mainBoutique?.country ?? '',
       avatarInitials: initials,
       avatarUrl: user.avatarUrl || undefined,
-      plan: boutique?.plan ?? 'starter',
+      plan: highestPlan,
+      productsCount,
+      boutiquesCount,
       pointsBalance: user.pointsBalance,
       referralCode: user.referralCode || undefined,
     };
@@ -88,6 +102,8 @@ export class UsersService {
         throw new ConflictException('Un compte existe déjà avec cet email');
       }
       data.email = email;
+      // Révocation de toutes les sessions actives si l'e-mail est modifié
+      data.refreshTokenHash = null;
     }
     await this.prisma.user.update({ where: { id: userId }, data });
     return this.getProfile(userId);
@@ -96,8 +112,8 @@ export class UsersService {
   private generateReferralCode(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(randomInt(0, chars.length));
     }
     return code;
   }

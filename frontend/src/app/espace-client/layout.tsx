@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import ClientShell from "@/components/client/ClientShell";
 
 export const metadata: Metadata = {
-  title: "Mon espace client | Afrique Commerce OS",
+  title: "Mon espace client | ZennShop",
   description:
     "Votre espace client : découvrez les boutiques, suivez vos commandes, discutez avec les vendeurs et gérez votre compte.",
 };

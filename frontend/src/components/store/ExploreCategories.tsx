@@ -17,13 +17,13 @@ export function ExploreCategories() {
   };
 
   return (
-    <section className="py-20 bg-white overflow-hidden">
+    <section className="py-12 md:py-20 bg-white overflow-hidden">
       <div className="container mx-auto px-4 max-w-screen-2xl">
-        <div className="flex justify-between items-end mb-10">
-          <h2 className="text-3xl md:text-4xl font-display font-bold text-midnight-950 max-w-xl">
+        <div className="flex justify-between items-end mb-6 md:mb-10">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-midnight-950 max-w-xl">
             Explorez nos catégories et trouvez l&apos;essentiel de la tech
           </h2>
-          <div className="flex space-x-2 hidden md:flex">
+          <div className="hidden md:flex space-x-2">
             <button 
               onClick={() => scroll('left')}
               aria-label="Faire défiler les catégories vers la gauche"
@@ -43,13 +43,13 @@ export function ExploreCategories() {
 
         <div 
           ref={scrollRef}
-          className="flex space-x-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
+          className="flex space-x-4 sm:space-x-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 -mx-4 px-4 sm:mx-0 sm:px-0"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {recommendationCategories.map((category) => (
             <div 
               key={category.id} 
-              className="relative min-w-[300px] md:min-w-[400px] h-[250px] md:h-[300px] rounded-3xl overflow-hidden snap-start shrink-0 group cursor-pointer"
+              className="relative min-w-[240px] sm:min-w-[300px] md:min-w-[400px] h-[190px] sm:h-[240px] md:h-[300px] rounded-2xl sm:rounded-3xl overflow-hidden snap-start shrink-0 group cursor-pointer"
             >
               <AssetImage
                 src={category.image}

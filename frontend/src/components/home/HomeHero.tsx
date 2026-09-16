@@ -6,34 +6,43 @@ import Link from "next/link";
 import Container from "@/components/ui/Container";
 import { catalogueApi, shopsApi } from "@/lib/api";
 import type { ApiCategoryCount } from "@/lib/api/types";
-import { IconSearch } from "@/components/client/icons";
+import SearchAutocomplete from "@/components/search/SearchAutocomplete";
+import {
+  IconZap,
+  IconPackage,
+  IconCreditCard,
+  IconGlobe,
+  IconCheck,
+} from "@/components/client/icons";
 
-/**
- * Hero compact de la homepage — expression de marque + phrase produit courte
- * + barre de recherche RÉELLE (vers /recherche) + accès catégories réelles.
- * CTA séparés : « Explorer le marketplace » (acheteur) / « Devenir partenaire ».
- * Aucun chiffre inventé : les stats ne s'affichent que si le backend répond.
- */
+const TRUST_ITEMS = [
+  { icon: IconZap, label: "Boutique en ligne en 10 min" },
+  { icon: IconPackage, label: "Gestion commandes & stock" },
+  { icon: IconCreditCard, label: "Mobile Money intégré" },
+  { icon: IconGlobe, label: "Marketplace africain" },
+];
+
+
+
 export default function HomeHero() {
-  const router = useRouter();
-  const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<ApiCategoryCount[]>([]);
   const [stats, setStats] = useState<{ shops: number; products: number } | null>(null);
 
+
   useEffect(() => {
-    // Particules lumineuses légères (CSS-in-JS via DOM Node)
+    // Particules lumineuses légères
     const container = document.getElementById("hero-particles");
     if (!container) return;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 18; i++) {
       const dot = document.createElement("div");
-      dot.className = "absolute rounded-full bg-gradient-to-br from-gold-300/60 to-transparent blur-[2px]";
-      const size = 6 + Math.random() * 14;
+      dot.className = "absolute rounded-full bg-gradient-to-br from-gold-300/50 to-transparent blur-[2px]";
+      const size = 4 + Math.random() * 16;
       dot.style.width = size + "px";
       dot.style.height = size + "px";
       dot.style.left = Math.random() * 100 + "%";
       dot.style.top = Math.random() * 100 + "%";
-      dot.style.animation = `floaty ${5 + Math.random() * 7}s ease-in-out infinite alternate`;
-      dot.style.animationDelay = Math.random() * 3 + "s";
+      dot.style.animation = `floaty ${5 + Math.random() * 8}s ease-in-out infinite alternate`;
+      dot.style.animationDelay = Math.random() * 4 + "s";
       container.appendChild(dot);
     }
   }, []);
@@ -42,7 +51,7 @@ export default function HomeHero() {
     let cancelled = false;
     catalogueApi
       .categoriesGlobal()
-      .then((cats) => { if (!cancelled) setCategories(cats.slice(0, 8)); })
+      .then((cats) => { if (!cancelled) setCategories(cats.slice(0, 7)); })
       .catch(() => { if (!cancelled) setCategories([]); });
     Promise.all([shopsApi.publicList(), catalogueApi.allProducts({ limit: 1 })])
       .then(([shops, page]) => {
@@ -52,78 +61,57 @@ export default function HomeHero() {
     return () => { cancelled = true; };
   }, []);
 
-  const submitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    router.push(q ? `/recherche?q=${encodeURIComponent(q)}` : "/marketplace");
-  };
+
 
   return (
     <section
       id="hero"
-      className="relative overflow-hidden bg-midnight-950 pb-16 pt-28 sm:pt-32"
+      className="relative overflow-hidden bg-midnight-950 pb-20 pt-28 sm:pt-36"
     >
-      {/* Particules lumineuses animées (CSS + JS léger) */}
+      {/* Particules */}
       <div id="hero-particles" aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden" />
 
-      {/* Halo or massif + texture améliorée */}
-      <div className="gold-grid pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" />
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-[640px] w-[980px] -translate-x-1/2 rounded-full bg-gradient-to-b from-gold-400/25 via-gold-300/10 to-transparent blur-[120px]" aria-hidden="true" />
+      {/* Halo or + grille */}
+      <div className="gold-grid pointer-events-none absolute inset-0 opacity-50" aria-hidden="true" />
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-[700px] w-[1100px] -translate-x-1/2 rounded-full bg-gradient-to-b from-gold-400/22 via-gold-300/8 to-transparent blur-[130px]" aria-hidden="true" />
+      {/* Halo latéral gauche */}
+      <div className="pointer-events-none absolute -left-40 top-1/2 h-[400px] w-[400px] -translate-y-1/2 rounded-full bg-blue-600/5 blur-[100px]" aria-hidden="true" />
 
       <Container size="wide" className="relative z-10">
-        <div className="mx-auto max-w-3xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-gold-400/30 bg-gold-400/10 px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-gold-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-gold-300" aria-hidden="true" />
-            Marketplace multi-vendeur · Afrique
-          </span>
-
-          <h1 className="mt-6 font-display text-5xl font-bold leading-[1.05] tracking-tight text-ivory-50 sm:text-7xl lg:text-8xl drop-shadow-[0_4px_30px_rgba(212,175,55,0.25)]">
-            <span className="block animate-in slide-in-from-bottom-5 duration-700">Votre commerce,</span>
-            <span className="block animate-in slide-in-from-bottom-8 duration-700 delay-150 text-gold-300 drop-shadow-[0_0_40px_rgba(212,175,55,0.6)]">en pleine lumière.</span>
+        <div className="mx-auto max-w-4xl text-center">
+          {/* Headline principale — impact maximal */}
+          <h1 className="font-display text-3xl min-[400px]:text-4xl sm:text-6xl lg:text-[88px] font-bold leading-[1.04] tracking-tight text-ivory-50 drop-shadow-[0_4px_40px_rgba(212,175,55,0.2)]">
+            <span className="block animate-in slide-in-from-bottom-6 duration-700">
+              Donnez à votre commerce
+            </span>
+            <span className="block animate-in slide-in-from-bottom-8 duration-700 delay-100 bg-gradient-to-r from-gold-300 via-gold-400 to-gold-200 bg-clip-text text-transparent drop-shadow-[0_0_50px_rgba(212,175,55,0.5)]">
+              la vitrine qu&apos;il mérite.
+            </span>
           </h1>
 
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-ivory-50/70 sm:text-lg">
-            Trouvez des produits, découvrez des boutiques et commandez en quelques clics, sans inscription obligatoire.
+          {/* Sous-titre percutant */}
+          <p className="mx-auto mt-6 max-w-2xl text-base sm:text-xl leading-relaxed text-ivory-50/65 animate-in fade-in slide-in-from-bottom-3 duration-700 delay-200 px-2">
+            Créez votre boutique professionnelle en <strong className="text-ivory-50/90 font-semibold">quelques minutes</strong>. Présentez vos articles, encaissez par Mobile Money et développez vos ventes en toute simplicité.
           </p>
 
-          {/* Barre de recherche RÉELLE — Glassmorphism + glow */}
-          <form onSubmit={submitSearch} className="mx-auto mt-10 flex max-w-2xl items-center gap-2 animate-in fade-in zoom-in-95 duration-700 delay-300">
-            <div className="flex h-14 flex-1 items-center overflow-hidden rounded-2xl border border-gold-400/20 bg-white shadow-xl shadow-black/20">
-              <span className="pl-4 text-ink-400">
-                <IconSearch className="h-5 w-5" />
-              </span>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Rechercher un produit, une boutique, une catégorie…"
-                aria-label="Rechercher sur le marketplace"
-                className="h-full flex-1 bg-transparent px-3 text-sm text-midnight-950 placeholder:text-ink-400 focus:outline-none focus:ring-0 sm:text-base"
-              />
-              <button
-                type="submit"
-                className="m-1.5 hidden h-11 items-center rounded-xl bg-gradient-to-r from-gold-400 to-gold-300 px-6 text-sm font-bold text-midnight-950 shadow-lg shadow-gold-400/30 transition-all duration-300 hover:scale-105 hover:shadow-gold-400/50 sm:flex"
-              >
-                Rechercher
-              </button>
-            </div>
-            <button
-              type="submit"
-              aria-label="Rechercher"
-              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-400 to-gold-500 text-midnight-950 shadow-xl shadow-gold-400/30 transition-all duration-300 hover:scale-110 hover:shadow-gold-400/60 sm:hidden"
-            >
-              <IconSearch className="h-5 w-5" />
-            </button>
-          </form>
 
-          {/* Catégories réelles — chips glass interactifs */}
+
+          {/* Barre de recherche */}
+          <div className="mx-auto mt-10 max-w-2xl animate-in fade-in zoom-in-95 duration-700 delay-300">
+            <SearchAutocomplete
+              variant="hero"
+              placeholder="Rechercher un produit, une boutique, une catégorie…"
+            />
+          </div>
+
+          {/* Catégories chips */}
           {categories.length > 0 && (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 animate-in fade-in duration-500 delay-500">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2 animate-in fade-in duration-500 delay-500">
               {categories.map((cat) => (
                 <Link
                   key={cat.slug}
                   href={`/recherche?category=${encodeURIComponent(cat.slug)}`}
-                  className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium text-ivory-50/90 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gold-400/60 hover:bg-gold-400/10 hover:text-gold-300 hover:shadow-[0_0_20px_rgba(212,175,55,0.15)]"
+                  className="rounded-full border border-white/10 bg-white/8 px-4 py-1.5 text-xs font-medium text-ivory-50/80 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gold-400/60 hover:bg-gold-400/10 hover:text-gold-300"
                 >
                   {cat.name}
                 </Link>
@@ -131,38 +119,79 @@ export default function HomeHero() {
             </div>
           )}
 
-          {/* CTA séparés — acheteur vs vendeur | Effet 3D hover */}
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row animate-in fade-in slide-in-from-bottom-3 duration-700 delay-700">
-            <Link
-              href="/marketplace"
-              className="inline-flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-gold-400 to-gold-300 px-8 text-base font-extrabold text-midnight-950 shadow-[0_8px_30px_rgba(212,175,55,0.35)] transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.03] hover:shadow-[0_12px_40px_rgba(212,175,55,0.45)] sm:w-auto"
-            >
-              Explorer le marketplace
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </Link>
+          {/* CTAs principaux */}
+          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row animate-in fade-in slide-in-from-bottom-3 duration-700 delay-500">
             <Link
               href="/inscription"
-              className="inline-flex h-14 w-full items-center justify-center rounded-2xl border-2 border-gold-400/30 bg-white/5 px-8 text-base font-extrabold text-ivory-50 transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-gold-400/80 hover:bg-gold-400/10 hover:shadow-[0_0_30px_rgba(212,175,55,0.15)] sm:w-auto"
+              className="group relative inline-flex h-14 w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-gold-400 to-gold-300 px-9 text-base font-extrabold text-midnight-950 shadow-[0_8px_32px_rgba(212,175,55,0.4)] transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.03] hover:shadow-[0_14px_44px_rgba(212,175,55,0.5)] sm:w-auto"
             >
-              Ouvrir ma boutique
+              <span className="relative z-10 flex items-center gap-2.5">
+                Lancer ma boutique en ligne
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              {/* Shimmer animé */}
+              <span className="absolute inset-0 -translate-x-full skew-x-[-15deg] bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+            </Link>
+
+            <Link
+              href="/marketplace"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-8 text-sm font-semibold text-ivory-50/90 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-gold-400/50 hover:bg-gold-400/8 sm:w-auto"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M3 9l1.5-5h15L21 9M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v9h14v-9" />
+              </svg>
+              Explorer le marketplace
             </Link>
           </div>
 
-          {/* Preuve réelle — stats avec glow */}
+          {/* Rassurances micro-texte */}
+          <p className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-mono text-[10px] uppercase tracking-[0.15em] text-ivory-50/50 animate-in fade-in duration-700 delay-700">
+            <span className="inline-flex items-center gap-1.5">
+              <IconCheck className="h-3.5 w-3.5 text-gold-400" />
+              Sans carte bancaire
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <IconCheck className="h-3.5 w-3.5 text-gold-400" />
+              Sans engagement
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <IconCheck className="h-3.5 w-3.5 text-gold-400" />
+              0 FCFA pour commencer
+            </span>
+          </p>
+
+          {/* Bande de preuves — 4 items */}
+          <div className="mt-14 grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-700">
+            {TRUST_ITEMS.map((item) => {
+              const IconComp = item.icon;
+              return (
+                <div
+                  key={item.label}
+                  className="flex items-center gap-2 sm:gap-2.5 rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 sm:px-4 sm:py-3 backdrop-blur-sm min-w-0"
+                >
+                  <IconComp className="h-4 w-4 sm:h-5 sm:w-5 text-gold-400 shrink-0" />
+                  <span className="text-left text-[10px] sm:text-[11px] font-medium leading-tight text-ivory-50/80 truncate sm:whitespace-normal">{item.label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Stats réelles */}
           {stats && (stats.shops > 0 || stats.products > 0) && (
-            <div className="mt-8 flex items-center justify-center gap-8 font-mono text-[11px] uppercase tracking-[0.14em] text-ivory-50/60 animate-in fade-in duration-700 delay-1000">
-              <span className="flex items-center gap-3 rounded-full border border-gold-400/10 bg-gold-400/5 px-5 py-2 shadow-inner shadow-white/5 backdrop-blur-md">
-                <span className="h-2 w-2 rounded-full bg-african-green shadow-[0_0_8px_rgba(34,197,94,0.8)]" aria-hidden="true" />
-                <span className="text-ivory-50 font-semibold">{stats.shops} boutiques actives</span>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-6 font-mono text-[11px] uppercase tracking-[0.14em] text-ivory-50/50 animate-in fade-in duration-700 delay-1000">
+              <span className="flex items-center gap-2.5 rounded-full border border-gold-400/12 bg-gold-400/6 px-4 sm:px-5 py-1.5 sm:py-2 backdrop-blur-md">
+                <span className="h-2 w-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]" aria-hidden="true" />
+                <span className="text-ivory-50/80 font-semibold">{stats.shops} boutiques actives</span>
               </span>
-              <span className="flex items-center gap-3 rounded-full border border-gold-400/10 bg-gold-400/5 px-5 py-2 shadow-inner shadow-white/5 backdrop-blur-md">
-                <span className="h-1.5 w-1.5 rounded-full bg-gold-500" aria-hidden="true" />
+              <span className="flex items-center gap-2.5 rounded-full border border-gold-400/12 bg-gold-400/6 px-4 sm:px-5 py-1.5 sm:py-2 backdrop-blur-md">
+                <span className="h-1.5 w-1.5 rounded-full bg-gold-400" aria-hidden="true" />
                 {stats.products.toLocaleString("fr-FR")} produits
               </span>
             </div>
           )}
         </div>
-
       </Container>
     </section>
   );

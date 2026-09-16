@@ -134,26 +134,59 @@ export class DashboardService {
     const active = orders.filter((o) => o.status !== OrderStatus.CANCELLED);
     const revenue = active.reduce((sum, o) => sum + Number(o.total), 0);
 
+    const revKpi = {
+      title: "Chiffre d'Affaires",
+      value: `${this.formatFcfa(revenue)} FCFA`,
+      rawNumber: revenue,
+      changePercent: 0,
+      isPositive: true,
+      comparisonText: `sur ${days} jours`,
+      iconName: 'revenue',
+      type: 'metric' as const,
+    };
+
+    const ordKpi = {
+      title: 'Commandes',
+      value: String(orders.length),
+      rawNumber: orders.length,
+      changePercent: 0,
+      isPositive: Math.random() > 0.5,
+      comparisonText: `sur ${days} jours`,
+      iconName: 'orders',
+      type: 'metric' as const,
+    };
+
+    const visKpi = { title: 'Visiteurs', value: '0', rawNumber: 0, changePercent: 0, isPositive: true, comparisonText: 'sur cette période', iconName: 'visitors', type: 'metric' as const };
+    const convKpi = { title: 'Conversion', value: '0%', rawNumber: 0, changePercent: 0, isPositive: true, comparisonText: 'sur cette période', iconName: 'conversion', type: 'metric' as const };
+
+    // Contrôle du plan (Business requis pour les stats avancées)
+    const boutique = await this.prisma.boutique.findUnique({
+      where: { id: boutiqueId },
+      select: { ownerId: true }
+    });
+    const userBoutiques = boutique ? await this.prisma.boutique.findMany({
+      where: { ownerId: boutique.ownerId },
+      select: { plan: true },
+    }) : [];
+    const isBusiness = userBoutiques.some(b => ['business', 'enterprise'].includes(b.plan));
+
+    if (!isBusiness) {
+      return {
+        kpis: { revenue: revKpi, orders: ordKpi, visitors: visKpi, conversion: convKpi },
+        chart: [],
+        repeatCustomerRatio: 0,
+        segments: [],
+        bestSellers: [],
+        activeDays: [],
+        requiresBusiness: true,
+      };
+    }
+
+    // --- Analytics Avancées ---
     return {
       kpis: {
-        revenue: {
-          title: "Chiffre d'Affaires",
-          value: `${this.formatFcfa(revenue)} FCFA`,
-          rawNumber: revenue,
-          changePercent: 0,
-          isPositive: true,
-          comparisonText: `sur ${days} jours`,
-          iconName: 'revenue',
-        },
-        orders: {
-          title: 'Commandes',
-          value: String(orders.length),
-          rawNumber: orders.length,
-          changePercent: 0,
-          isPositive: true,
-          comparisonText: `sur ${days} jours`,
-          iconName: 'orders',
-        },
+        revenue: revKpi,
+        orders: ordKpi,
         avgBasket: {
           title: 'Panier moyen',
           value: `${this.formatFcfa(orders.length ? revenue / orders.length : 0)} FCFA`,
@@ -215,6 +248,20 @@ export class DashboardService {
       }
     }
 
+    // Contrôle du plan (Business requis pour la segmentation client avancée)
+    const boutique = await this.prisma.boutique.findUnique({
+      where: { id: boutiqueId },
+      select: { ownerId: true }
+    });
+    let isBusiness = false;
+    if (boutique) {
+      const userBoutiques = await this.prisma.boutique.findMany({
+        where: { ownerId: boutique.ownerId },
+        select: { plan: true },
+      });
+      isBusiness = userBoutiques.some(b => ['business', 'enterprise'].includes(b.plan));
+    }
+
     return [...byPhone.values()]
       .map((c) => ({
         id: c.phone,
@@ -223,7 +270,7 @@ export class DashboardService {
         city: '',
         ordersCount: c.ordersCount,
         totalSpentFcfa: c.totalSpentFcfa,
-        segment: this.segment(c.ordersCount, c.totalSpentFcfa),
+        segment: isBusiness ? this.segment(c.ordersCount, c.totalSpentFcfa) : '🔒 Business',
         lastOrderDate: c.lastOrderDate.toISOString().slice(0, 10),
       }))
       .sort((a, b) => b.totalSpentFcfa - a.totalSpentFcfa);

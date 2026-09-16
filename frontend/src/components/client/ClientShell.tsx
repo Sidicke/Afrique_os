@@ -22,7 +22,6 @@ const NAV_ITEMS = [
   { href: "/espace-client", label: "Accueil", icon: IconHome, exact: true },
   { href: "/espace-client/commandes", label: "Commandes", icon: IconPackage, exact: false },
   { href: "/espace-client/discussions", label: "Discussions", icon: IconChat, exact: false },
-  { href: "/espace-client/affiliation", label: "Affiliation", icon: IconGift, exact: false },
   { href: "/espace-client/compte", label: "Mon compte", icon: IconUser, exact: false },
 ];
 
@@ -105,7 +104,7 @@ export default function ClientShell({ children }: { children: ReactNode }) {
             </span>
             <span className="hidden flex-col leading-tight lg:flex">
               <span className="font-display text-[15px] font-bold tracking-tight text-midnight-950">
-                Afrique Commerce
+                ZennShop
               </span>
               <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-gold-700">
                 Espace client
@@ -204,7 +203,7 @@ export default function ClientShell({ children }: { children: ReactNode }) {
         aria-label="Navigation mobile"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-midnight-950/8 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
-        <div className="mx-auto grid max-w-md grid-cols-5">
+        <div className="mx-auto grid max-w-md grid-cols-4">
           {MOBILE_NAV.map((item) => {
             const active = item.exact
               ? pathname === item.href

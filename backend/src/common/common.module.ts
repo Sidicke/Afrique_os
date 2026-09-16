@@ -2,11 +2,11 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { WsAuthGuard } from './guards/ws-auth.guard';
+import { IdempotencyService } from './services/idempotency.service';
 
 /**
  * CommonModule — partagé globalement.
- * Fournit WsAuthGuard (authentification WebSocket) avec ses dépendances
- * (JwtService + ConfigService) pour les gateways.
+ * Fournit WsAuthGuard et IdempotencyService pour toute l'application.
  */
 @Global()
 @Module({
@@ -18,7 +18,8 @@ import { WsAuthGuard } from './guards/ws-auth.guard';
       }),
     }),
   ],
-  providers: [WsAuthGuard],
-  exports: [WsAuthGuard, JwtModule],
+  providers: [WsAuthGuard, IdempotencyService],
+  exports: [WsAuthGuard, JwtModule, IdempotencyService],
 })
 export class CommonModule {}
+

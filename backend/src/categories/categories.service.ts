@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -12,6 +13,15 @@ export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(boutiqueId: string, dto: CreateCategoryDto) {
+    if (dto.parentId) {
+      const parent = await this.prisma.category.findFirst({
+        where: { id: dto.parentId, boutiqueId },
+      });
+      if (!parent) {
+        throw new BadRequestException('Catégorie parente introuvable pour cette boutique');
+      }
+    }
+
     const slug = this.slugify(dto.name);
     const existing = await this.prisma.category.findUnique({
       where: { boutiqueId_slug: { boutiqueId, slug } },
@@ -54,6 +64,18 @@ export class CategoriesService {
 
   async update(boutiqueId: string, id: string, dto: UpdateCategoryDto) {
     await this.findOneScoped(boutiqueId, id);
+    if (dto.parentId) {
+      if (dto.parentId === id) {
+        throw new BadRequestException('Une catégorie ne peut pas être sa propre parente');
+      }
+      const parent = await this.prisma.category.findFirst({
+        where: { id: dto.parentId, boutiqueId },
+      });
+      if (!parent) {
+        throw new BadRequestException('Catégorie parente introuvable pour cette boutique');
+      }
+    }
+
     const data: Record<string, unknown> = { ...dto };
     if (dto.name) data.slug = this.slugify(dto.name);
     return this.prisma.category.update({ where: { id }, data });

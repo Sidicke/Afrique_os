@@ -105,7 +105,7 @@ export class MailService {
     // Expéditeur : MAIL_FROM si défini, sinon l'utilisateur SMTP
     const fromEmail = config.get<string>('MAIL_FROM')?.trim() || user || '';
     const fromName =
-      config.get<string>('MAIL_FROM_NAME')?.trim() || 'Afrique Commerce OS';
+      config.get<string>('MAIL_FROM_NAME')?.trim() || 'ZennShop';
     this.from = fromEmail ? `${fromName} <${fromEmail}>` : fromName;
 
     if (!this.smtp && !this.resend) {

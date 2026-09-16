@@ -109,4 +109,34 @@ export const authApi = {
       body: JSON.stringify(input),
     });
   },
+
+  /** Connexion ou Inscription via Google OAuth */
+  googleAuth(input: {
+    idToken: string;
+    mode?: "login" | "register";
+    role?: "CLIENT" | "VENDEUR";
+    shopName?: string;
+    phone?: string;
+    referralCode?: string;
+  }) {
+    return apiFetch<ApiAuthResponse>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  /** Connexion ou Inscription via Facebook OAuth */
+  facebookAuth(input: {
+    accessToken: string;
+    mode?: "login" | "register";
+    role?: "CLIENT" | "VENDEUR";
+    shopName?: string;
+    phone?: string;
+    referralCode?: string;
+  }) {
+    return apiFetch<ApiAuthResponse>("/auth/facebook", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
 };

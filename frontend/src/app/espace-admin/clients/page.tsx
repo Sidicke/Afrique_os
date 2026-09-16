@@ -85,20 +85,27 @@ export default function ClientsPage() {
       {/* Filtres */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface p-1 shadow-sm shadow-ink-950/[0.02]">
-          {SEGMENT_TABS.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setSegment(t.value)}
-              className={cn(
-                "rounded-lg px-3 py-1.5 font-mono text-[11px] transition-colors",
-                segment === t.value
-                  ? "bg-blue-700 font-semibold text-white shadow-sm shadow-blue-700/20"
-                  : "text-ink-600 hover:text-ink-950"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+          {data?.some(c => (c.segment as string) === '🔒 Business') ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-ink-500">
+              <Icon name="lock" size={12} />
+              <span>Segmentation avancée réservée au plan Business</span>
+            </div>
+          ) : (
+            SEGMENT_TABS.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setSegment(t.value)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 font-mono text-[11px] transition-colors",
+                  segment === t.value
+                    ? "bg-blue-700 font-semibold text-white shadow-sm shadow-blue-700/20"
+                    : "text-ink-600 hover:text-ink-950"
+                )}
+              >
+                {t.label}
+              </button>
+            ))
+          )}
         </div>
 
         <div className="relative w-full lg:w-72">

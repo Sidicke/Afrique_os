@@ -27,6 +27,7 @@ export class NewsletterController {
 
   @Post('unsubscribe/:slug')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Désinscription de la newsletter' })
   unsubscribe(@Param('slug') slug: string, @Body() dto: SubscribeDto) {
     return this.newsletterService.unsubscribe(slug, dto.email);

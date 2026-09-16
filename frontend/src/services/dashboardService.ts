@@ -63,8 +63,7 @@ export const PLAN_LABEL: Record<string, string> = {
 /** Slug de plan → ligne de prix facturé (aligné sur les plans seedés du backend) */
 export const PLAN_PRICE_LINE: Record<string, string> = {
   starter: "Gratuit",
-  pro: "15 000 FCFA / mois",
-  business: "45 000 FCFA / mois",
+  business: "12 500 FCFA / mois",
 };
 
 /** Id de la boutique du vendeur connecté (sinon erreur explicite) */

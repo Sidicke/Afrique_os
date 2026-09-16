@@ -50,6 +50,16 @@ export default function RevenueChart({ dataPoints }: RevenueChartProps) {
   const chartHeight = 180;
   const chartWidth = 500;
 
+  // Maximum value for scaling (with some headroom)
+  const maxVal = useMemo(() => {
+    if (dataPoints.length === 0) return 1000;
+    const max = Math.max(
+      ...dataPoints.map((d) => Math.max(d.currentPeriodFcfa, d.previousPeriodFcfa)),
+      1000
+    );
+    return max * 1.15;
+  }, [dataPoints]);
+
   // Aucune donnée → état vide élégant (jamais de crash ni de division par zéro)
   if (dataPoints.length === 0) {
     return (
@@ -77,15 +87,6 @@ export default function RevenueChart({ dataPoints }: RevenueChartProps) {
       </DashboardCard>
     );
   }
-
-  // Maximum value for scaling (with some headroom)
-  const maxVal = useMemo(() => {
-    const max = Math.max(
-      ...dataPoints.map((d) => Math.max(d.currentPeriodFcfa, d.previousPeriodFcfa)),
-      1000
-    );
-    return max * 1.15;
-  }, [dataPoints]);
 
   const n = dataPoints.length;
   const step = n > 1 ? n - 1 : 1;

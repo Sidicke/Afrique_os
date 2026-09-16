@@ -1,0 +1,60 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import DashboardSidebar from "@/components/dashboard/layout/DashboardSidebar";
+import DashboardTopbar from "@/components/dashboard/layout/DashboardTopbar";
+import { getSession, getSessionUser } from "@/lib/api/session";
+import { refreshProfile } from "@/services/dashboardService";
+
+/**
+ * Coquille Espace Marchand (/vendeur) — Isolation logique stricte
+ */
+export default function VendeurLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [dateFilter, setDateFilter] = useState("30_days");
+
+  useEffect(() => {
+    if (getSessionUser()?.role === "ADMIN") {
+      router.replace("/admin");
+      return;
+    }
+    if (!getSession()) {
+      router.replace("/connexion");
+      return;
+    }
+    let cancelled = false;
+    void refreshProfile().then(() => {
+      if (!cancelled && !getSession()) router.replace("/connexion");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  return (
+    <div className="flex h-screen w-full overflow-hidden bg-paper text-ink-950 antialiased selection:bg-gold-soft selection:text-ink-950">
+      <DashboardSidebar
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
+
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+        <DashboardTopbar
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          dateFilter={dateFilter}
+          onDateFilterChange={setDateFilter}
+        />
+        <main
+          id="main-content"
+          className="dashboard-scroll w-full flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-6 lg:p-8"
+        >
+          <div className="mx-auto w-full max-w-screen-2xl">
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

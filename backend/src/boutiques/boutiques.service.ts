@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { BoutiqueStatus, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -52,23 +53,43 @@ export class BoutiquesService {
   }
 
   async requestWithdrawal(boutiqueId: string, amount: number, paymentInfo: string) {
-    if (amount <= 0) throw new BadRequestException("Montant invalide");
-    
+    if (!amount || amount < 500 || !Number.isFinite(amount)) {
+      throw new BadRequestException('Le montant minimum de retrait est de 500 FCFA');
+    }
+    if (!paymentInfo || !paymentInfo.trim()) {
+      throw new BadRequestException('Les informations de paiement sont requises');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const boutique = await tx.boutique.findUnique({ where: { id: boutiqueId } });
-      if (!boutique || boutique.balance < amount) throw new BadRequestException("Solde insuffisant");
-      
-      await tx.boutique.update({
-        where: { id: boutiqueId },
-        data: { balance: { decrement: amount } }
+      if (!boutique) throw new NotFoundException('Boutique introuvable');
+      if (boutique.status !== BoutiqueStatus.ACTIVE) {
+        throw new BadRequestException('Seule une boutique active peut demander un retrait');
+      }
+      if (boutique.balance.toNumber() < amount) {
+        throw new BadRequestException('Solde insuffisant pour ce retrait');
+      }
+
+      // Débit atomique conditionnel anti-race condition
+      const updated = await tx.boutique.updateMany({
+        where: {
+          id: boutiqueId,
+          status: BoutiqueStatus.ACTIVE,
+          balance: { gte: amount },
+        },
+        data: { balance: { decrement: amount } },
       });
-      
+
+      if (updated.count === 0) {
+        throw new BadRequestException('Solde insuffisant pour ce retrait');
+      }
+
       return tx.withdrawalRequest.create({
         data: {
           boutiqueId,
           amount,
-          paymentInfo
-        }
+          paymentInfo: paymentInfo.trim(),
+        },
       });
     });
   }
@@ -76,6 +97,24 @@ export class BoutiquesService {
 
   /** Création d'une boutique (toujours PENDING, vérifiée par un admin ensuite) */
   async create(ownerId: string, dto: CreateBoutiqueDto) {
+    // 1. Vérifier la limite de création selon le plan le plus élevé de l'utilisateur
+    const userBoutiques = await this.prisma.boutique.findMany({
+      where: { ownerId },
+      select: { plan: true },
+    });
+    
+    const count = userBoutiques.length;
+    let userPlan = 'starter';
+    if (userBoutiques.some(b => b.plan === 'enterprise')) userPlan = 'enterprise';
+    else if (userBoutiques.some(b => b.plan === 'business')) userPlan = 'business';
+
+    if (userPlan === 'starter' && count >= 1) {
+      throw new ForbiddenException("Vous avez atteint la limite de 1 boutique de votre plan Starter. Passez à Business pour en gérer jusqu'à 3.");
+    }
+    if (userPlan === 'business' && count >= 3) {
+      throw new ForbiddenException("Vous avez atteint la limite de 3 boutiques de votre plan Business. Contactez-nous pour l'offre Enterprise.");
+    }
+
     const existingName = await this.prisma.boutique.findFirst({
       where: { name: { equals: dto.name.trim(), mode: 'insensitive' } },
     });

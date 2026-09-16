@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { BoutiquesModule } from './boutiques/boutiques.module';
@@ -19,6 +19,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { SearchModule } from './search/search.module';
 import { UsersModule } from './users/users.module';
+import { FedaPayModule } from './fedapay/fedapay.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { UsersModule } from './users/users.module';
     BrandsModule,
     ProductsModule,
     OrdersModule,
+    FedaPayModule,
     DashboardModule,
     MessagingModule,
     NewsletterModule,
@@ -53,8 +55,10 @@ import { UsersModule } from './users/users.module';
   providers: [
     // Guards globaux : toutes les routes sont protégées par défaut (JWT),
     // @Public() les contourne ; @Roles(...) restreint par rôle.
+    // ThrottlerGuard active le rate limiting (@Throttle sur chaque route).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

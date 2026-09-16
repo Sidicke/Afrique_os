@@ -7,14 +7,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { BoutiqueStatus, Prisma, Role } from '@prisma/client';
+import { BoutiqueStatus, Prisma, Role, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomInt } from 'node:crypto';
 import type { StringValue } from 'ms';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { FacebookAuthDto } from './dto/facebook-auth.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SendRegistrationCodeDto } from './dto/send-registration-code.dto';
@@ -130,6 +131,14 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Identifiants incorrects');
     }
+    if (user.status === UserStatus.BLOCKED) {
+      throw new UnauthorizedException('Votre compte a été bloqué par la plateforme');
+    }
+    if (!user.password) {
+      throw new UnauthorizedException(
+        `Ce compte a été créé via ${user.authProvider ?? 'Google/Facebook'}. Veuillez utiliser le bouton de connexion correspondant.`,
+      );
+    }
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) {
       throw new UnauthorizedException('Identifiants incorrects');
@@ -158,6 +167,9 @@ export class AuthService {
     if (!user || !user.refreshTokenHash) {
       throw new UnauthorizedException('Session invalide');
     }
+    if (user.status === UserStatus.BLOCKED) {
+      throw new UnauthorizedException('Votre compte a été bloqué par la plateforme');
+    }
     if (user.refreshTokenHash !== this.hashToken(rawRefreshToken)) {
       // Réutilisation d'un ancien refresh token → session compromise
       throw new UnauthorizedException('Session invalide');
@@ -180,6 +192,9 @@ export class AuthService {
 
   /** Réinitialisation du mot de passe avec code OTP */
   async resetPassword(email: string, code: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Le nouveau mot de passe doit comporter au moins 8 caractères');
+    }
     const normalizedEmail = email.toLowerCase().trim();
     
     // Vérifier l'OTP
@@ -218,19 +233,25 @@ export class AuthService {
   }
 
   /** Changement de mot de passe par l'utilisateur connecté */
-  async changePassword(userId: string, currentPassword?: string, newPassword?: string) {
-    if (!newPassword || newPassword.length < 6) {
-      throw new BadRequestException('Le nouveau mot de passe doit comporter au moins 6 caractères');
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    if (!currentPassword) {
+      throw new BadRequestException('Le mot de passe actuel est requis');
+    }
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Le nouveau mot de passe doit comporter au moins 8 caractères');
     }
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('Utilisateur introuvable');
     }
-    if (currentPassword) {
-      const match = await bcrypt.compare(currentPassword, user.password);
-      if (!match) {
-        throw new BadRequestException('Mot de passe actuel incorrect');
-      }
+    if (!user.password) {
+      throw new BadRequestException(
+        `Ce compte est authentifié via ${user.authProvider ?? 'Google/Facebook'}. Vous n'avez pas de mot de passe à modifier.`,
+      );
+    }
+    const match = await bcrypt.compare(currentPassword, user.password);
+    if (!match) {
+      throw new BadRequestException('Mot de passe actuel incorrect');
     }
     const hashed = await bcrypt.hash(newPassword, 10);
     await this.prisma.user.update({
@@ -247,6 +268,270 @@ export class AuthService {
       data: { refreshTokenHash: null },
     });
     return { success: true };
+  }
+
+  // ===== Authentification Sociale (Google & Facebook OAuth) =====
+
+  /**
+   * Authentification / Inscription via Google OAuth (ID Token)
+   */
+  async googleAuth(dto: GoogleAuthDto): Promise<AuthResponse> {
+    let payload: {
+      sub: string;
+      email: string;
+      aud?: string;
+      iss?: string;
+      name?: string;
+      picture?: string;
+      email_verified?: string | boolean;
+    };
+
+    try {
+      const response = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(dto.idToken)}`,
+      );
+      if (!response.ok) {
+        throw new Error('Token Google rejeté');
+      }
+      payload = await response.json();
+
+      // Vérification de l'audience : le token DOIT être destiné à NOTRE application.
+      // Sans GOOGLE_CLIENT_ID configuré, on bloque l'auth Google pour éviter
+      // qu'un token d'une autre app soit accepté (token substitution attack).
+      const expectedClientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+      if (!expectedClientId) {
+        throw new Error(
+          'GOOGLE_CLIENT_ID non configuré — authentification Google désactivée (CWE-284)',
+        );
+      }
+      if (payload.aud !== expectedClientId) {
+        throw new Error('Audience du token Google invalide');
+      }
+
+      // Vérification de l'issuer : le token DOIT provenir de Google
+      const validIssuers = ['accounts.google.com', 'https://accounts.google.com'];
+      if (payload.iss && !validIssuers.includes(payload.iss)) {
+        throw new Error('Issuer du token Google invalide');
+      }
+
+      // Vérification que l'email est confirmé par Google
+      if (payload.email_verified === false || payload.email_verified === 'false') {
+        throw new Error('Adresse e-mail Google non vérifiée');
+      }
+    } catch {
+      throw new UnauthorizedException("Token d'authentification Google invalide ou expiré");
+    }
+
+    if (!payload.email) {
+      throw new BadRequestException('Aucun e-mail associé à ce compte Google');
+    }
+
+    const email = payload.email.toLowerCase().trim();
+    const googleId = payload.sub;
+
+    // 1. Recherche par googleId ou par email
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ googleId }, { email }],
+      },
+    });
+
+    if (user) {
+      if (user.status === UserStatus.BLOCKED) {
+        throw new UnauthorizedException('Votre compte a été bloqué par la plateforme');
+      }
+      // Liaison du compte Google et mise à jour avatar si nécessaire
+      if (!user.googleId || !user.avatarUrl) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: user.googleId ?? googleId,
+            avatarUrl: user.avatarUrl ?? payload.picture ?? null,
+            name: user.name ?? payload.name ?? null,
+          },
+        });
+      }
+      return this.buildAuthResponse(user);
+    }
+
+    // Si la requête provient de la page de connexion et qu'aucun compte n'existe
+    if (dto.mode === 'login') {
+      throw new NotFoundException(
+        "Aucun compte n'est associé à cette adresse Google. Veuillez d'abord créer votre compte via la page d'inscription.",
+      );
+    }
+
+    // 2. Création de compte si nouvel utilisateur (mode inscription)
+    const role = dto.role === 'VENDEUR' ? Role.VENDEUR : Role.CLIENT;
+    const referralCode = await this.generateUniqueReferralCode();
+    let referredById: string | null = null;
+
+    if (dto.referralCode?.trim()) {
+      const referrer = await this.prisma.user.findUnique({
+        where: { referralCode: dto.referralCode.trim() },
+        select: { id: true },
+      });
+      if (referrer) {
+        referredById = referrer.id;
+      }
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email,
+          googleId,
+          authProvider: 'GOOGLE',
+          name: payload.name ?? 'Utilisateur Google',
+          avatarUrl: payload.picture ?? null,
+          phone: dto.phone?.trim() ?? null,
+          role,
+          referralCode,
+          referredById,
+        },
+      });
+
+      if (role === Role.VENDEUR && dto.shopName?.trim()) {
+        const slugBase = this.slugify(dto.shopName);
+        await tx.boutique.create({
+          data: {
+            name: dto.shopName.trim(),
+            slug: await this.uniqueSlug(tx, slugBase),
+            email,
+            ownerId: newUser.id,
+            status: BoutiqueStatus.PENDING,
+          },
+        });
+      }
+
+      return newUser;
+    });
+
+    return this.buildAuthResponse(created);
+  }
+
+  /**
+   * Authentification / Inscription via Facebook OAuth (Access Token)
+   */
+  async facebookAuth(dto: FacebookAuthDto): Promise<AuthResponse> {
+    let payload: {
+      id: string;
+      name?: string;
+      email?: string;
+      picture?: { data?: { url?: string } };
+    };
+
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=${encodeURIComponent(dto.accessToken)}`,
+      );
+      if (!response.ok) {
+        throw new Error('Token Facebook rejeté');
+      }
+      payload = await response.json();
+    } catch {
+      throw new UnauthorizedException("Token d'authentification Facebook invalide ou expiré");
+    }
+
+    if (!payload.id) {
+      throw new BadRequestException("Impossible de récupérer l'identifiant Facebook");
+    }
+
+    const facebookId = payload.id;
+    const email = (payload.email ?? `fb_${facebookId}@facebook.zennshop.com`).toLowerCase().trim();
+    const avatarUrl = payload.picture?.data?.url ?? null;
+
+    // 1. Recherche par facebookId ou par email
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ facebookId }, { email }],
+      },
+    });
+
+    if (user) {
+      if (user.status === UserStatus.BLOCKED) {
+        throw new UnauthorizedException('Votre compte a été bloqué par la plateforme');
+      }
+      // Liaison du compte Facebook et mise à jour avatar si nécessaire
+      if (!user.facebookId || !user.avatarUrl) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            facebookId: user.facebookId ?? facebookId,
+            avatarUrl: user.avatarUrl ?? avatarUrl,
+            name: user.name ?? payload.name ?? null,
+          },
+        });
+      }
+      return this.buildAuthResponse(user);
+    }
+
+    // Si la requête provient de la page de connexion et qu'aucun compte n'existe
+    if (dto.mode === 'login') {
+      throw new NotFoundException(
+        "Aucun compte n'est associé à ce compte Facebook. Veuillez d'abord créer votre compte via la page d'inscription.",
+      );
+    }
+
+    // 2. Création de compte si nouvel utilisateur (mode inscription)
+    const role = dto.role === 'VENDEUR' ? Role.VENDEUR : Role.CLIENT;
+    const referralCode = await this.generateUniqueReferralCode();
+    let referredById: string | null = null;
+
+    if (dto.referralCode?.trim()) {
+      const referrer = await this.prisma.user.findUnique({
+        where: { referralCode: dto.referralCode.trim() },
+        select: { id: true },
+      });
+      if (referrer) {
+        referredById = referrer.id;
+      }
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email,
+          facebookId,
+          authProvider: 'FACEBOOK',
+          name: payload.name ?? 'Utilisateur Facebook',
+          avatarUrl,
+          phone: dto.phone?.trim() ?? null,
+          role,
+          referralCode,
+          referredById,
+        },
+      });
+
+      if (role === Role.VENDEUR && dto.shopName?.trim()) {
+        const slugBase = this.slugify(dto.shopName);
+        await tx.boutique.create({
+          data: {
+            name: dto.shopName.trim(),
+            slug: await this.uniqueSlug(tx, slugBase),
+            email,
+            ownerId: newUser.id,
+            status: BoutiqueStatus.PENDING,
+          },
+        });
+      }
+
+      return newUser;
+    });
+
+    return this.buildAuthResponse(created);
+  }
+
+  private async generateUniqueReferralCode(): Promise<string> {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    while (true) {
+      let code = 'REF-';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(randomInt(0, chars.length));
+      }
+      const existing = await this.prisma.user.findUnique({ where: { referralCode: code } });
+      if (!existing) return code;
+    }
   }
 
   // ===== Inscription en 2 temps avec code de vérification (OTP) =====
@@ -266,7 +551,7 @@ export class AuthService {
       throw new ConflictException('Un compte existe déjà avec cet e-mail');
     }
     if (dto.phone?.trim()) {
-      const existingPhone = await this.prisma.user.findUnique({
+      const existingPhone = await this.prisma.user.findFirst({
         where: { phone: dto.phone.trim() },
       });
       if (existingPhone) {
@@ -315,7 +600,7 @@ export class AuthService {
       throw new ConflictException('Un compte existe déjà avec cet e-mail');
     }
     if (dto.phone?.trim()) {
-      const existingPhone = await this.prisma.user.findUnique({
+      const existingPhone = await this.prisma.user.findFirst({
         where: { phone: dto.phone.trim() },
       });
       if (existingPhone) {
@@ -359,7 +644,7 @@ export class AuthService {
       return this.prisma.user.findUnique({ where: { email } });
     }
     if (phone) {
-      return this.prisma.user.findUnique({ where: { phone } });
+      return this.prisma.user.findFirst({ where: { phone } });
     }
     return null;
   }

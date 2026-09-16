@@ -33,8 +33,16 @@ export class OrdersService {
   async create(boutiqueId: string, dto: CreateOrderDto, userId?: string) {
     let conversation = null;
     if (dto.conversationId) {
-      conversation = await this.prisma.conversation.findUnique({
-        where: { id: dto.conversationId },
+      conversation = await this.prisma.conversation.findFirst({
+        where: {
+          id: dto.conversationId,
+          boutiqueId,
+          ...(userId
+            ? { userId }
+            : dto.customerPhone
+              ? phoneMatchClause(dto.customerPhone)
+              : { id: 'impossible' }),
+        },
       });
     }
     // Charge les produits demandés (scopés à la boutique)
@@ -73,8 +81,13 @@ export class OrdersService {
         throw new BadRequestException('Variante invalide pour ce produit');
       }
       let unitPrice = product.price.plus(variant?.priceDelta ?? 0);
-      if (conversation && conversation.agreedPrice && conversation.productId === product.id) {
-        unitPrice = new Prisma.Decimal(conversation.agreedPrice).plus(variant?.priceDelta ?? 0);
+      if (
+        conversation &&
+        conversation.agreedPrice &&
+        conversation.agreedPrice.toNumber() > 0 &&
+        conversation.productId === product.id
+      ) {
+        unitPrice = new Prisma.Decimal(conversation.agreedPrice.toNumber()).plus(variant?.priceDelta ?? 0);
       }
       const quantity = item.quantity;
       if (product.stock < quantity) {
@@ -92,21 +105,27 @@ export class OrdersService {
       };
     });
 
-    const itemsTotal = lines.reduce((sum, l) => sum.plus(l.unitPrice.times(l.quantity)), new Prisma.Decimal(0));
+    const itemsTotal = lines.reduce(
+      (sum, l) => sum.plus(l.unitPrice.times(l.quantity)),
+      new Prisma.Decimal(0),
+    );
     const deliveryPrice = new Prisma.Decimal(dto.deliveryPrice ?? 0);
-    const total = itemsTotal.plus(deliveryPrice);
 
-    // Transaction : création + décrément du stock. On capture les produits /
-    // variantes qui tombent à 0 pour notifier le vendeur (rupture de stock).
-    
-    const pointsToUse = dto.pointsToUse || 0;
-    let userPoints = 0;
-    if (userId && pointsToUse > 0) {
-      const u = await this.prisma.user.findUnique({ where: { id: userId } });
-      if (!u || u.pointsBalance < pointsToUse) throw new BadRequestException("Points insuffisants");
-      userPoints = pointsToUse;
+    // Calcul et plafonnement de la remise par points fidélité (1 point = 1 FCFA)
+    let pointsDiscount = 0;
+    if (userId && dto.pointsToUse && dto.pointsToUse > 0) {
+      const requestedPoints = Math.floor(dto.pointsToUse);
+      const maxApplicable = Math.floor(Number(itemsTotal));
+      pointsDiscount = Math.min(requestedPoints, maxApplicable);
     }
 
+    const grossTotal = itemsTotal.plus(deliveryPrice);
+    const finalTotal = Prisma.Decimal.max(
+      grossTotal.minus(pointsDiscount),
+      new Prisma.Decimal(0),
+    );
+
+    // Transaction atomique : création de commande + décrément conditionnel des points et stocks
     const result = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -115,55 +134,85 @@ export class OrdersService {
           reference: this.nextReference(),
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,
-      address: dto.address,
-      city: dto.city,
-      country: dto.country,
+          address: dto.address,
+          city: dto.city,
+          country: dto.country,
           customerEmail: dto.customerEmail,
           status: OrderStatus.PENDING,
           paymentMethod: dto.paymentMethod,
-          pointsUsed: pointsToUse,
+          pointsUsed: pointsDiscount,
           deliveryName: dto.deliveryName,
           deliveryPrice,
-          total,
+          total: finalTotal,
           notes: dto.notes,
           items: { create: lines.map((l) => ({ ...l, unitPrice: l.unitPrice })) },
         },
         include: { items: true },
       });
 
-      if (userId && pointsToUse > 0) {
-        await tx.user.update({
-          where: { id: userId },
-          data: { pointsBalance: { decrement: pointsToUse } }
+      // Décrément atomique conditionnel du solde de points (anti-race condition)
+      if (userId && pointsDiscount > 0) {
+        const userUpdate = await tx.user.updateMany({
+          where: { id: userId, pointsBalance: { gte: pointsDiscount } },
+          data: { pointsBalance: { decrement: pointsDiscount } },
         });
+        if (userUpdate.count === 0) {
+          throw new BadRequestException('Solde de points fidélité insuffisant.');
+        }
         await tx.pointTransaction.create({
           data: {
             userId,
-            amount: -pointsToUse,
-            reason: "SPENT_ON_ORDER",
-            orderId: created.id
-          }
+            amount: -pointsDiscount,
+            reason: 'SPENT_ON_ORDER',
+            orderId: created.id,
+          },
         });
       }
+
+      // Décrément atomique conditionnel des stocks (anti-overselling)
       const outOfStock: string[] = [];
       for (const line of lines) {
-        const updated = await tx.product.update({
-          where: { id: line.productId },
+        const productUpdate = await tx.product.updateMany({
+          where: { id: line.productId, stock: { gte: line.quantity } },
           data: { stock: { decrement: line.quantity } },
+        });
+        if (productUpdate.count === 0) {
+          throw new BadRequestException(
+            `Stock insuffisant pour le produit "${line.productName}".`,
+          );
+        }
+
+        const currentProduct = await tx.product.findUniqueOrThrow({
+          where: { id: line.productId },
           select: { id: true, name: true, stock: true },
         });
-        if (updated.stock === 0) outOfStock.push(updated.name);
+        if (currentProduct.stock === 0) {
+          outOfStock.push(currentProduct.name);
+        }
+
         if (line.variantId) {
-          const updatedVariant = await tx.variant.update({
-            where: { id: line.variantId },
+          const variantUpdate = await tx.variant.updateMany({
+            where: { id: line.variantId, stock: { gte: line.quantity } },
             data: { stock: { decrement: line.quantity } },
+          });
+          if (variantUpdate.count === 0) {
+            throw new BadRequestException(
+              `Stock insuffisant pour la variante "${line.variantLabel ?? line.productName}".`,
+            );
+          }
+
+          const currentVariant = await tx.variant.findUniqueOrThrow({
+            where: { id: line.variantId },
             select: { id: true, name: true, value: true, stock: true },
           });
-          if (updatedVariant.stock === 0) {
-            outOfStock.push(`${updated.name} — ${updatedVariant.name}: ${updatedVariant.value}`);
+          if (currentVariant.stock === 0) {
+            outOfStock.push(
+              `${currentProduct.name} — ${currentVariant.name}: ${currentVariant.value}`,
+            );
           }
         }
       }
+
       return { order: created, outOfStock };
     });
 
@@ -282,48 +331,58 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Commande introuvable');
 
-    // Seule une commande PENDING (en attente de paiement) peut être payée.
-    // Une commande déjà payée, expédiée, livrée ou annulée → refus net.
-    if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException(
-        order.status === OrderStatus.PAID
-          ? 'Cette commande est déjà payée'
-          : 'Cette commande ne peut pas être payée dans son état actuel',
+    if (order.status === OrderStatus.PAID) {
+      return this.toOrderView(
+        await this.prisma.order.findUniqueOrThrow({
+          where: { id },
+          include: { items: true },
+        }),
       );
     }
 
-    // Transition ATOMIQUE : seul le premier appel gagne (count 1).
-    const transition = await this.prisma.order.updateMany({
-      where: { id, boutiqueId, status: OrderStatus.PENDING },
-      data: {
-        status: OrderStatus.PAID,
-        paidAt: new Date(),
-        ...(dto.transactionRef ? { paymentRef: dto.transactionRef } : {}),
-      },
-    });
-    if (transition.count === 0) {
-      throw new BadRequestException('Cette commande ne peut pas être payée');
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        'Cette commande ne peut pas être payée dans son état actuel',
+      );
     }
 
-    const paid = await this.prisma.order.findUniqueOrThrow({
+    if (order.paymentMethod === PaymentMethod.FEDAPAY) {
+      throw new BadRequestException(
+        'Les commandes réglées via FedaPay sont validées automatiquement par la passerelle de paiement sécurisée.',
+      );
+    }
+
+    // Enregistrement de la référence de paiement soumise par le client pour vérification vendeur
+    const updated = await this.prisma.order.update({
       where: { id },
+      data: {
+        ...(dto.transactionRef ? { paymentRef: dto.transactionRef } : {}),
+      },
       include: { items: true },
     });
 
-    // E-mail de confirmation au client (transition PENDING → PAID), si
-    // adresse fournie à la commande. Fire-and-forget : un échec d'envoi ne
-    // remet jamais en cause le paiement.
-    if (paid.customerEmail) {
-      void this.sendOrderConfirmationMail(paid, order.boutique);
-      void this.processCashbackAndSellerBalance(paid);
+    // Notification au VENDEUR (cloche du dashboard) pour vérification des fonds reçus
+    try {
+      await this.notificationsService.create(
+        boutiqueId,
+        {
+          type: 'order_payment_submitted',
+          title: `Preuve de paiement soumise pour #${updated.reference}`,
+          message: `Le client ${updated.customerName} a soumis une référence de paiement (${dto.transactionRef ?? 'non précisée'}). Veuillez vérifier votre compte et valider la commande.`,
+          orderReference: `#${updated.reference}`,
+        },
+        order.boutique.notifications,
+      );
+    } catch (err) {
+      this.logger.error(
+        `[notifications] échec création notification paiement soumis ${updated.reference} : ${(err as Error).message}`,
+      );
     }
 
-    // Notification au VENDEUR (cloche du dashboard) : la commande est payée,
-    // il peut la préparer. Les préférences (activé/désactivé) sont déjà
-    // chargées avec la boutique : pas de requête supplémentaire. Fire-and-forget.
-    void this.notifySellerOrderPaid(paid, boutiqueId, order.boutique.notifications);
-
-    return this.toOrderView(paid);
+    return {
+      ...this.toOrderView(updated),
+      message: 'Votre référence de paiement a été transmise au vendeur pour validation.',
+    };
   }
 
   /** Notification vendeur : commande payée (cloche du dashboard) */
@@ -420,6 +479,29 @@ export class OrdersService {
         where: { id },
         include: { items: true },
       });
+
+      // Si la commande était déjà payée, régulariser le solde vendeur et restituer les points
+      if (order.status === OrderStatus.PAID) {
+        await tx.boutique.update({
+          where: { id: boutiqueId },
+          data: { balance: { decrement: Number(order.total) } },
+        });
+
+        if (order.userId && order.pointsUsed > 0) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: { pointsBalance: { increment: order.pointsUsed } },
+          });
+          await tx.pointTransaction.create({
+            data: {
+              userId: order.userId,
+              amount: order.pointsUsed,
+              reason: 'REFUND_ON_ORDER_CANCEL',
+              orderId: order.id,
+            },
+          });
+        }
+      }
       // Remise en stock (miroir de la création : produits + variantes).
       // productId est nullable (SetNull si le produit est supprimé) : on
       // ne remet en stock que les lignes encore rattachées à un produit.
@@ -656,12 +738,15 @@ export class OrdersService {
 
   /**
    * Suivi d'une commande par numéro (référence, ex. "#AC-8901") — vitrine.
-   * Tolérant à la saisie : le '#' initial, les espaces et la casse sont
-   * ignorés. Le téléphone client est OPTIONNEL : fourni, il sert de
-   * vérification (une commande ne peut être suivie que par son propriétaire) ;
-   * absent, la commande reste accessible (usage simple « suivi de commande »).
+   * Le téléphone client est OBLIGATOIRE pour protéger les données personnelles (PII)
+   * et garantir que seul l'acheteur accède aux détails de sa commande.
    */
   async findByReference(reference: string, boutiqueId: string, phone?: string) {
+    if (!phone || !phone.trim()) {
+      throw new BadRequestException(
+        'Le numéro de téléphone associé à la commande est obligatoire pour consulter son suivi.',
+      );
+    }
     const normalized = reference
       .trim()
       .replace(/^#/, '')
@@ -671,7 +756,7 @@ export class OrdersService {
       where: {
         reference: normalized,
         boutiqueId,
-        ...(phone ? phoneMatchClause(phone) : {}),
+        ...phoneMatchClause(phone),
       },
       include: { items: true },
     });
@@ -740,6 +825,7 @@ export class OrdersService {
     const map: Record<OrderStatus, string> = {
       PENDING: 'pending',
       PAID: 'paid',
+      WHATSAPP_CONFIRMED: 'paid',
       SHIPPING: 'shipping',
       DELIVERED: 'delivered',
       CANCELLED: 'cancelled',
@@ -753,6 +839,7 @@ export class OrdersService {
       CASH_ON_DELIVERY: 'cash_on_delivery',
       CARD: 'card',
       WHATSAPP_DIRECT: 'whatsapp_direct',
+      FEDAPAY: 'fedapay',
     };
     return map[method];
   }
@@ -768,19 +855,63 @@ export class OrdersService {
   }
 
   private async processCashbackAndSellerBalance(order: any) {
-    const totalFloat = Number(order.total);
-    const pointsEarned = Math.floor(totalFloat * 0.0075); // 0.75%
+    // Le total enregistré est le montant final payé (net des points).
+    // Le montant brut réel de la vente (celui qui revient au vendeur) est total + points utilisés.
+    const grossTotal = Number(order.total) + Number(order.pointsUsed || 0);
     
-    // 1. Ajouter le solde au vendeur (total complet, incluant ce qui a été payé en points)
+    // --- Calcul de la commission selon le plan vendeur ---
+    const boutique = await this.prisma.boutique.findUnique({
+      where: { id: order.boutiqueId },
+      select: { ownerId: true }
+    });
+
+    let commissionRate = 5.0; // Starter par défaut
+    let userPlan = 'starter';
+
+    if (boutique) {
+      const userBoutiques = await this.prisma.boutique.findMany({
+        where: { ownerId: boutique.ownerId },
+        select: { plan: true },
+      });
+      if (userBoutiques.some(b => b.plan === 'enterprise')) {
+        userPlan = 'enterprise';
+        commissionRate = 1.5; 
+      } else if (userBoutiques.some(b => b.plan === 'business')) {
+        userPlan = 'business';
+        commissionRate = 2.0;
+      }
+    }
+
+    // La commission de la plateforme est calculée sur le montant brut de la vente
+    const commissionAmount = Number((grossTotal * (commissionRate / 100)).toFixed(2));
+    // Le vendeur reçoit la valeur totale de ses produits, moins la commission plateforme
+    // La plateforme absorbe ainsi le coût commercial des points de fidélité !
+    const netAmount = grossTotal - commissionAmount;
+
+    // Mise à jour de la traçabilité sur la commande
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        commissionRate,
+        commissionAmount,
+        netAmount,
+        planAtPurchase: userPlan
+      }
+    });
+
+    // 1. Ajouter le solde NET au vendeur
     await this.prisma.boutique.update({
       where: { id: order.boutiqueId },
-      data: { balance: { increment: totalFloat } }
+      data: { balance: { increment: netAmount } }
     });
+
+    // 2. Cashback et Parrainage (0.5%)
+    const pointsEarned = Math.floor(grossTotal * 0.005); // 0.5% sur le brut
 
     if (order.userId) {
       const buyer = await this.prisma.user.findUnique({ where: { id: order.userId } });
       if (buyer) {
-        // Cashback Acheteur
+        // Cashback Acheteur (0.5%)
         if (pointsEarned > 0) {
           await this.prisma.user.update({
             where: { id: buyer.id },

@@ -1,0 +1,37 @@
+export const en = {
+  common: {
+    loading: "Loading...",
+    error: "An error occurred",
+    save: "Save",
+    cancel: "Cancel",
+    search: "Search",
+    currency: "Currency",
+    language: "Language",
+  },
+  navbar: {
+    marketplace: "Marketplace",
+    pricing: "Pricing",
+    about: "About",
+    login: "Login",
+    register: "Create Account",
+    logout: "Logout",
+    sellerSpace: "Seller Dashboard",
+    adminSpace: "Admin Console",
+    clientSpace: "Client Area",
+    searchPlaceholder: "Search for a product, a shop...",
+  },
+  hero: {
+    badge: "Your online store · Africa · Start for free",
+    titleLine1: "Your products deserve",
+    titleLine2: "to be seen.",
+    subtitle: "Create your professional store in 10 minutes. Sell on the African marketplace, receive Mobile Money payments and manage everything from a single screen.",
+    searchPlaceholder: "Search for a product, a shop, a category…",
+    ctaOpenStore: "Open my store for free",
+    ctaExplore: "Explore the marketplace",
+    trust1: "No credit card required",
+    trust2: "0 fees to start",
+    trust3: "No commitment",
+    activeShops: "active shops",
+    products: "products",
+  }
+};

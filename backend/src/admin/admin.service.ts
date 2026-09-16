@@ -70,6 +70,7 @@ const TARGET_TYPE_MAP: Record<ModerationTargetType, string> = {
 const ORDER_STATUS_UI: Record<OrderStatus, string> = {
   PENDING: 'PENDING',
   PAID: 'PAID',
+  WHATSAPP_CONFIRMED: 'PAID',
   SHIPPING: 'SHIPPING',
   DELIVERED: 'DELIVERED',
   CANCELLED: 'CANCELLED',
@@ -661,12 +662,15 @@ export class AdminService {
   async setUserStatus(admin: AdminIdentity, id: string, dto: UserStatusDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('Utilisateur introuvable');
-    if (user.role === Role.ADMIN && user.id !== admin.id) {
-      throw new BadRequestException('Impossible de bloquer un autre administrateur');
+    if (user.role === Role.ADMIN) {
+      throw new BadRequestException('Impossible de modifier le statut d’un compte administrateur');
     }
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { status: dto.status },
+      data: {
+        status: dto.status,
+        ...(dto.status === UserStatus.BLOCKED ? { refreshTokenHash: null } : {}),
+      },
       select: { id: true, name: true, email: true, status: true },
     });
     await this.log(
@@ -767,7 +771,7 @@ export class AdminService {
       select: { boutiqueId: true, reference: true },
     });
     if (!order) throw new NotFoundException('Commande introuvable');
-    const updated = await this.ordersService.updateStatus(order.boutiqueId, id, { status: dto.status });
+    const updated = await this.ordersService.updateStatus(order.boutiqueId, id, { status: dto.status as any });
     await this.log(admin, `order.status_${dto.status.toLowerCase()}`, 'order', id, `#${order.reference}`, {
       status: dto.status,
       ...(dto.reason ? { reason: dto.reason } : {}),
@@ -802,6 +806,30 @@ export class AdminService {
         data: { status: OrderStatus.CANCELLED, cancellationReason: dto.reason },
         include: { items: true },
       });
+
+      // Si la commande était déjà payée, régulariser le solde vendeur et restituer les points
+      if (order.status === OrderStatus.PAID) {
+        await tx.boutique.update({
+          where: { id: order.boutiqueId },
+          data: { balance: { decrement: Number(order.total) } },
+        });
+
+        if (order.userId && order.pointsUsed > 0) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: { pointsBalance: { increment: order.pointsUsed } },
+          });
+          await tx.pointTransaction.create({
+            data: {
+              userId: order.userId,
+              amount: order.pointsUsed,
+              reason: 'REFUND_ON_ORDER_CANCEL',
+              orderId: order.id,
+            },
+          });
+        }
+      }
+
       for (const line of updated.items) {
         if (!line.productId) continue;
         await tx.product.update({
@@ -2233,6 +2261,7 @@ export class AdminService {
     const map: Record<OrderStatus, string> = {
       PENDING: 'En attente de paiement',
       PAID: 'Payée',
+      WHATSAPP_CONFIRMED: 'Confirmée',
       SHIPPING: 'Expédiée',
       DELIVERED: 'Livrée',
       CANCELLED: 'Annulée',

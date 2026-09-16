@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "afrique-commerce-os:cookies-consent";
+const STORAGE_KEY = "zennshop:cookies-consent";
 
 interface CookiePreferences {
   essential: boolean;
@@ -20,7 +20,7 @@ export function CookieConsent() {
   const [preferences, setPreferences] = useState(true);
 
   useEffect(() => {
-    setMounted(true);
+    setTimeout(() => setMounted(true), 0);
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) {
@@ -113,7 +113,7 @@ export function CookieConsent() {
                   </span>
                 </div>
                 <p className="text-xs leading-relaxed text-white/75">
-                  Afrique Commerce OS utilise des cookies nécessaires au bon fonctionnement de votre panier, à la sécurisation des paiements et à la personnalisation de vos découvertes marchandes.
+                  ZennShop utilise des cookies nécessaires au bon fonctionnement de votre panier, à la sécurisation des paiements et à la personnalisation de vos découvertes marchandes.
                 </p>
               </div>
             </div>
@@ -191,7 +191,7 @@ export function CookieConsent() {
                 <div className="space-y-0.5">
                   <span className="font-semibold text-white">Analytiques & Performance</span>
                   <p className="text-[11px] text-white/60 leading-normal">
-                    Mesure anonyme de l'utilisation pour détecter les ralentissements et fluidifier la plateforme.
+                    Mesure anonyme de l&apos;utilisation pour détecter les ralentissements et fluidifier la plateforme.
                   </p>
                 </div>
                 <button

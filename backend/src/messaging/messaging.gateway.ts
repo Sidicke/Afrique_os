@@ -159,7 +159,11 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @MessageBody() payload: { conversationId: string; isTyping: boolean },
   ) {
     if (!payload?.conversationId) throw new WsException('conversationId requis');
-    client.to(`conversation:${payload.conversationId}`).emit('typing', {
+    const room = `conversation:${payload.conversationId}`;
+    if (!client.rooms.has(room)) {
+      throw new WsException('Vous devez rejoindre la conversation avant d’émettre des événements');
+    }
+    client.to(room).emit('typing', {
       conversationId: payload.conversationId,
       userId: client.data.id,
       isTyping: Boolean(payload.isTyping),

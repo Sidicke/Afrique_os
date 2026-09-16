@@ -18,8 +18,9 @@ import { BoutiqueOwnerGuard } from './guards/boutique-owner.guard';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { BoutiquesService } from './boutiques.service';
 import { CreateBoutiqueDto } from './dto/create-boutique.dto';
-import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
+import { RequestWithdrawalDto } from './dto/request-withdrawal.dto';
 import { ReviewVerificationDto } from './dto/review-verification.dto';
+import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
 import { ParseEnumPipe } from '@nestjs/common';
 
 @ApiTags('boutiques')
@@ -32,10 +33,9 @@ export class BoutiquesController {
   @ApiOperation({ summary: 'Demander un retrait des fonds' })
   async requestWithdrawal(
     @Param('id') id: string,
-    @Body('amount') amount: number,
-    @Body('paymentInfo') paymentInfo: string
+    @Body() dto: RequestWithdrawalDto,
   ) {
-    return this.boutiquesService.requestWithdrawal(id, amount, paymentInfo);
+    return this.boutiquesService.requestWithdrawal(id, dto.amount, dto.paymentInfo);
   }
 
   @Get(':id/wallet')

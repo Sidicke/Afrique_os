@@ -1,5 +1,5 @@
 /**
- * Super Admin Types — Afrique Commerce OS
+ * Super Admin Types — ZennShop
  * --------------------------------------------------------------------------
  * Types d'affichage du dashboard Administrateur Général (l'utilisateur
  * suprême, distinct de l'espace vendeur). Leur structure reflète le contrat

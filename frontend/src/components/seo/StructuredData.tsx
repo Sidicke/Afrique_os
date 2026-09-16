@@ -2,7 +2,7 @@ export default function StructuredData() {
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: 'Afrique Commerce OS',
+    name: 'ZennShop',
     applicationCategory: 'BusinessApplication',
     offers: {
       '@type': 'Offer',

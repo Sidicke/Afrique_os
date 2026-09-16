@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn, initials } from "@/lib/utils";
 import { useSession } from "@/lib/useSession";
 import { logout } from "@/lib/accountStore";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AdminSidebarProps {
   mobileOpen?: boolean;
@@ -145,7 +146,7 @@ export default function AdminSidebar({ mobileOpen = false, onCloseMobile }: Admi
             </span>
             <div className="flex flex-col">
               <span className="font-display text-sm font-bold tracking-wide text-ink-950">
-                Afrique Commerce <span className="text-gold-strong">OS</span>
+                ZennShop <span className="text-gold-strong">OS</span>
               </span>
               <span className="font-mono text-[10px] uppercase tracking-widest text-ink-400">
                 Administration
@@ -263,14 +264,29 @@ export default function AdminSidebar({ mobileOpen = false, onCloseMobile }: Admi
       </aside>
 
       {/* Mobile Drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-ink-950/45 backdrop-blur-sm" onClick={onCloseMobile} />
-          <div className="fixed inset-y-0 left-0 w-72 border-r border-line bg-surface shadow-2xl">
-            {sidebarContent}
+      <AnimatePresence>
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-ink-950/45 backdrop-blur-sm"
+              onClick={onCloseMobile}
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="fixed inset-y-0 left-0 w-72 max-w-[85vw] border-r border-line bg-surface shadow-2xl"
+            >
+              {sidebarContent}
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -71,7 +71,7 @@ function todayFr(): string {
 }
 
 /** Clé localStorage des avis soumis par les visiteurs (persistants) */
-const USER_REVIEWS_KEY = "afrique-commerce-os:user-reviews";
+const USER_REVIEWS_KEY = "zennshop:user-reviews";
 
 /** Garde-fou : un avis persisté doit avoir une forme connue */
 function isReview(value: unknown): value is Review {

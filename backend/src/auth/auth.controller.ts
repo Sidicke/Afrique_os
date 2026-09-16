@@ -3,7 +3,6 @@ import {
   Controller,
   HttpCode,
   HttpStatus,
-  Patch,
   Post,
   Req,
   Res,
@@ -17,11 +16,14 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { AuthService } from './auth.service';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { FacebookAuthDto } from './dto/facebook-auth.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SendRegistrationCodeDto } from './dto/send-registration-code.dto';
 
 const REFRESH_COOKIE = 'refresh_token';
@@ -79,6 +81,34 @@ export class AuthController {
   }
 
   @Public()
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Connexion / Inscription via compte Google (ID Token)' })
+  async googleAuth(
+    @Body() dto: GoogleAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, user } = await this.authService.googleAuth(dto);
+    this.setRefreshCookie(res, refreshToken);
+    return { accessToken, user };
+  }
+
+  @Public()
+  @Post('facebook')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Connexion / Inscription via compte Facebook (Access Token)' })
+  async facebookAuth(
+    @Body() dto: FacebookAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, user } = await this.authService.facebookAuth(dto);
+    this.setRefreshCookie(res, refreshToken);
+    return { accessToken, user };
+  }
+
+  @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Renouvelle la session grâce au cookie refresh httpOnly' })
@@ -115,7 +145,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Changer son mot de passe (utilisateur connecté)' })
   changePassword(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: { currentPassword?: string; newPassword?: string },
+    @Body() dto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
   }

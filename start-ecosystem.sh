@@ -6,7 +6,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}🚀 Lancement de l'écosystème Afrique Commerce OS...${NC}\n"
+echo -e "${GREEN}🚀 Lancement de l'écosystème ZennShop...${NC}\n"
 
 # 1. Gérer le conflit de port PostgreSQL
 echo -e "${YELLOW}🔍 Vérification du port 5432...${NC}"

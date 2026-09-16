@@ -17,7 +17,7 @@ export default function PortefeuillePage() {
     if (!user?.boutiqueId) return;
     try {
       const res = await shopsApi.wallet(user.boutiqueId);
-      setWallet(res);
+      setWallet(res as any);
     } catch (err) {
       console.error(err);
     } finally {
@@ -49,19 +49,19 @@ export default function PortefeuillePage() {
   if (loading) return <div className="p-8 text-center">Chargement...</div>;
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="mx-auto max-w-4xl p-4 sm:p-6">
       <h1 className="text-2xl font-bold mb-6">Mon Portefeuille</h1>
       
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="bg-white rounded-xl shadow p-6 border border-line">
+        <div className="bg-white rounded-xl shadow p-5 sm:p-6 border border-line">
           <h2 className="text-sm font-semibold text-ink-500 mb-2">Solde disponible</h2>
-          <p className="text-4xl font-bold text-gold-600">{formatFcfa(wallet?.balance || 0)}</p>
+          <p className="text-3xl sm:text-4xl font-bold text-gold-600">{formatFcfa(wallet?.balance || 0)}</p>
           <p className="text-xs text-ink-400 mt-2">
             Ce solde inclut l'argent des achats payés en points (Cashback) par vos clients, couvert par la plateforme.
           </p>
         </div>
 
-        <div className="bg-white rounded-xl shadow p-6 border border-line">
+        <div className="bg-white rounded-xl shadow p-5 sm:p-6 border border-line">
           <h2 className="text-sm font-semibold text-ink-950 mb-4">Demander un retrait</h2>
           <form onSubmit={handleWithdraw} className="space-y-4">
             <div>
@@ -102,31 +102,33 @@ export default function PortefeuillePage() {
         {wallet?.withdrawals?.length === 0 ? (
           <div className="p-6 text-center text-sm text-ink-500">Aucun retrait pour le moment.</div>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-ink-50">
-              <tr>
-                <th className="px-4 py-3 font-semibold text-ink-950">Date</th>
-                <th className="px-4 py-3 font-semibold text-ink-950">Montant</th>
-                <th className="px-4 py-3 font-semibold text-ink-950">Statut</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {wallet?.withdrawals.map((w: any) => (
-                <tr key={w.id}>
-                  <td className="px-4 py-3 text-ink-600">{new Date(w.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 font-medium">{formatFcfa(w.amount)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${w.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                      w.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {w.status === 'PENDING' ? 'En attente' : w.status === 'APPROVED' ? 'Approuvé' : 'Rejeté'}
-                    </span>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[500px]">
+              <thead className="bg-ink-50">
+                <tr>
+                  <th className="px-4 py-3 font-semibold text-ink-950">Date</th>
+                  <th className="px-4 py-3 font-semibold text-ink-950">Montant</th>
+                  <th className="px-4 py-3 font-semibold text-ink-950">Statut</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {wallet?.withdrawals.map((w: any) => (
+                  <tr key={w.id}>
+                    <td className="px-4 py-3 text-ink-600">{new Date(w.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 font-medium">{formatFcfa(w.amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${w.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                        w.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {w.status === 'PENDING' ? 'En attente' : w.status === 'APPROVED' ? 'Approuvé' : 'Rejeté'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

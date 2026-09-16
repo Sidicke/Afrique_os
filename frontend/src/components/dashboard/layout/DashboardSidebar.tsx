@@ -29,6 +29,14 @@ const ICON_DASHBOARD = (
     <rect x="3" y="14" width="7" height="7" rx="1.5" />
   </svg>
 );
+const ICON_STORES = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l1.5-5h15L21 9" />
+    <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+    <path d="M5 12v9h14v-9" />
+    <path d="M10 21v-5h4v5" />
+  </svg>
+);
 const ICON_ORDERS = (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
@@ -63,14 +71,31 @@ const ICON_STATS = (
     <line x1="6" y1="20" x2="6" y2="14" />
   </svg>
 );
+const ICON_ANALYTICS = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3v18h18" />
+    <path d="m19 9-5 5-4-4-3 3" />
+  </svg>
+);
 
 /** Navigation regroupée par domaine métier — chaque module futur (messagerie,
  * équipe, marketplace…) trouvera naturellement sa place dans un groupe existant. */
+const ICON_TEAM = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
 const NAV_ITEMS = [
   {
     group: "Pilotage",
     items: [
       { label: "Tableau de bord", href: "/espace-admin", icon: ICON_DASHBOARD },
+      { label: "Mes Boutiques", href: "/espace-admin/mes-boutiques", icon: ICON_STORES },
+      { label: "Mon Équipe", href: "/espace-admin/equipe", icon: ICON_TEAM },
     ],
   },
   {
@@ -89,7 +114,10 @@ const NAV_ITEMS = [
   },
   {
     group: "Analyse",
-    items: [{ label: "Statistiques & Ventes", href: "/espace-admin/statistiques", icon: ICON_STATS }],
+    items: [
+      { label: "Statistiques & Ventes", href: "/espace-admin/statistiques", icon: ICON_STATS },
+      { label: "Analytics Multi-boutique", href: "/espace-admin/analytics", icon: ICON_ANALYTICS },
+    ],
   },
 ];
 
@@ -211,7 +239,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
             </span>
             <div className="flex flex-col">
               <span className="font-display text-sm font-bold tracking-wide text-ink-950">
-                Afrique Commerce <span className="text-gold-strong">OS</span>
+                ZennShop
               </span>
               <span className="font-mono text-[10px] uppercase tracking-widest text-ink-400">
                 Espace Vendeur
@@ -426,9 +454,17 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
               <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-ink-600">
                 {PLAN_LABEL[merchantProfile.plan] ?? merchantProfile.plan}
               </p>
-              <p className="text-[10px] text-ink-400">
-                {PLAN_PRICE_LINE[merchantProfile.plan] ?? ""}
-              </p>
+              <div className="flex flex-col mt-0.5 text-[9px] text-ink-400">
+                <span>
+                  {merchantProfile.productsCount ?? 0} / {merchantProfile.plan === 'starter' ? '20' : merchantProfile.plan === 'business' ? '150' : '∞'} prod.
+                </span>
+                <span>
+                  {merchantProfile.boutiquesCount ?? 1} / {merchantProfile.plan === 'starter' ? '1' : merchantProfile.plan === 'business' ? '3' : '∞'} bout.
+                </span>
+                <span>
+                  Comm. {merchantProfile.plan === 'starter' ? '5%' : merchantProfile.plan === 'business' ? '2%' : 'Nég.'}
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -467,20 +503,29 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
       </aside>
 
       {/* Mobile Drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-ink-950/45 backdrop-blur-sm" onClick={onCloseMobile} />
-          <motion.div
-            initial={{ x: "-100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="fixed inset-y-0 left-0 w-72 border-r border-line bg-surface"
-          >
-            {sidebarContent}
-          </motion.div>
-        </div>
-      )}
+      <AnimatePresence>
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-ink-950/45 backdrop-blur-sm"
+              onClick={onCloseMobile}
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="fixed inset-y-0 left-0 w-72 max-w-[85vw] border-r border-line bg-surface shadow-2xl"
+            >
+              {sidebarContent}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

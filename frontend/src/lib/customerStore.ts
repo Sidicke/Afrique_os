@@ -86,7 +86,7 @@ export interface CustomerData {
  * Store localStorage + abonnés
  * ———————————————————————————————————————————————— */
 
-const CUSTOMER_KEY = "afrique-commerce-os:customer";
+const CUSTOMER_KEY = "zennshop:customer";
 
 /** Snapshot vide partagé — référence stable exigée par useSyncExternalStore */
 export const EMPTY_CUSTOMER_DATA: CustomerData = {

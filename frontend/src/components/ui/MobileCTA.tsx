@@ -30,7 +30,7 @@ export default function MobileCTA() {
         opacity: hidden || scrollingDown ? 0 : 1
       }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed bottom-6 left-0 right-0 z-40 flex justify-center px-5 md:hidden"
+      className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4 md:hidden"
     >
       <Link
         href="/inscription"

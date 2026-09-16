@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { BoutiqueOwnerGuard } from '../boutiques/guards/boutique-owner.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
@@ -87,6 +88,7 @@ export class OrdersController {
 
   /** Historique d'un client (par numéro de téléphone) — vitrine */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('boutique/:boutiqueId/customer/:phone')
   @ApiOperation({ summary: 'Historique des commandes d’un client (téléphone)' })
   findForCustomer(
@@ -98,6 +100,7 @@ export class OrdersController {
 
   /** Suivi d'une commande par numéro (référence, ex. #AC-8901) — vitrine */
   @Public()
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @Get('boutique/:boutiqueId/reference/:reference')
   @ApiOperation({ summary: 'Suivi d’une commande par numéro (référence)' })
   findByReference(

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { routes } from "@/lib/urls/routes";
 import { catalogueApi } from "@/lib/api";
 import { publicProductImage } from "@/lib/api/mappers";
 import { ApiPublicProduct } from "@/lib/api/types";
@@ -71,11 +72,14 @@ export default function MarketplaceLatestProducts() {
           ) : (
             products.map((product) => {
               const imageUrl = publicProductImage(product);
+              const href = product.boutique?.slug
+                ? routes.product(product.boutique.slug, product.slug)
+                : `/b/_/p/${product.slug}`;
               
               return (
                 <Link 
                   key={product.id} 
-                  href={`/produit/${product.slug}`}
+                  href={href}
                   className="group flex gap-3 items-center py-2.5 transition-colors hover:bg-gold-wash/40 rounded-lg px-1"
                 >
                   <div className="relative w-12 h-12 rounded border border-line overflow-hidden bg-gray-50 flex-shrink-0">

@@ -9,6 +9,7 @@ import { useSession } from "@/lib/useSession";
 import { logout } from "@/lib/accountStore";
 import { useRouter, usePathname } from "next/navigation";
 import { IconSearch } from "@/components/client/icons";
+import SearchAutocomplete from "@/components/search/SearchAutocomplete";
 
 /** Ancres de la landing — affichées UNIQUEMENT sur la page d'accueil */
 const NAV_LINKS = [
@@ -60,6 +61,8 @@ export default function Navbar() {
     return () => unsubscribe();
   }, [scrollY]);
 
+  const isSolidDark = !isHome || scrolled;
+
   return (
     <motion.header
       initial={{ y: prefersReduced ? 0 : -64, opacity: 0 }}
@@ -67,8 +70,8 @@ export default function Navbar() {
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
-        scrolled
-          ? "border-b border-white/10 bg-midnight-950/80 backdrop-blur-xl"
+        isSolidDark
+          ? "border-b border-white/10 bg-midnight-950/95 backdrop-blur-xl"
           : "border-b border-transparent bg-transparent"
       )}
     >
@@ -79,35 +82,23 @@ export default function Navbar() {
         <Link
           href="/"
           className="group flex items-center gap-2.5"
-          aria-label="Afrique Commerce OS"
+          aria-label="ZennShop"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-gold-400/40 bg-gold-400/10 font-display text-sm font-bold text-gold-300 transition-colors duration-300 group-hover:bg-gold-400 group-hover:text-midnight-950">
             AC
           </span>
           <span className={cn(
             "hidden font-display text-sm font-semibold tracking-wide sm:block",
-            (scrolled || isHome) ? "text-ivory-50 drop-shadow-sm" : "text-midnight-950"
+            isSolidDark ? "text-ivory-50 drop-shadow-sm" : "text-midnight-950"
           )}>
-            Afrique Commerce <span className={(scrolled || isHome) ? "text-gold-300" : "text-gold-strong"}>OS</span>
+            Zenn<span className={isSolidDark ? "text-gold-300" : "text-gold-strong"}>Shop</span>
           </span>
         </Link>
 
         {/* Navigation ou Barre de recherche desktop */}
-        {isMarketplace ? (
-          <div className="hidden flex-1 max-w-3xl md:flex">
-            <div className="flex h-11 w-full overflow-hidden rounded-lg bg-white p-0.5 shadow-md">
-              <button className="flex items-center gap-1 border-r border-line bg-gray-50 px-4 text-xs font-semibold text-midnight-950 hover:bg-gray-100">
-                Toutes catégories <span className="text-[10px] text-ink-400">▾</span>
-              </button>
-              <input
-                type="text"
-                placeholder="Entrez votre recherche..."
-                className="flex-1 bg-white px-4 text-sm text-midnight-950 placeholder:text-ink-400 focus:outline-none"
-              />
-              <button className="flex items-center justify-center rounded-r-md bg-terracotta px-6 text-white font-bold transition-colors hover:bg-terracotta/90">
-                <IconSearch className="h-5 w-5" />
-              </button>
-            </div>
+        {isMarketplace && !pathname?.startsWith("/recherche") ? (
+          <div className="hidden flex-1 max-w-2xl md:flex px-4">
+            <SearchAutocomplete variant="navbar" placeholder="Rechercher un produit, une boutique..." />
           </div>
         ) : (
           <nav
@@ -129,6 +120,39 @@ export default function Navbar() {
         )}
 
         <div className="hidden items-center gap-3 lg:flex">
+          {/* Sélecteurs de préférence (Devise & Langue) */}
+          <div className="flex items-center gap-2 mr-2 border-r border-white/10 pr-4">
+            <select
+              className="bg-transparent text-xs text-ivory-50/70 focus:outline-none cursor-pointer hover:text-gold-300 [&>option]:bg-midnight-950"
+              onChange={(e) => {
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("zennshop_lang", e.target.value);
+                  window.location.reload(); // Simple refresh to apply
+                }
+              }}
+              defaultValue={typeof window !== "undefined" ? localStorage.getItem("zennshop_lang") || "fr" : "fr"}
+            >
+              <option value="fr">FR</option>
+              <option value="en">EN</option>
+            </select>
+            <select
+              className="bg-transparent text-xs text-ivory-50/70 focus:outline-none cursor-pointer hover:text-gold-300 [&>option]:bg-midnight-950"
+              onChange={(e) => {
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("zennshop_curr", e.target.value);
+                  window.location.reload(); // Simple refresh to apply
+                }
+              }}
+              defaultValue={typeof window !== "undefined" ? localStorage.getItem("zennshop_curr") || "XOF" : "XOF"}
+            >
+              <option value="XOF">XOF (FCFA)</option>
+              <option value="XAF">XAF (FCFA)</option>
+              <option value="NGN">NGN (₦)</option>
+              <option value="GHS">GHS (GH₵)</option>
+              <option value="KES">KES (KSh)</option>
+            </select>
+          </div>
+
           {user ? (
             <>
               <Button href={homeHref} variant="ghost" size="sm">
@@ -157,8 +181,13 @@ export default function Navbar() {
 
         {/* Bouton menu mobile */}
         <div className="flex items-center lg:hidden">
-          {isMarketplace && (
-            <button className="mr-2 flex h-10 w-10 items-center justify-center text-ivory-50 transition-colors hover:text-gold-300">
+          {isMarketplace && !pathname?.startsWith("/recherche") && (
+            <button
+              type="button"
+              onClick={() => router.push("/recherche")}
+              aria-label="Rechercher sur le marketplace"
+              className="mr-2 flex h-10 w-10 items-center justify-center text-ivory-50 transition-colors hover:text-gold-300"
+            >
               <IconSearch className="h-5 w-5" />
             </button>
           )}
@@ -197,26 +226,31 @@ export default function Navbar() {
       </div>
 
       {/* Bandeau essai gratuit — réservé à la landing (acquisition),
-          pas sur les pages commerce */}
+          affiché après défilement */}
       {isHome && (
         <div
           aria-hidden={!scrolled}
           className={cn(
             "overflow-hidden transition-all duration-300",
-            scrolled ? "max-h-8 opacity-100" : "max-h-0 opacity-0"
+            scrolled ? "max-h-12 opacity-100" : "max-h-0 opacity-0"
           )}
         >
-          <div className="border-t border-gold-400/15 bg-midnight-950/60">
-            <p className="flex items-center justify-center gap-2 px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-gold-300/90">
-              <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+          <div className="border-t border-gold-400/15 bg-midnight-950/80 backdrop-blur-md">
+            <Link
+              href="/inscription"
+              className="flex items-center justify-center gap-2 px-3 py-1.5 text-center font-mono text-[10px] sm:text-[11px] uppercase tracking-wider sm:tracking-[0.18em] text-gold-300/90 transition-colors hover:text-gold-200"
+            >
+              <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-300 opacity-70" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold-300" />
               </span>
-              Business dès 15 000 FCFA/mois
               <span className="hidden sm:inline">
-                {""}
+                Business dès 12 500 FCFA/mois · Lancer ma boutique en ligne →
               </span>
-            </p>
+              <span className="sm:hidden truncate">
+                Dès 12 500 FCFA/m · Lancer ma boutique →
+              </span>
+            </Link>
           </div>
         </div>
       )}
@@ -226,21 +260,16 @@ export default function Navbar() {
         initial={false}
         animate={{ height: menuOpen ? "auto" : 0, opacity: menuOpen ? 1 : 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        className="overflow-hidden border-b border-white/10 bg-midnight-950/95 backdrop-blur-xl lg:hidden"
+        className="overflow-hidden border-b border-white/10 bg-midnight-950/95 backdrop-blur-xl lg:hidden max-h-[calc(100dvh-4rem)] overflow-y-auto"
       >
         <div className="flex w-full flex-col gap-1 px-5 py-4 sm:px-8">
-          {isMarketplace && (
+          {isMarketplace && !pathname?.startsWith("/recherche") && (
             <div className="px-1 pb-4 pt-1">
-              <div className="flex h-10 w-full shadow-sm">
-                <input
-                  type="text"
-                  placeholder="Rechercher..."
-                  className="flex-1 rounded-l-lg bg-white/5 px-4 text-sm text-ivory-50 focus:outline-none placeholder:text-ivory-50/30"
-                />
-                <button className="flex items-center justify-center rounded-r-lg bg-terracotta px-4 text-white">
-                  <IconSearch className="h-4 w-4" />
-                </button>
-              </div>
+              <SearchAutocomplete
+                variant="navbar"
+                placeholder="Rechercher un produit, une boutique…"
+                onSearchSubmitted={() => setMenuOpen(false)}
+              />
             </div>
           )}
 
@@ -257,6 +286,39 @@ export default function Navbar() {
             ))}
 
           <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-4">
+            {/* Mobile Selectors */}
+            <div className="flex items-center gap-4 mb-2 pb-3 border-b border-white/5">
+              <select
+                className="bg-transparent text-sm text-ivory-50/80 focus:outline-none cursor-pointer [&>option]:bg-midnight-950"
+                onChange={(e) => {
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("zennshop_lang", e.target.value);
+                    window.location.reload();
+                  }
+                }}
+                defaultValue={typeof window !== "undefined" ? localStorage.getItem("zennshop_lang") || "fr" : "fr"}
+              >
+                <option value="fr">Français (FR)</option>
+                <option value="en">English (EN)</option>
+              </select>
+              <select
+                className="bg-transparent text-sm text-ivory-50/80 focus:outline-none cursor-pointer [&>option]:bg-midnight-950"
+                onChange={(e) => {
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("zennshop_curr", e.target.value);
+                    window.location.reload();
+                  }
+                }}
+                defaultValue={typeof window !== "undefined" ? localStorage.getItem("zennshop_curr") || "XOF" : "XOF"}
+              >
+                <option value="XOF">XOF (FCFA)</option>
+                <option value="XAF">XAF (FCFA)</option>
+                <option value="NGN">NGN (Naira)</option>
+                <option value="GHS">GHS (Cedis)</option>
+                <option value="KES">KES (KSh)</option>
+              </select>
+            </div>
+
             {user ? (
               <>
                 <Button href={homeHref} variant="secondary" size="md">

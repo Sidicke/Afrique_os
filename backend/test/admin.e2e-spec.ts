@@ -417,7 +417,7 @@ describe('Admin (e2e)', () => {
       .get('/api/v1/admin/settings')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
-    expect(res.body.settings.general.platformName).toBe('Afrique Commerce OS');
+    expect(res.body.settings.general.platformName).toBe('ZennShop');
     expect(res.body.updatedBy).toBe('Admin Plateforme');
   });
 
@@ -425,15 +425,15 @@ describe('Admin (e2e)', () => {
     const res = await request(app.getHttpServer())
       .patch('/api/v1/admin/settings')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ data: { general: { platformName: 'Afrique Commerce OS (test)' } } })
+      .send({ data: { general: { platformName: 'ZennShop (test)' } } })
       .expect(200);
-    expect(res.body.settings.general.platformName).toBe('Afrique Commerce OS (test)');
+    expect(res.body.settings.general.platformName).toBe('ZennShop (test)');
 
     // Restaure la valeur d'origine
     await request(app.getHttpServer())
       .patch('/api/v1/admin/settings')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ data: { general: { platformName: 'Afrique Commerce OS' } } })
+      .send({ data: { general: { platformName: 'ZennShop' } } })
       .expect(200);
   });
 

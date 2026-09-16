@@ -39,7 +39,7 @@ export interface DeletedShop {
  * Clés localStorage (boutiques fermées uniquement)
  * ———————————————————————————————————————————————— */
 
-const DELETED_KEY = "afrique-commerce-os:deleted-shops";
+const DELETED_KEY = "zennshop:deleted-shops";
 
 function readJson<T>(key: string): T | null {
   if (typeof window === "undefined") return null;

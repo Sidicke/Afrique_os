@@ -69,11 +69,11 @@ describe("NotificationBell", () => {
       configurable: true,
       value: false,
     });
-    document.title = "Afrique Commerce OS";
+    document.title = "ZennShop";
   });
 
   afterEach(() => {
-    document.title = "Afrique Commerce OS";
+    document.title = "ZennShop";
     vi.useRealTimers();
   });
 
@@ -157,7 +157,7 @@ describe("NotificationBell", () => {
 
     // Au tick suivant, le titre d'origine revient (alternance)
     await vi.advanceTimersByTimeAsync(1200);
-    expect(document.title).toBe("Afrique Commerce OS");
+    expect(document.title).toBe("ZennShop");
   });
 
   it("secoue la cloche (classe bell-ring) quand une nouvelle notification arrive (onglet visible)", async () => {
@@ -184,7 +184,7 @@ describe("NotificationBell", () => {
 
     // Après la durée max, le titre d'origine est restauré
     await vi.advanceTimersByTimeAsync(15_000);
-    expect(document.title).toBe("Afrique Commerce OS");
+    expect(document.title).toBe("ZennShop");
   });
 
   it("arrête le clignotement et restaure le titre quand on revient dans l'onglet", async () => {
@@ -205,14 +205,14 @@ describe("NotificationBell", () => {
       value: false,
     });
     document.dispatchEvent(new Event("visibilitychange"));
-    expect(document.title).toBe("Afrique Commerce OS");
+    expect(document.title).toBe("ZennShop");
   });
 
   it("ne déclenche pas d'alerte sans nouvelle notification (newAlertKey 0)", () => {
     const { container } = render(<NotificationBell />);
     const svg = container.querySelector("svg");
     expect(svg?.classList.contains("bell-ring")).toBe(false);
-    expect(document.title).toBe("Afrique Commerce OS");
+    expect(document.title).toBe("ZennShop");
   });
 
   it("affiche un badge de type par notification (Commande, Annulation, Message, Stock)", async () => {

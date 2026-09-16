@@ -197,7 +197,7 @@ export default function Hero() {
       ref={sectionRef}
       id="hero"
       className="hero-viewport relative flex items-end overflow-hidden bg-midnight-950"
-      aria-label="Présentation d'Afrique Commerce OS"
+      aria-label="Présentation d'ZennShop"
     >
       {/* ── Layer 1: Film Canvas ── */}
       <div className="absolute inset-0" aria-hidden="true">
@@ -400,7 +400,7 @@ export default function Hero() {
       </div>
 
       {/* ── Accessible description ── */}
-      <div className="sr-only" role="img" aria-label="Film montrant la transformation d'une boutique high-tech physique en commerce connecté grâce à Afrique Commerce OS. Un commerçant passe d'un commerce dispersé entre WhatsApp, photos et appels à une boutique en ligne professionnelle où il reçoit et gère ses commandes.">
+      <div className="sr-only" role="img" aria-label="Film montrant la transformation d'une boutique high-tech physique en commerce connecté grâce à ZennShop. Un commerçant passe d'un commerce dispersé entre WhatsApp, photos et appels à une boutique en ligne professionnelle où il reçoit et gère ses commandes.">
         Ce film montre la transformation d&apos;un commerce physique en commerce connecté.
       </div>
     </section>

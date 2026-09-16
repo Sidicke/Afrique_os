@@ -4,7 +4,7 @@ import Footer from "@/components/sections/Footer";
 import ProductPage from "@/components/marketplace/ProductPage";
 
 export const metadata: Metadata = {
-  title: "Produit | Afrique Commerce OS",
+  title: "Produit | ZennShop",
   description:
     "Fiche produit du marketplace : prix, variantes, disponibilité, avis, discussion avec le vendeur et commande sans compte.",
 };

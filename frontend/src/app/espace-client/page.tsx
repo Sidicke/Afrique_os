@@ -60,8 +60,7 @@ export default function EspaceClientHome() {
                 <>
                   , <span className="text-terracotta">{firstName}</span>
                 </>
-              ) : null}{" "}
-              👋
+              ) : null}
             </h1>
             
             <p className="mt-3 text-base leading-relaxed text-ink-600 sm:text-lg">

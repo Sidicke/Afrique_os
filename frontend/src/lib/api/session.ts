@@ -1,12 +1,12 @@
 /**
  * Couche API — session (access token + utilisateur connecté)
  * --------------------------------------------------------------------------
- * ⚠️ MODULE PUR (aucun import React) — même pattern que `lib/shopConfig.ts` :
- * lecture/écriture localStorage + abonnés (consommés par les hooks client).
+ * ⚠️ MODULE PUR (aucun import React) :
+ * Gestion sécurisée en mémoire et sessionStorage (isolation par onglet).
  *
- * Seul l'ACCESS token (15 min) vit ici. Le REFRESH token (7 j) est un cookie
- * httpOnly géré par le backend : il est automatiquement utilisé par
- * `http.ts` quand l'access token expire (rotation silencieuse).
+ * Seul l'ACCESS token court (15 min) transite ici. Le REFRESH token (7 j) est
+ * un cookie httpOnly sécurisé géré par le backend : il est automatiquement
+ * utilisé par `http.ts` pour renouveler la session silencieusement.
  */
 
 import type { ApiUser } from "./types";
@@ -16,15 +16,25 @@ export interface Session {
   user: ApiUser;
 }
 
-const SESSION_KEY = "afrique-commerce-os:api-session";
+const SESSION_KEY = "zennshop:api-session";
 
 function readFromStorage(): Session | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(SESSION_KEY);
+    // Migration sécurisée : privilégie sessionStorage (effacé à la fermeture de l'onglet)
+    const raw =
+      window.sessionStorage.getItem(SESSION_KEY) ||
+      window.localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Session>;
     if (typeof parsed.accessToken !== "string" || !parsed.user) return null;
+
+    // Nettoie l'ancien localStorage si présent
+    if (window.localStorage.getItem(SESSION_KEY)) {
+      window.localStorage.removeItem(SESSION_KEY);
+      window.sessionStorage.setItem(SESSION_KEY, raw);
+    }
+
     return { accessToken: parsed.accessToken, user: parsed.user };
   } catch {
     return null;
@@ -37,11 +47,15 @@ const listeners = new Set<() => void>();
 function persist() {
   try {
     if (typeof window !== "undefined") {
-      if (current) window.localStorage.setItem(SESSION_KEY, JSON.stringify(current));
-      else window.localStorage.removeItem(SESSION_KEY);
+      if (current) {
+        window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(current));
+      } else {
+        window.sessionStorage.removeItem(SESSION_KEY);
+        window.localStorage.removeItem(SESSION_KEY);
+      }
     }
   } catch {
-    // Stockage indisponible : la session reste en mémoire
+    // Stockage indisponible : la session reste en mémoire vive
   }
   for (const listener of listeners) listener();
 }
@@ -80,7 +94,9 @@ export function setSession(session: Session): void {
  * Met à jour les informations de l'utilisateur dans la session locale
  * (après une modification de profil persistée côté serveur).
  */
-export function updateSessionUser(patch: Partial<Pick<ApiUser, "name" | "phone" | "email" | "avatarUrl">>): void {
+export function updateSessionUser(
+  patch: Partial<Pick<ApiUser, "name" | "phone" | "email" | "avatarUrl">>,
+): void {
   if (!current) return;
   current = { ...current, user: { ...current.user, ...patch } };
   persist();

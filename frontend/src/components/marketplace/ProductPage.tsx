@@ -60,7 +60,13 @@ function Stars({ rating, className }: { rating: number; className?: string }) {
  * ProductCard pour les similaires et productChatHref pour la discussion.
  * « Commander » mène à la vraie boutique où le panier/checkout vit.
  */
-export default function ProductPage({ slug }: { slug: string }) {
+export default function ProductPage({
+  slug,
+  storeSlug,
+}: {
+  slug: string;
+  storeSlug?: string;
+}) {
   const [product, setProduct] = useState<ApiProductDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -249,7 +255,7 @@ export default function ProductPage({ slug }: { slug: string }) {
         </Link>
         <span className="text-midnight-950/25">/</span>
         <Link
-          href={`/boutique/${product.boutique.slug}`}
+          href={`/b/${storeSlug || product.boutique.slug}`}
           className="font-semibold text-midnight-950/60 transition-colors hover:text-gold-700"
         >
           {product.boutique.name}

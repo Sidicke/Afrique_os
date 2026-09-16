@@ -15,6 +15,7 @@ import { authApi } from "@/lib/api/auth";
 import { setSession, getSessionUser } from "@/lib/api/session";
 import { friendlyAuthError } from "@/lib/api/errorMessages";
 import type { FriendlyError } from "@/lib/api/errorMessages";
+import SocialAuthButtons from "@/components/auth/SocialAuthButtons";
 
 /**
  * Connexion UNIQUE — pas de « connexion client » ni « connexion vendeur ».
@@ -29,10 +30,19 @@ function destinationFor(role: string): string {
     case "ADMIN":
       return "/admin";
     case "VENDEUR":
-      return "/dashboard";
+      return "/espace-admin";
     default:
       return "/espace-client";
   }
+}
+
+function safeDest(next: string | null | undefined, fallback: string): string {
+  if (!next) return fallback;
+  if (next.startsWith("//") || next.includes("://") || next.includes("\\")) {
+    return fallback;
+  }
+  if (next.startsWith("/")) return next;
+  return fallback;
 }
 
 export default function ConnexionForm() {
@@ -68,7 +78,7 @@ export default function ConnexionForm() {
         password,
       });
       setSession({ accessToken: auth.accessToken, user: auth.user });
-      router.push(next ?? destinationFor(auth.user.role));
+      router.push(safeDest(next, destinationFor(auth.user.role)));
     } catch (err) {
       setError(friendlyAuthError(err));
       setBusy(false);
@@ -150,6 +160,12 @@ export default function ConnexionForm() {
         </div>
 
         <AuthSubmit busy={busy}>Se connecter</AuthSubmit>
+
+        <SocialAuthButtons
+          mode="login"
+          next={next}
+          onError={(err) => setError(err)}
+        />
 
         <p className="text-center text-xs leading-relaxed text-ink-400">
           Connexion sécurisée · Vos accès sont déterminés automatiquement selon

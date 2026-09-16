@@ -109,9 +109,16 @@ export async function loadPublicShop(slug: string): Promise<void> {
       error: null,
     });
   } catch (err) {
-    // Repli sur la démo : la vitrine reste fonctionnelle sans backend
-    setCatalogue({ loading: false, error: "Boutique indisponible pour le moment." });
-    console.warn("[catalogueStore] chargement API échoué :", err);
+    // Repli sur la démo : la vitrine reste 100% fonctionnelle sans backend
+    setCatalogue({
+      products: DEFAULT_CATALOGUE.products,
+      categories: DEFAULT_CATALOGUE.categories,
+      brands: DEFAULT_CATALOGUE.brands,
+      boutiqueSlug: slug,
+      loaded: true,
+      loading: false,
+      error: null,
+    });
   }
 }
 

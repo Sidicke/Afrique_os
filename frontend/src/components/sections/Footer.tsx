@@ -8,28 +8,23 @@ const FOOTER_LINKS = [
   {
     title: "Plateforme",
     links: [
-      { label: "Le défi", href: "#probleme" },
-      { label: "La transformation", href: "#solution" },
-      { label: "La plateforme", href: "#fonctionnalites" },
-      { label: "La vision", href: "#vision" },
-    ],
-  },
-  {
-    title: "Découvrir",
-    links: [
-      { label: "Le marketplace", href: "/marketplace" },
+      { label: "Marketplace", href: "/marketplace" },
       { label: "Recherche", href: "/recherche" },
-      { label: "La boutique démo", href: "/boutique" },
-      { label: "Créer ma boutique", href: "/inscription" },
+      { label: "Tarifs", href: "/tarifs" },
     ],
   },
   {
-    title: "Espaces",
+    title: "Boutiques",
     links: [
-      { label: "Espace vendeur", href: "/connexion" },
-      { label: "Espace client", href: "/connexion" },
-      { label: "Console administrateur", href: "/connexion" },
-      { label: "Se connecter", href: "/connexion" },
+      { label: "Créer une boutique", href: "/inscription" },
+      { label: "Espace Vendeur", href: "/connexion" },
+    ],
+  },
+  {
+    title: "Clients",
+    links: [
+      { label: "Espace Client", href: "/connexion" },
+      { label: "S'inscrire", href: "/inscription" },
     ],
   },
 ];
@@ -63,9 +58,7 @@ export default function Footer() {
         {/* ——— Bande CTA ——— */}
         <div className="flex flex-col items-start justify-between gap-10 border-b border-white/10 py-16 lg:flex-row lg:items-center">
           <div className="max-w-2xl">
-            <p className="font-mono text-xs uppercase tracking-[0.28em] text-gold-300">
-              La lumière voyage
-            </p>
+
             <h2 className="mt-4 font-display text-3xl font-semibold leading-tight tracking-tight text-ivory-50 sm:text-4xl">
               Votre commerce, <span className="text-gold-gradient">en pleine lumière.</span>
             </h2>
@@ -91,13 +84,13 @@ export default function Footer() {
             <Link
               href="/"
               className="group flex w-fit items-center gap-2.5"
-              aria-label="Afrique Commerce OS"
+              aria-label="ZennShop"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-400/40 bg-gold-400/10 font-display text-sm font-bold text-gold-300 transition-all duration-300 group-hover:bg-gold-400 group-hover:text-midnight-950 group-hover:shadow-lg group-hover:shadow-gold-400/25">
                 AC
               </span>
               <span className="font-display text-base font-semibold tracking-wide text-ivory-50">
-                Afrique Commerce <span className="text-gold-300">OS</span>
+                Zenn<span className="text-gold-300">Shop</span>
               </span>
             </Link>
 
@@ -132,11 +125,6 @@ export default function Footer() {
               {SUPPORT_EMAIL}
             </a>
 
-            {/* Réseau narratif — décoratif uniquement */}
-            <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.22em] text-gold-300/60">
-              Une plateforme reliée
-            </p>
-            <p className="mt-2 max-w-xs text-sm leading-relaxed text-ivory-50/45">{CITIES}</p>
           </div>
 
           {/* Colonnes de liens */}
@@ -173,10 +161,10 @@ export default function Footer() {
         {/* ——— Barre finale ——— */}
         <div className="flex flex-col items-center justify-between gap-5 border-t border-white/10 py-8 sm:flex-row">
           <p className="order-3 text-center text-xs text-ivory-50/40 sm:order-1 sm:text-left">
-            © {new Date().getFullYear()} Afrique Commerce OS. Tous droits réservés.
+            © {new Date().getFullYear()} ZennShop. Tous droits réservés.
           </p>
 
-          <div className="order-1 flex items-center gap-6 sm:order-2">
+          <div className="order-1 flex flex-wrap items-center justify-center gap-4 sm:gap-6 sm:order-2">
             <Link
               href="/marketplace"
               className="text-xs text-ivory-50/50 transition-colors duration-200 hover:text-gold-300"
@@ -208,13 +196,7 @@ export default function Footer() {
             </button>
           </div>
 
-          <p className="order-2 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-gold-300/70 sm:order-3">
-            <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-300 opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold-300" />
-            </span>
-            La lumière voyage
-          </p>
+
         </div>
       </Container>
     </footer>

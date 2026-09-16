@@ -26,7 +26,7 @@ export class CompleteRegistrationDto {
   referralCode?: string;
 
   @IsString()
-  @MinLength(6, { message: 'Le mot de passe doit contenir au moins 6 caractères' })
+  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })
   @MaxLength(72)
   password: string;
 

@@ -36,7 +36,8 @@ enum VerificationStatus {
 
 enum OrderStatus {
   PENDING // Commandée — en attente de paiement
-  PAID // Payée — le paiement a été validé (le vrai jalon, plus de confirmation WhatsApp)
+  PAID // Payée — le paiement a été validé
+  WHATSAPP_CONFIRMED // Rétrocompatibilité données existantes
   SHIPPING
   DELIVERED
   CANCELLED
@@ -47,6 +48,7 @@ enum PaymentMethod {
   CASH_ON_DELIVERY
   CARD
   WHATSAPP_DIRECT
+  FEDAPAY
 }
 
 enum MessageSender {
@@ -96,9 +98,12 @@ enum VerificationDocumentType {
 model User {
   id          String   @id @default(cuid())
   email       String   @unique
-  password    String // Hash bcrypt
+  password    String? // Hash bcrypt (optionnel pour les comptes créés via OAuth Google / Facebook)
+  googleId    String?  @unique
+  facebookId  String?  @unique
+  authProvider String? @default("LOCAL") // LOCAL, GOOGLE, FACEBOOK
   name        String?
-  phone       String? @unique // Identifiant de connexion alternatif (unique si renseigné)
+  phone       String? // Identifiant de connexion alternatif (vérifié en unicité applicative)
   avatarUrl   String? // Photo de profil utilisateur (URL ou base64 data-url)
   role        Role     @default(CLIENT)
   status      UserStatus @default(ACTIVE) // Blocage admin (modération)
@@ -118,6 +123,8 @@ model User {
   pointTransactions PointTransaction[]
 
   boutiques    Boutique[]
+  teamMemberships TeamMember[]
+  teamInvitations TeamMember[] @relation("TeamInviter")
   conversations Conversation[] @relation("ConversationClient")
   orders       Order[]
   messages     Message[]
@@ -176,7 +183,7 @@ model Boutique {
   brands        Brand[]
   products      Product[]
   orders        Order[]
-  balance       Float @default(0)
+  balance       Decimal @default(0) @db.Decimal(14, 2)
   withdrawals   WithdrawalRequest[]
   conversations Conversation[]
   subscribers   Subscriber[]
@@ -185,6 +192,7 @@ model Boutique {
   // Module admin plateforme
   subscription          Subscription?
   verificationDocuments VerificationDocument[]
+  teamMembers   TeamMember[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -321,6 +329,13 @@ model Order {
   total          Decimal     @db.Decimal(12, 2) // items + livraison, recalculé serveur
   notes          String?
 
+  // --- Modèle Économique (Traçabilité des commissions) ---
+  commissionRate   Decimal? @db.Decimal(5, 2)
+  commissionAmount Decimal? @db.Decimal(12, 2)
+  netAmount        Decimal? @db.Decimal(12, 2)
+  planAtPurchase   String?  // Snapshot du plan vendeur (starter, business...)
+  // ------------------------------------------------------
+
   items     OrderItem[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -364,7 +379,7 @@ model Conversation {
   productPrice String? // Snapshot du prix affiché (FCFA)
   productDescription String? // Snapshot de la description (carte produit de la discussion)
   productImage String? // Snapshot de l'image (carte produit de la discussion)
-  agreedPrice Float? // Prix réduit convenu lors de la négociation
+  agreedPrice Decimal? @db.Decimal(14, 2) // Prix réduit convenu lors de la négociation
   orderId      String? // Commande concernée (ex. question sur une commande)
   orderReference String? // Snapshot de la référence (ex. #AC-8901)
 
@@ -598,7 +613,7 @@ model WithdrawalRequest {
   id          String   @id @default(cuid())
   boutiqueId  String
   boutique    Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  amount      Float
+  amount      Decimal  @db.Decimal(14, 2)
   status      WithdrawalStatus @default(PENDING)
   createdAt   DateTime @default(now())
   processedAt DateTime?
@@ -611,4 +626,65 @@ enum WithdrawalStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+/**
+  * Clés d'idempotence pour sécuriser les transactions financières (1er pilier de sécurité).
+  * Empêche les réexécutions accidentelles ou les Webhooks répétés.
+  */
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  path         String
+  statusCode   Int
+  responseBody Json
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([key])
+  @@index([expiresAt])
+}
+
+/**
+ * Membres d'équipe d'une boutique — invités par le propriétaire (Business+)
+ * Un collaborateur peut avoir accès à une ou plusieurs boutiques du même owner.
+ */
+model TeamMember {
+  id         String   @id @default(cuid())
+  boutiqueId String
+  boutique   Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  
+  // L'email de l'invité (peut ne pas encore avoir de compte ZennShop)
+  email      String
+  name       String?
+  role       TeamMemberRole @default(EDITOR)
+  status     TeamMemberStatus @default(PENDING)
+  
+  // Lien vers le compte utilisateur s'il existe
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  invitedById String?
+  invitedBy   User?    @relation("TeamInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  
+  invitedAt  DateTime @default(now())
+  acceptedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([boutiqueId, email])
+  @@index([boutiqueId])
+  @@index([email])
+}
+
+enum TeamMemberRole {
+  ADMIN    // Peut tout faire sauf supprimer la boutique
+  EDITOR   // Peut gérer produits, commandes
+  VIEWER   // Lecture seule
+}
+
+enum TeamMemberStatus {
+  PENDING  // Invitation envoyée, pas encore acceptée
+  ACTIVE   // Invitation acceptée
+  REVOKED  // Accès révoqué
 }

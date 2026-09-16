@@ -266,3 +266,102 @@ export function IconGift({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconSmartphone({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+      <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+export function IconShirt({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
+    </svg>
+  );
+}
+
+export function IconHeadphones({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </svg>
+  );
+}
+
+export function IconArmchair({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3" />
+      <path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z" />
+      <path d="M5 18v2M19 18v2" />
+    </svg>
+  );
+}
+
+export function IconTag({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+export function IconBuilding({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+      <line x1="9" y1="22" x2="9" y2="18" />
+      <line x1="15" y1="22" x2="15" y2="18" />
+      <line x1="9" y1="6" x2="9.01" y2="6" strokeWidth="2" />
+      <line x1="15" y1="6" x2="15.01" y2="6" strokeWidth="2" />
+      <line x1="9" y1="10" x2="9.01" y2="10" strokeWidth="2" />
+      <line x1="15" y1="10" x2="15.01" y2="10" strokeWidth="2" />
+      <line x1="9" y1="14" x2="9.01" y2="14" strokeWidth="2" />
+      <line x1="15" y1="14" x2="15.01" y2="14" strokeWidth="2" />
+    </svg>
+  );
+}
+
+export function IconCreditCard({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+    </svg>
+  );
+}
+
+export function IconZap({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  );
+}
+
+export function IconGlobe({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+export function IconBarChart({ className }: IconProps) {
+  return (
+    <svg {...base(className)}>
+      <line x1="12" y1="20" x2="12" y2="10" />
+      <line x1="18" y1="20" x2="18" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="16" />
+    </svg>
+  );
+}
+
