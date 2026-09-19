@@ -43,7 +43,7 @@ const PLANS = [
     features: [
       "Jusqu'à 150 produits",
       "Jusqu'à 3 boutiques",
-      "Commission : 3 %",
+      "Commission : 2 %",
       "Analytics & Segmentation",
     ],
   },

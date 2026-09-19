@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { cn, publicShopHref } from "@/lib/utils";
 import { useSession } from "@/lib/useSession";
 import { merchantProfile } from "@/services/dashboardService";
+import { getBoutiqueName } from "@/lib/api/session";
 import NotificationBell from "./NotificationBell";
 
 interface TopbarProps {
@@ -29,7 +30,7 @@ export default function DashboardTopbar({
     e.preventDefault();
     const q = searchQuery.trim();
     if (q) {
-      router.push(`/espace-admin/commandes?search=${encodeURIComponent(q)}`);
+      router.push(`/espace-vendeur/commandes?search=${encodeURIComponent(q)}`);
     }
   };
 
@@ -105,7 +106,7 @@ export default function DashboardTopbar({
           </div>
           <div className="hidden text-left xl:block">
             <p className="text-xs font-semibold leading-tight text-ink-950">{merchantProfile.name}</p>
-            <p className="font-mono text-[10px] text-gold-strong">{merchantProfile.shopName}</p>
+            <p className="font-mono text-[10px] text-gold-strong">{getBoutiqueName() || merchantProfile.shopName}</p>
           </div>
         </div>
       </div>

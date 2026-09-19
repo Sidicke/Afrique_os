@@ -1,2 +1,2 @@
-import FormulePage from "@/app/espace-admin/parametres/formule/page";
+import FormulePage from "@/app/espace-vendeur/parametres/formule/page";
 export default FormulePage;

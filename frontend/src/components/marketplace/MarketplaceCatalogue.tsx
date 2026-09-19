@@ -6,7 +6,6 @@ import type { ApiPublicProduct } from "@/lib/api/types";
 import ProductCard from "@/components/client/ProductCard";
 import { GridSkeleton } from "@/components/client/ui/Skeleton";
 import { EmptyState } from "@/components/client/ui/EmptyState";
-import { Tabs } from "@/components/client/ui/Tabs";
 import { IconAlert, IconPackage } from "@/components/client/icons";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +15,8 @@ type SortValue = "popular" | "newest" | "price_asc" | "price_desc";
 const SORT_TABS: Array<{ value: SortValue; label: string }> = [
   { value: "popular", label: "Populaires" },
   { value: "newest", label: "Nouveautés" },
-  { value: "price_asc", label: "Prix ↑" },
-  { value: "price_desc", label: "Prix ↓" },
+  { value: "price_asc", label: "Prix croissant" },
+  { value: "price_desc", label: "Prix décroissant" },
 ];
 
 const PAGE_SIZE = 12;
@@ -80,34 +79,28 @@ export default function MarketplaceCatalogue({
   const hasMore = (items?.length ?? 0) < total;
 
   return (
-    <section aria-labelledby="marketplace-catalogue-title" className="scroll-mt-24">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="inline-flex bg-terracotta/90 text-white rounded-lg px-4 py-2 font-bold uppercase text-sm tracking-wider">
+    <section id="marketplace-catalogue" aria-labelledby="marketplace-catalogue-title" className="scroll-mt-24">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-midnight-950/8 pb-3">
+        <div className="inline-flex w-fit bg-terracotta/90 text-white rounded-lg px-4 py-2 font-bold uppercase text-xs sm:text-sm tracking-wider">
           {category ? "PRODUITS DE LA CATÉGORIE" : "PRODUITS TENDANCE"}
         </div>
-        <Tabs
-          tabs={SORT_TABS}
-          value={sort}
-          onChange={setSort}
-          className="w-fit hidden" // Hidden but kept as requested by confusing prompt, we use custom ones below
-        />
-      </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-6 border-b border-midnight-950/8 pb-[1px]">
-        {SORT_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setSort(tab.value)}
-            className={cn(
-              "text-sm font-semibold transition-colors pb-3 border-b-2",
-              sort === tab.value
-                ? "text-terracotta border-terracotta"
-                : "text-midnight-950/70 hover:text-midnight-950 border-transparent"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+          {SORT_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setSort(tab.value)}
+              className={cn(
+                "text-sm sm:text-base font-bold transition-colors pb-1 border-b-2 cursor-pointer",
+                sort === tab.value
+                  ? "text-terracotta border-terracotta"
+                  : "text-midnight-950/60 hover:text-midnight-950 border-transparent"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {category && (

@@ -7,7 +7,8 @@ import { Modal } from "@/components/dashboard/ui/Modal";
 import { Toast } from "@/components/dashboard/ui/Toast";
 import { Field, TextArea, SelectInput } from "@/components/dashboard/ui/Field";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, timeAgo, formatFcfa } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/dashboard/ui/Avatar";
 import type { AdminUserDetail } from "@/types/admin";
 import { adminService } from "@/services/adminService";
@@ -58,6 +59,7 @@ interface UserDetailProps {
  * confirmation avec motif obligatoire.
  */
 export function UserDetail({ user, adminName, onUpdated }: UserDetailProps) {
+  const { formatPrice } = useTranslation();
   const [action, setAction] = useState<AdminAction | null>(null);
   const [reason, setReason] = useState(SUSPEND_REASONS[0]);
   const [customReason, setCustomReason] = useState("");
@@ -269,7 +271,7 @@ export function UserDetail({ user, adminName, onUpdated }: UserDetailProps) {
           <CardHeader title="Customer overview" />
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatBox label="Commandes" value={String(u.clientStats.ordersCount)} />
-            <StatBox label="Total dépensé" value={formatFcfa(u.clientStats.totalSpentFcfa)} />
+            <StatBox label="Total dépensé" value={formatPrice(u.clientStats.totalSpentFcfa)} />
             <StatBox label="Conversations" value={String(u.clientStats.conversationsCount)} />
             <StatBox
               label="Dernière commande"
@@ -344,7 +346,7 @@ export function UserDetail({ user, adminName, onUpdated }: UserDetailProps) {
                       <td className="px-2 py-3 font-mono text-[11px] text-ink-800">#{o.id}</td>
                       <td className="px-2 py-3 text-ink-600">{o.storeName}</td>
                       <td className="px-2 py-3 text-right font-mono text-[11px] text-ink-800">
-                        {formatFcfa(o.amountFcfa)}
+                        {formatPrice(o.amountFcfa)}
                       </td>
                       <td className="px-2 py-3 text-ink-600">{o.status}</td>
                     </tr>

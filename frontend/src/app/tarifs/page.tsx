@@ -213,7 +213,7 @@ export default function TarifsPage() {
           <Container size="wide" className="text-center">
             <h2 className="font-display text-3xl font-bold text-ivory-50 sm:text-5xl">Prêt à développer votre activité ?</h2>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Button href="/inscription" variant="primary" size="lg" className="shadow-xl shadow-gold-400/30">Créer ma boutique</Button>
+              <Button href="/inscription?role=seller" variant="primary" size="lg" className="shadow-xl shadow-gold-400/30">Lancer ma boutique</Button>
               <Link href="/contact" className="inline-flex h-12 items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-8 text-base font-extrabold text-ivory-50 transition-all hover:-translate-y-1 hover:border-gold-400/40 hover:bg-gold-400/10 hover:text-gold-300">Parler à notre équipe</Link>
             </div>
           </Container>

@@ -6,7 +6,7 @@ import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCa
 import { StatusBadge } from "@/components/dashboard/ui/Badges";
 import { Avatar } from "@/components/dashboard/ui/Avatar";
 import { Icon } from "@/components/dashboard/icons";
-import { formatFcfa } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 interface RecentOrdersCardProps {
   orders: Order[];
@@ -21,7 +21,7 @@ export function RecentOrdersCard({ orders }: RecentOrdersCardProps) {
         subtitle="Les dernières commandes reçues"
         action={
           <Link
-            href="/espace-admin/commandes"
+            href="/espace-vendeur/commandes"
             className="flex items-center gap-1 rounded-xl border border-blue-100 bg-blue-100/40 px-3 py-1.5 font-mono text-xs font-semibold text-blue-700 transition-colors hover:border-blue-600 hover:bg-blue-100/70"
           >
             Tout voir <Icon name="chevronRight" size={13} strokeWidth={2} />
@@ -51,7 +51,7 @@ export function RecentOrdersCard({ orders }: RecentOrdersCardProps) {
               <StatusBadge status={order.status} />
             </div>
             <div className="w-24 text-right">
-              <p className="font-mono text-xs font-bold text-ink-950">{formatFcfa(order.totalPriceFcfa)}</p>
+              <p className="font-mono text-xs font-bold text-ink-950">{formatCurrency(order.totalPriceFcfa)}</p>
               <p className="text-[10px] text-ink-400">{order.createdAt}</p>
             </div>
           </li>

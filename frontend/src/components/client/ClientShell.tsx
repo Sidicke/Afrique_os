@@ -100,7 +100,7 @@ export default function ClientShell({ children }: { children: ReactNode }) {
               laisser la place à la navigation dès md (pas de débordement). */}
           <Link href="/espace-client" className="flex shrink-0 items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-midnight-950 font-display text-sm font-bold text-gold-300">
-              AC
+              ZS
             </span>
             <span className="hidden flex-col leading-tight lg:flex">
               <span className="font-display text-[15px] font-bold tracking-tight text-midnight-950">

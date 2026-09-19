@@ -12,9 +12,9 @@ interface RevealProps {
 }
 
 const directions = {
-  up: { y: 32, x: 0 },
-  left: { x: -32, y: 0 },
-  right: { x: 32, y: 0 },
+  up: { y: 10, x: 0 },
+  left: { x: -10, y: 0 },
+  right: { x: 10, y: 0 },
   none: { x: 0, y: 0 },
 };
 
@@ -27,15 +27,15 @@ export default function Reveal({
 }: RevealProps) {
   const prefersReduced = useReducedMotion();
   const offset = prefersReduced ? { x: 0, y: 0 } : directions[direction];
-  const blur = prefersReduced ? "blur(0px)" : "blur(6px)";
 
   return (
     <motion.div
       className={cn("h-full", className)}
-      initial={{ opacity: 0, ...offset, filter: blur }}
-      whileInView={{ opacity: 1, x: 0, y: 0, filter: "blur(0px)" }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.9, delay, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, ...offset }}
+      whileInView={{ opacity: 1, x: 0, y: 0 }}
+      viewport={{ once: true, amount: 0.05, margin: "0px 0px -20px 0px" }}
+      transition={{ duration: 0.35, delay, ease: [0.21, 0.47, 0.32, 0.98] }}
+      style={{ willChange: "transform, opacity" }}
     >
       <Tag className="h-full">{children}</Tag>
     </motion.div>

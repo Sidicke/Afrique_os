@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { formatFcfa } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 
 export interface StoreRevenueStat {
   storeId: string;
@@ -25,6 +25,7 @@ const DEMO_DATA: StoreRevenueStat[] = [
 ];
 
 export default function MultiStoreRevenueChart({ data = DEMO_DATA }: { data?: StoreRevenueStat[] }) {
+  const { formatPrice } = useTranslation();
   const maxRevenue = Math.max(...data.map((d) => d.revenue), 1);
   const totalRevenue = data.reduce((s, d) => s + d.revenue, 0);
   const totalOrders = data.reduce((s, d) => s + d.orders, 0);
@@ -35,7 +36,7 @@ export default function MultiStoreRevenueChart({ data = DEMO_DATA }: { data?: St
         <div>
           <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-gold-strong">Revenus par boutique</span>
           <div className="mt-1 flex items-baseline gap-3">
-            <h3 className="font-display text-3xl font-bold text-ink-950">{formatFcfa(totalRevenue)}</h3>
+            <h3 className="font-display text-3xl font-bold text-ink-950">{formatPrice(totalRevenue)}</h3>
             <span className="text-xs text-ink-400">{totalOrders} commandes au total</span>
           </div>
         </div>
@@ -53,7 +54,7 @@ export default function MultiStoreRevenueChart({ data = DEMO_DATA }: { data?: St
                   <span className="text-sm font-medium text-ink-800">{store.storeName}</span>
                 </div>
                 <div className="flex items-center gap-3 text-right">
-                  <span className="font-display text-sm font-bold text-ink-950">{formatFcfa(store.revenue)}</span>
+                  <span className="font-display text-sm font-bold text-ink-950">{formatPrice(store.revenue)}</span>
                   <span className={cn(
                     "rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold",
                     store.growth >= 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"

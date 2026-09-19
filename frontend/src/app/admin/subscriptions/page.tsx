@@ -9,7 +9,7 @@ import { MiniStat } from "@/components/dashboard/ui/MiniStat";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { TableSkeleton } from "@/components/dashboard/ui/Skeleton";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, timeAgo, formatFcfa } from "@/lib/utils";
+import { cn, timeAgo, formatCurrency } from "@/lib/utils";
 import { SubscriptionStatusBadge, PlanBadge } from "@/components/admin/stores/StoreBadges";
 import { BillingCycleBadge } from "@/components/admin/subscriptions/SubscriptionBadges";
 import { RevenueChart } from "@/components/admin/subscriptions/RevenueChart";
@@ -98,14 +98,14 @@ export default function SubscriptionsPage() {
         <MiniStat
           icon="wallet"
           label="MRR"
-          value={kpis ? formatFcfa(kpis.mrrFcfa) : "-"}
+          value={kpis ? formatCurrency(kpis.mrrFcfa) : "-"}
           tone="gold"
           hint={kpis ? `+${kpis.mrrChangePercent}% ce mois` : undefined}
         />
         <MiniStat
           icon="chart"
           label="ARR"
-          value={kpis ? formatFcfa(kpis.arrFcfa) : "-"}
+          value={kpis ? formatCurrency(kpis.arrFcfa) : "-"}
           tone="blue"
           hint={kpis ? `+${kpis.arrChangePercent}%` : undefined}
         />
@@ -114,7 +114,7 @@ export default function SubscriptionsPage() {
           label="Abonnements actifs"
           value={String(kpis?.activeSubscriptions ?? "-")}
           tone="green"
-          hint={kpis ? `${formatFcfa(kpis.revenuePerPaidStoreFcfa)} / boutique` : undefined}
+          hint={kpis ? `${formatCurrency(kpis.revenuePerPaidStoreFcfa)} / boutique` : undefined}
         />
         <AdminKpiButton
           active={status === "TRIAL"}
@@ -162,7 +162,7 @@ export default function SubscriptionsPage() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-ink-800">{p.name}</span>
                     <span className="font-mono text-[10px] text-ink-500">
-                      {p.subscribersCount} · {p.shareOfMrrPercent > 0 ? `${p.shareOfMrrPercent} % MRR` : `${formatFcfa(p.mrrFcfa)}`}
+                      {p.subscribersCount} · {p.shareOfMrrPercent > 0 ? `${p.shareOfMrrPercent} % MRR` : `${formatCurrency(p.mrrFcfa)}`}
                     </span>
                   </div>
                   <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100">
@@ -387,7 +387,7 @@ export default function SubscriptionsPage() {
                         <BillingCycleBadge cycle={r.billingCycle} />
                       </td>
                       <td className="px-2 py-3.5 text-right font-mono text-[11px] text-ink-800">
-                        {r.amountFcfa > 0 ? formatFcfa(r.amountFcfa) : "-"}
+                        {r.amountFcfa > 0 ? formatCurrency(r.amountFcfa) : "-"}
                       </td>
                       <td className="px-2 py-3.5 font-mono text-[11px] text-ink-500">
                         {r.renewalDate ? new Date(r.renewalDate).toLocaleDateString("fr-FR") : "-"}
@@ -424,7 +424,7 @@ export default function SubscriptionsPage() {
                     <PlanBadge plan={r.plan} />
                     <BillingCycleBadge cycle={r.billingCycle} />
                     <span className="font-mono text-[10px] text-ink-400">
-                      {r.amountFcfa > 0 ? formatFcfa(r.amountFcfa) : "Gratuit"}
+                      {r.amountFcfa > 0 ? formatCurrency(r.amountFcfa) : "Gratuit"}
                     </span>
                   </div>
                 </Link>

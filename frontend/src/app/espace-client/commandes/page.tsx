@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ApiError, ordersApi } from "@/lib/api";
 import type { ApiOrder } from "@/lib/api/types";
 import { getCustomerData } from "@/lib/customerStore";
-import { formatFcfa } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { EmptyState } from "@/components/client/ui/EmptyState";
 import { ListSkeleton } from "@/components/client/ui/Skeleton";
 import { OrderCard } from "@/components/client/ui/OrderCard";
@@ -152,7 +152,7 @@ export default function MesCommandesPage() {
               Total dépensé
             </span>
             <span className="ml-2 font-display font-bold text-midnight-950">
-              {formatFcfa(totalSpent)}
+              {formatCurrency(totalSpent)}
             </span>
           </span>
         )}
@@ -373,7 +373,7 @@ function LocalOrders() {
           </p>
           <div className="mt-2 flex items-center justify-between border-t border-midnight-950/8 pt-2.5">
             <span className="text-xs text-midnight-950/60">Total</span>
-            <span className="text-sm font-bold text-gold-600">{formatFcfa(order.total)}</span>
+            <span className="text-sm font-bold text-gold-600">{formatCurrency(order.total)}</span>
           </div>
         </li>
       ))}

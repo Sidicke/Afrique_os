@@ -42,24 +42,23 @@ export default function MarketplaceShops() {
       aria-labelledby="marketplace-shops-title"
       className="scroll-mt-24"
     >
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-gold-700">
+          <p className="font-mono text-xs uppercase tracking-[0.2em] font-semibold text-gold-700">
             Boutiques disponibles
           </p>
           <h2
             id="marketplace-shops-title"
-            className="mt-1 font-display text-2xl font-bold text-midnight-950 sm:text-3xl"
+            className="mt-1 font-display text-2xl sm:text-4xl font-bold text-midnight-950"
           >
             Nos commerces partenaires
           </h2>
-          <p className="mt-1.5 max-w-xl text-sm text-midnight-950/70">
-            Chaque boutique est un commerce à part entière : ouvrez-la pour
-            découvrir son catalogue, sa livraison et discuter avec le vendeur.
+          <p className="mt-2 max-w-xl text-base text-midnight-950/75 leading-relaxed">
+            Chaque boutique est un commerce à part entière : ouvrez-la pour découvrir son catalogue, sa livraison et discuter avec le vendeur.
           </p>
         </div>
         {shops && (
-          <span className="shrink-0 rounded-full bg-gold-400/15 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-gold-700">
+          <span className="shrink-0 w-fit rounded-full bg-gold-400/15 px-3.5 py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-gold-700">
             {shops.length} boutique{shops.length > 1 ? "s" : ""}
           </span>
         )}

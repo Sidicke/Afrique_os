@@ -7,7 +7,8 @@ import { Modal } from "@/components/dashboard/ui/Modal";
 import { Toast } from "@/components/dashboard/ui/Toast";
 import { Field, TextArea, SelectInput } from "@/components/dashboard/ui/Field";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, timeAgo, formatFcfa } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { Avatar } from "@/components/dashboard/ui/Avatar";
 import type { AdminStoreDetail } from "@/types/admin";
 import { adminService } from "@/services/adminService";
@@ -50,6 +51,7 @@ interface StoreDetailProps {
  * chaque action destructrice demandant une confirmation avec motif.
  */
 export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
+  const { formatPrice } = useTranslation();
   const [action, setAction] = useState<AdminAction | null>(null);
   const [reason, setReason] = useState(SUSPEND_REASONS[0]);
   const [customReason, setCustomReason] = useState("");
@@ -287,7 +289,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
           <StatBox label="Produits" value={String(s.productsCount)} />
           <StatBox label="Commandes (total)" value={s.ordersCount.toLocaleString("fr-FR")} />
           <StatBox label="Commandes (ce mois)" value={String(s.ordersThisMonth)} />
-          <StatBox label="GMV" value={formatFcfa(s.gmvFcfa)} gold />
+          <StatBox label="GMV" value={formatPrice(s.gmvFcfa)} gold />
         </div>
       </DashboardCard>
 

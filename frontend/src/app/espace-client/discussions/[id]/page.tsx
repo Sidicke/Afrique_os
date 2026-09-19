@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { ApiError, messagingApi } from "@/lib/api";
 import type { ApiConversation, ApiMessage } from "@/lib/api/types";
-import { formatFcfa, initials } from "@/lib/utils";
+import { formatCurrency, initials } from "@/lib/utils";
 import { getSessionUser } from "@/lib/api/session";
 import {
   IconAlert,
@@ -227,7 +227,7 @@ export default function ConversationPage() {
             </p>
             {conversation.productPrice && (
               <p className="text-xs font-semibold text-gold-600">
-                {formatFcfa(Number(conversation.productPrice))}
+                {formatCurrency(Number(conversation.productPrice))}
               </p>
             )}
             {!conversation.orderReference && conversation.productDescription && (
@@ -239,13 +239,13 @@ export default function ConversationPage() {
             {conversation.agreedPrice && !conversation.orderReference && (
               <div className="mt-2 w-full pt-2 border-t border-gold-400/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <p className="text-xs text-midnight-950">
-                  <span className="font-bold text-green-600">Offre négociée !</span> Le vendeur vous propose ce produit à <span className="font-bold">{formatFcfa(conversation.agreedPrice)}</span>.
+                  <span className="font-bold text-green-600">Offre négociée !</span> Le vendeur vous propose ce produit à <span className="font-bold">{formatCurrency(conversation.agreedPrice)}</span>.
                 </p>
                 <Link
                   href={`/espace-client/boutiques/${conversation.boutique.slug}?buyNow=${conversation.productId}&price=${conversation.agreedPrice}&conv=${conversation.id}`}
                   className="shrink-0 rounded-full bg-midnight-950 px-4 py-1.5 text-xs font-bold text-gold-300 transition-colors hover:bg-midnight-800 text-center"
                 >
-                  Acheter à {formatFcfa(conversation.agreedPrice)}
+                  Acheter à {formatCurrency(conversation.agreedPrice)}
                 </Link>
               </div>
             )}

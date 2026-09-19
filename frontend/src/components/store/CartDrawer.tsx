@@ -45,12 +45,12 @@ type Step = "cart" | "checkout" | "payment" | "processing" | "done";
  */
 const PAYMENT_OPTIONS: { id: PaymentMethod; label: string; hint: string }[] = [
   {
-    id: "mobile_money",
+    id: "MOBILE_MONEY",
     label: "Mobile Money",
     hint: "Orange Money, Wave, MTN MoMo…",
   },
   {
-    id: "card",
+    id: "CARD",
     label: "Carte bancaire",
     hint: "Visa, Mastercard…",
   },
@@ -89,7 +89,7 @@ export default function CartDrawer() {
   const [saveDefaults, setSaveDefaults] = useState(false);
   const [customerPhone, setCustomerPhone] = useState(sessionUser?.phone || customer.profile?.phone || "");
   const [paymentMethod,
-        setPaymentMethod] = useState<PaymentMethod>((customer.profile?.defaultPaymentMethod as PaymentMethod) || "mobile_money");
+        setPaymentMethod] = useState<PaymentMethod>((customer.profile?.defaultPaymentMethod as PaymentMethod) || "MOBILE_MONEY");
   const [pointsToUse, setPointsToUse] = useState(0);
   const [placing, setPlacing] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<OrderRecord | null>(null);
@@ -120,7 +120,7 @@ export default function CartDrawer() {
     setOrderError(null);
     setCustomerName(customer.profile?.name ?? "");
     setCustomerPhone(customer.profile?.phone ?? "");
-    setPaymentMethod("mobile_money");
+    setPaymentMethod("MOBILE_MONEY");
     setMobileMoneyNumber("");
     setUseAccountNumber(true);
     setCardNumber("");
@@ -250,7 +250,7 @@ export default function CartDrawer() {
 
   /** Valide les infos de paiement propres au moyen choisi */
   const validatePayment = (): string | null => {
-    if (paymentMethod === "mobile_money") {
+    if (paymentMethod === "MOBILE_MONEY") {
       // Numéro effectif : celui du compte (si coché et disponible) sinon le champ
       const number =
         useAccountNumber && accountPhone ? accountPhone : mobileMoneyNumber;
@@ -873,7 +873,7 @@ function PaymentStep({
         </div>
 
         {/* Infos selon le moyen choisi */}
-        {paymentMethod === "mobile_money" ? (
+        {paymentMethod === "MOBILE_MONEY" ? (
           <div className="space-y-3">
             <div>
               <label

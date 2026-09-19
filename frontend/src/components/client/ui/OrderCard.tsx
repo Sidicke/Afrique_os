@@ -3,7 +3,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { ApiOrder } from "@/lib/api/types";
-import { formatFcfa, initials } from "@/lib/utils";
+import { initials } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { StatusBadge, STATUS_LABELS } from "./StatusBadge";
 import { StatusTimeline } from "./StatusTimeline";
 import { IconChat, IconChevronRight } from "../icons";
@@ -21,10 +22,10 @@ function timeAgo(iso: string): string {
 
 /** Libellé du moyen de paiement (source unique côté client) */
 export const PAYMENT_LABELS: Record<string, string> = {
-  mobile_money: "Mobile Money",
-  cash_on_delivery: "Paiement à la livraison",
-  card: "Carte bancaire",
-  whatsapp_direct: "Directe",
+  MOBILE_MONEY: "Mobile Money",
+  CASH_ON_DELIVERY: "Paiement à la livraison",
+  CARD: "Carte bancaire",
+  WHATSAPP_DIRECT: "Directe",
 };
 
 /**
@@ -43,6 +44,7 @@ export function OrderCard({
   onToggle?: () => void;
   expanded?: boolean;
 }) {
+  const { formatPrice, t } = useTranslation();
   const statusLabel = STATUS_LABELS[order.status] ?? order.status;
   const paymentLabel = PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod;
 
@@ -78,7 +80,7 @@ export function OrderCard({
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          <span className="text-sm font-bold text-gold-600">{formatFcfa(order.totalPriceFcfa)}</span>
+          <span className="text-sm font-bold text-gold-600">{formatPrice(order.totalPriceFcfa)}</span>
           {onToggle && (
             <IconChevronRight
               className={`h-4 w-4 text-midnight-950/30 transition-transform duration-300 ${expanded ? "rotate-90" : ""}`}
@@ -100,20 +102,20 @@ export function OrderCard({
                   {item.variantLabel ? ` (${item.variantLabel})` : ""}
                 </span>
                 <span className="font-medium text-midnight-950">
-                  {formatFcfa(item.unitPrice * item.quantity)}
+                  {formatPrice(item.unitPrice * item.quantity)}
                 </span>
               </div>
             ))}
             <div className="flex items-center justify-between border-t border-midnight-950/8 pt-2.5 text-sm">
               <span className="text-midnight-950/60">Livraison ({order.deliveryName || "À déterminer"})</span>
               <span className="font-medium text-midnight-950">
-                {order.deliveryPrice === 0 ? "Gratuite" : formatFcfa(order.deliveryPrice)}
+                {order.deliveryPrice === 0 ? "Gratuite" : formatPrice(order.deliveryPrice)}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-midnight-950">Total</span>
               <span className="font-display text-base font-semibold text-gold-600">
-                {formatFcfa(order.totalPriceFcfa)}
+                {formatPrice(order.totalPriceFcfa)}
               </span>
             </div>
           </div>

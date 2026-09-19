@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/sections/Navbar";
 import Footer from "@/components/sections/Footer";
+import { PublicVisibilityGuard } from "@/components/shared/PublicVisibilityGuard";
 import ProductPage from "@/components/marketplace/ProductPage";
 
 export const metadata: Metadata = {
@@ -21,12 +22,16 @@ export default async function ProduitPage({
   const { slug } = await params;
   return (
     <>
-      <Navbar />
+      <PublicVisibilityGuard hideForRole="CLIENT">
+        <Navbar />
+      </PublicVisibilityGuard>
       <main id="main-content" className="min-h-screen bg-ivory-50">
         <ProductPage slug={slug} />
       </main>
       {/* Public : même footer que la landing page */}
-      <Footer />
+      <PublicVisibilityGuard hideForRole="CLIENT">
+        <Footer />
+      </PublicVisibilityGuard>
     </>
   );
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { DashboardOverviewData, OrderStatus } from "@/types/dashboard";
 import { Icon } from "@/components/dashboard/icons";
-import { formatFcfa, cn } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 
 interface WelcomeHeaderProps {
   data: DashboardOverviewData;
@@ -15,11 +15,6 @@ interface WelcomeHeaderProps {
 /** Statuts qui demandent une action du vendeur (préparer, expédier) */
 const ACTION_STATUSES: OrderStatus[] = ["pending", "paid", "shipping"];
 
-/**
- * En-tête vivant : répond en un coup d'œil à « comment se porte ma boutique
- * et que dois-je faire aujourd'hui ? ». La phrase change selon la situation
- * réelle (commandes à traiter, stock bas, objectif mensuel).
- */
 export function WelcomeHeader({ data, greet, firstName, today }: WelcomeHeaderProps) {
   const toDoOrders = data.recentOrders.filter((o) =>
     ACTION_STATUSES.includes(o.status)
@@ -32,90 +27,92 @@ export function WelcomeHeader({ data, greet, firstName, today }: WelcomeHeaderPr
   const goal = data.monthlyGoalFcfa;
   const goalPercent = Math.round((data.kpis.revenue.rawNumber / goal) * 100);
 
-  // Phrase de contexte — hiérarchie : action > vigilance > dynamique positive.
+  // Phrase de contexte — chaleureuse et captivante
   let context: string;
   if (toDoOrders > 0 && attentionProducts > 0) {
-    context = `${toDoOrders} commande${toDoOrders > 1 ? "s" : ""} à préparer et ${attentionProducts} produit${attentionProducts > 1 ? "s" : ""} à surveiller.`;
+    context = `De belles opportunités s'offrent à vous : vous avez ${toDoOrders} commande${toDoOrders > 1 ? "s" : ""} impatiente${toDoOrders > 1 ? "s" : ""} d'être expédiée${toDoOrders > 1 ? "s" : ""} et ${attentionProducts} produit${attentionProducts > 1 ? "s" : ""} victime${attentionProducts > 1 ? "s" : ""} de son succès à surveiller.`;
   } else if (toDoOrders > 0) {
-    context = `${toDoOrders} commande${toDoOrders > 1 ? "s" : ""} à préparer.`;
+    context = `Excellente journée en perspective ! Vous avez ${toDoOrders} nouvelle${toDoOrders > 1 ? "s" : ""} commande${toDoOrders > 1 ? "s" : ""} qui n'attend${toDoOrders > 1 ? "ent" : ""} que vous.`;
   } else if (attentionProducts > 0) {
-    context = `${attentionProducts} produit${attentionProducts > 1 ? "s" : ""} nécessite${attentionProducts > 1 ? "nt" : ""} votre attention.`;
+    context = `Vos articles s'arrachent ! Pensez à réapprovisionner ${attentionProducts} produit${attentionProducts > 1 ? "s" : ""} qui approche${attentionProducts > 1 ? "nt" : ""} de la rupture de stock.`;
   } else if (isGrowing) {
-    context = `Votre chiffre d'affaires progresse de ${growth.toLocaleString("fr-FR")}%, une belle dynamique.`;
+    context = `Félicitations pour cette belle dynamique ! Votre chiffre d'affaires est en croissance de ${growth.toLocaleString("fr-FR")}%. Continuez sur cette lancée.`;
   } else {
-    context = `Votre boutique se porte bien, aucune action urgente aujourd'hui.`;
+    context = `C'est le moment idéal pour chouchouter votre vitrine et séduire de nouveaux clients ! Prenez le temps de revoir vos offres du moment.`;
   }
 
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="relative min-w-0">
-        <div className="title-halo pointer-events-none absolute -left-16 -top-16 h-48 w-48 opacity-40" />
-        <span className="relative mb-2 inline-block font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-strong">
-          Espace Vendeur
-        </span>
-        <h1 className="relative font-display text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">
-          {greet}, {firstName}{" "}
-          <span className="inline-flex translate-y-[-2px] items-center gap-1.5 align-middle">
-            <span className="relative flex h-2 w-2">
-              <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-60", isGrowing ? "bg-green-600" : "bg-gold-500")} />
-              <span className={cn("relative inline-flex h-2 w-2 rounded-full", isGrowing ? "bg-green-600" : "bg-gold-500")} />
+    <section aria-label="Bienvenue" className="relative mb-8 overflow-hidden rounded-[2rem] border border-gold-soft bg-gradient-to-r from-[#fef5e7] via-[#fffdf9] to-[#f9ede1] p-6 shadow-sm sm:p-10">
+      <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(#c4b697_1px,transparent_1px)] [background-size:16px_16px] opacity-20" aria-hidden="true"></div>
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gold-400/20 blur-[80px]" aria-hidden="true"></div>
+      
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-2xl">
+          <div className="mb-3 flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gold-200/50 text-gold-strong ring-1 ring-gold-300/50">
+              <Icon name="sparkle" size={14} className="text-gold-strong" />
             </span>
-          </span>
-        </h1>
-        <p className="relative mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-500">
-          {today ? today.charAt(0).toUpperCase() + today.slice(1) : "Bienvenue"} · {context}
-        </p>
-      </div>
-
-      {/* Objectif mensuel — compact, à droite */}
-      {goalPercent !== null && (
-        <div className="relative w-full max-w-xs">
-          <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-sm shadow-ink-950/[0.03]">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-500">
-                Objectif mensuel
-              </span>
-              <span className="font-mono text-xs font-bold text-gold-strong">{goalPercent}%</span>
-            </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-100">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-gold-mid to-gold-strong transition-all duration-700"
-                style={{ width: `${Math.min(100, goalPercent)}%` }}
-              />
-            </div>
-            <p className="mt-1.5 text-[10px] text-ink-400">
-              {formatFcfa(data.kpis.revenue.rawNumber)} / {formatFcfa(goal)}
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-ink-500">
+              Espace Vendeur
             </p>
           </div>
-        </div>
-      )}
+          
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-midnight-950 sm:text-4xl">
+            {greet}, <span className="text-terracotta">{firstName}</span>
+          </h1>
+          
+          <p className="mt-3 text-base leading-relaxed text-ink-600 sm:text-lg">
+            {today ? today.charAt(0).toUpperCase() + today.slice(1) : "Bienvenue"} · {context}
+          </p>
 
-      {/* Bandeau d'attention — seulement s'il y a quelque chose à faire */}
-      {(toDoOrders > 0 || attentionProducts > 0) && (
-        <div className="relative flex w-full flex-wrap items-center gap-2.5 rounded-2xl border border-gold-soft bg-gold-wash/60 px-4 py-2.5">
-          {toDoOrders > 0 && (
-            <Link
-              href="/espace-admin/commandes"
-              className="group flex items-center gap-2 rounded-xl bg-ink-950 px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-blue-700 active:scale-95"
-            >
-              <Icon name="orders" size={13} />
-              {toDoOrders} commande{toDoOrders > 1 ? "s" : ""} à traiter
-            </Link>
+          {/* Actions : priorités du jour */}
+          {(toDoOrders > 0 || attentionProducts > 0) && (
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              {toDoOrders > 0 && (
+                <Link
+                  href="/espace-vendeur/commandes"
+                  className="group flex items-center gap-2.5 rounded-xl bg-ink-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95"
+                >
+                  <Icon name="orders" size={16} />
+                  {toDoOrders} commande{toDoOrders > 1 ? "s" : ""} à traiter
+                </Link>
+              )}
+              {attentionProducts > 0 && (
+                <Link
+                  href="/espace-vendeur/produits"
+                  className="group flex items-center gap-2.5 rounded-xl border border-line bg-white/60 px-4 py-2.5 text-sm font-semibold text-ink-700 shadow-sm transition-all hover:border-gold-mid hover:text-gold-strong active:scale-95 backdrop-blur-md"
+                >
+                  <Icon name="alert" size={16} className="text-gold-strong" />
+                  {attentionProducts} stock{attentionProducts > 1 ? "s" : ""} critique{attentionProducts > 1 ? "s" : ""}
+                </Link>
+              )}
+            </div>
           )}
-          {attentionProducts > 0 && (
-            <Link
-              href="/espace-admin/produits"
-              className="group flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-700 transition-all hover:border-gold-mid hover:text-gold-strong active:scale-95"
-            >
-              <Icon name="alert" size={13} className="text-gold-strong" />
-              {attentionProducts} produit{attentionProducts > 1 ? "s" : ""} en stock bas
-            </Link>
-          )}
-          <span className="ml-auto hidden font-mono text-[10px] uppercase tracking-widest text-ink-400 sm:block">
-            Priorité du jour
-          </span>
         </div>
-      )}
-    </div>
+
+        {/* Objectif mensuel widget */}
+        {!Number.isNaN(goalPercent) && goal > 0 && (
+          <div className="relative w-full max-w-xs shrink-0 lg:ml-6 mt-6 lg:mt-0">
+            <div className="rounded-2xl border border-white/60 bg-white/40 px-5 py-4 shadow-sm backdrop-blur-md">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-ink-600">
+                  Objectif mensuel
+                </span>
+                <span className="font-mono text-sm font-black text-gold-strong">{goalPercent}%</span>
+              </div>
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/60 ring-1 ring-inset ring-ink-950/5">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-gold-400 to-gold-600 shadow-sm transition-all duration-700"
+                  style={{ width: `${Math.min(100, goalPercent)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs font-medium text-ink-500">
+                {formatCurrency(data.kpis.revenue.rawNumber)} / {formatCurrency(goal)}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

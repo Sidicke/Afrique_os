@@ -260,7 +260,7 @@ describe("NotificationBell", () => {
     render(<NotificationBell />);
     await user.click(screen.getByRole("button", { name: /Notifications/ }));
     await user.click(screen.getByText("Nouveau message de Jean"));
-    expect(pushMock).toHaveBeenCalledWith("/espace-admin/messagerie");
+    expect(pushMock).toHaveBeenCalledWith("/espace-vendeur/messagerie");
   });
 
   it("navigue vers les commandes au clic sur une notification de commande", async () => {
@@ -270,7 +270,7 @@ describe("NotificationBell", () => {
     render(<NotificationBell />);
     await user.click(screen.getByRole("button", { name: /Notifications/ }));
     await user.click(screen.getByText("Commande #AC-8901 annulée par le client"));
-    expect(pushMock).toHaveBeenCalledWith("/espace-admin/commandes");
+    expect(pushMock).toHaveBeenCalledWith("/espace-vendeur/commandes");
   });
 
   it("navigue vers les produits au clic sur une notification low_stock", async () => {
@@ -288,7 +288,7 @@ describe("NotificationBell", () => {
     render(<NotificationBell />);
     await user.click(screen.getByRole("button", { name: /Notifications/ }));
     await user.click(screen.getByText("Rupture de stock"));
-    expect(pushMock).toHaveBeenCalledWith("/espace-admin/produits");
+    expect(pushMock).toHaveBeenCalledWith("/espace-vendeur/produits");
   });
 
   it("« Tout supprimer » demande confirmation puis déclenche deleteAll", async () => {

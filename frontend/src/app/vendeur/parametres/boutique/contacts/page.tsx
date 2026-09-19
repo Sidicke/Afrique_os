@@ -1,2 +1,2 @@
-import ContactsPage from "@/app/espace-admin/parametres/boutique/contacts/page";
+import ContactsPage from "@/app/espace-vendeur/parametres/boutique/contacts/page";
 export default ContactsPage;

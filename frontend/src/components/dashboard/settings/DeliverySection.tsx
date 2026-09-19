@@ -6,6 +6,7 @@ import { Field, TextInput, TextArea } from "@/components/dashboard/ui/Field";
 import { Modal } from "@/components/dashboard/ui/Modal";
 import { Icon } from "@/components/dashboard/icons";
 import type { DeliveryPack, ShopConfig } from "@/lib/shopConfig";
+import { useTranslation } from "@/lib/i18n";
 
 /** Helper pour générer un id unique */
 function uid(prefix: string): string {

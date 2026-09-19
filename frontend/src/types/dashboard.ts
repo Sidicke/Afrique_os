@@ -4,7 +4,7 @@
  */
 
 export type OrderStatus = "pending" | "paid" | "shipping" | "delivered" | "cancelled";
-export type PaymentMethod = "mobile_money" | "cash_on_delivery" | "card" | "whatsapp_direct";
+export type PaymentMethod = "MOBILE_MONEY" | "CASH_ON_DELIVERY" | "CARD" | "WHATSAPP_DIRECT";
 
 export interface Order {
   id: string;
@@ -26,6 +26,7 @@ export interface Order {
 
 export interface ProductItem {
   id: string;
+  slug?: string;
   name: string;
   category: string;
   /** Marque du produit (ex. Samsung) — vide si non définie */

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCard";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, formatFcfa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type { AdminSearchTerm, AdminTopProduct, AdminTopStore } from "@/types/admin";
 
 /**
@@ -20,6 +21,7 @@ export function TopTables({
   products: AdminTopProduct[] | undefined;
   searchTerms: AdminSearchTerm[] | undefined;
 }) {
+  const { formatPrice } = useTranslation();
   return (
     <div className="grid gap-6 xl:grid-cols-3">
       {/* Top boutiques (doc 09 §16) */}
@@ -48,7 +50,7 @@ export function TopTables({
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-mono text-[11px] font-semibold text-ink-800">{formatFcfa(s.gmvFcfa)}</p>
+                <p className="font-mono text-[11px] font-semibold text-ink-800">{formatPrice(s.gmvFcfa)}</p>
                 <p className={cn("font-mono text-[9px]", s.growthPercent >= 0 ? "text-green-600" : "text-red-600")}>
                   {s.growthPercent >= 0 ? "↑" : "↓"} {Math.abs(s.growthPercent)} %
                 </p>
@@ -75,7 +77,7 @@ export function TopTables({
                 <p className="font-mono text-[11px] font-semibold text-ink-800">
                   {p.ordersCount.toLocaleString("fr-FR")} cmd
                 </p>
-                <p className="font-mono text-[9px] text-ink-400">{formatFcfa(p.gmvFcfa)}</p>
+                <p className="font-mono text-[9px] text-ink-400">{formatPrice(p.gmvFcfa)}</p>
               </div>
             </li>
           ))}

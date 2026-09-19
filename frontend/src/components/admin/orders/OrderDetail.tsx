@@ -7,7 +7,8 @@ import { Modal } from "@/components/dashboard/ui/Modal";
 import { Toast } from "@/components/dashboard/ui/Toast";
 import { Field, TextArea, SelectInput } from "@/components/dashboard/ui/Field";
 import { Icon } from "@/components/dashboard/icons";
-import { timeAgo, formatFcfa } from "@/lib/utils";
+import { timeAgo } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type { AdminOrderDetail, AdminOrderStatus } from "@/types/admin";
 import { adminService } from "@/services/adminService";
 import { OrderStatusBadge, AnomalyLevelBadge } from "./OrderBadges";
@@ -57,6 +58,7 @@ interface OrderDetailProps {
  * remboursement ni de remise en stock (backend réel uniquement).
  */
 export function OrderDetail({ order, adminName, onUpdated }: OrderDetailProps) {
+  const { formatPrice } = useTranslation();
   const [statusModal, setStatusModal] = useState(false);
   const [cancelModal, setCancelModal] = useState(false);
   const [newStatus, setNewStatus] = useState<AdminOrderStatus>("PAID");
@@ -248,10 +250,10 @@ export function OrderDetail({ order, adminName, onUpdated }: OrderDetailProps) {
                     <td className="px-2 py-3 text-ink-500">{it.variant ?? "-"}</td>
                     <td className="px-2 py-3 text-right font-mono text-[11px]">×{it.quantity}</td>
                     <td className="px-2 py-3 text-right font-mono text-[11px]">
-                      {formatFcfa(it.unitPriceFcfa)}
+                      {formatPrice(it.unitPriceFcfa)}
                     </td>
                     <td className="px-2 py-3 text-right font-mono text-[11px] font-bold text-ink-950">
-                      {formatFcfa(it.unitPriceFcfa * it.quantity)}
+                      {formatPrice(it.unitPriceFcfa * it.quantity)}
                     </td>
                   </tr>
                 ))}
@@ -262,15 +264,15 @@ export function OrderDetail({ order, adminName, onUpdated }: OrderDetailProps) {
           <dl className="mt-4 space-y-1.5 border-t border-line pt-4 text-xs">
             <div className="flex justify-between text-ink-600">
               <dt>Sous-total</dt>
-              <dd className="font-mono">{formatFcfa(o.subtotalFcfa)}</dd>
+              <dd className="font-mono">{formatPrice(o.subtotalFcfa)}</dd>
             </div>
             <div className="flex justify-between text-ink-600">
               <dt>Livraison</dt>
-              <dd className="font-mono">{formatFcfa(o.deliveryFeeFcfa)}</dd>
+              <dd className="font-mono">{formatPrice(o.deliveryFeeFcfa)}</dd>
             </div>
             <div className="flex justify-between pt-1 text-sm font-semibold text-ink-950">
               <dt>Total ({o.currency})</dt>
-              <dd className="font-mono">{formatFcfa(o.totalFcfa)}</dd>
+              <dd className="font-mono">{formatPrice(o.totalFcfa)}</dd>
             </div>
           </dl>
         </DashboardCard>
@@ -282,7 +284,7 @@ export function OrderDetail({ order, adminName, onUpdated }: OrderDetailProps) {
             <InfoRow label="Méthode" value={o.delivery.method} />
             <InfoRow label="Zone" value={o.delivery.zone} />
             <InfoRow label="Adresse" value={o.delivery.address ?? "-"} />
-            <InfoRow label="Frais" value={formatFcfa(o.delivery.feeFcfa)} />
+            <InfoRow label="Frais" value={formatPrice(o.delivery.feeFcfa)} />
             <InfoRow label="Statut" value={o.delivery.status} />
             <InfoRow label="Paiement" value={o.paymentMethod} />
           </dl>

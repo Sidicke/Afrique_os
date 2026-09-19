@@ -13,9 +13,8 @@ interface QuickAction {
 }
 
 const ACTIONS: QuickAction[] = [
-  { label: "Nouvelle commande", hint: "Enregistrer une vente", href: "/espace-admin/commandes", icon: "plus" },
-  { label: "Ajouter un produit", hint: "Enrichir le catalogue", href: "/espace-admin/produits", icon: "package" },
-  { label: "Créer une promotion", hint: "Booster une vente", href: "/espace-admin/parametres/boutique/promotions", icon: "sparkle" },
+  { label: "Ajouter un produit", hint: "Enrichir le catalogue", href: "/espace-vendeur/produits", icon: "package" },
+  { label: "Créer une promotion", hint: "Booster une vente", href: "/espace-vendeur/parametres/boutique/promotions", icon: "sparkle" },
   { label: "Voir la boutique", hint: "Vitrine publique", href: "/boutique", icon: "external" },
 ];
 

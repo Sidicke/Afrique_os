@@ -356,11 +356,11 @@ function AuthBrandPanel({ intent = "general" }: { intent?: "general" | "acheter"
       <div className="relative">
         {/* Logo */}
         <Link href="/" className="inline-flex items-center gap-3" aria-label="ZennShop (accueil)">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-midnight-950 font-display text-base font-bold text-gold-300">
-            AC
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-gold-400/40 bg-gold-400/10 font-display text-base font-bold text-gold-300">
+            ZS
           </span>
-          <span className="font-display text-lg font-semibold tracking-wide text-white">
-            ZennShop <span className="text-gold-strong">OS</span>
+          <span className="font-display text-xl font-bold tracking-tight text-white">
+            Zenn<span className="text-gold-400">Shop</span>
           </span>
         </Link>
 
@@ -435,11 +435,11 @@ export default function AuthShell({
               className="mb-8 flex items-center gap-3 lg:hidden"
               aria-label="ZennShop (accueil)"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-midnight-950 font-display text-sm font-bold text-gold-300">
-                AC
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-400/40 bg-midnight-950 font-display text-sm font-bold text-gold-300">
+                ZS
               </span>
-              <span className="font-display text-base font-semibold tracking-wide text-ink-950">
-                ZennShop <span className="text-gold-strong">OS</span>
+              <span className="font-display text-lg font-bold tracking-tight text-ink-950">
+                Zenn<span className="text-gold-600">Shop</span>
               </span>
             </Link>
 

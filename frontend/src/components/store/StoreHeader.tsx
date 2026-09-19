@@ -14,15 +14,34 @@ import {
 } from "./icons";
 import { IconPackage } from "@/components/client/icons";
 import { VerifiedBadge } from "@/components/shared/VerifiedBadge";
-import { cn, formatFcfa, initials, publicShopHref } from "@/lib/utils";
+import { cn, initials, publicShopHref } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
+import { getSessionUser } from "@/lib/api/session";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function StoreHeader() {
+  const { formatPrice } = useTranslation();
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("produits");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [backHref, setBackHref] = useState("/marketplace");
+  const [backLabel, setBackLabel] = useState("ZennShop");
+
+  useEffect(() => {
+    try {
+      const user = getSessionUser();
+      if (user?.role === "CLIENT") {
+        setBackHref("/espace-client");
+        setBackLabel("Mon Espace");
+      } else if (user?.role === "ADMIN" || user?.role === "VENDEUR") {
+        setBackHref("/espace-vendeur");
+        setBackLabel("Console");
+      }
+    } catch (e) {}
+  }, []);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Miroir pour l'effet scroll-spy (évite une dépendance instable)
@@ -150,14 +169,14 @@ export default function StoreHeader() {
         <div className={cn("items-center gap-2 sm:gap-3 shrink-0", searchOpen ? "hidden sm:flex" : "flex")}>
           {/* Bouton de retour ZennShop — visible pour tous */}
           <Link
-            href="/marketplace"
-            title="Retourner sur ZennShop"
+            href={backHref}
+            title="Retourner à l'accueil"
             aria-label="Retourner sur le marketplace ZennShop"
             className="group flex items-center gap-1.5 rounded-full border border-midnight-950/15 bg-midnight-950/5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-midnight-950 transition-all hover:border-gold-500 hover:bg-midnight-950 hover:text-gold-300"
           >
             <IconChevronLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
             <span className="font-display text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">
-              ZennShop
+              {backLabel}
             </span>
           </Link>
 
@@ -306,7 +325,7 @@ export default function StoreHeader() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs font-semibold text-midnight-950">{p.name}</p>
-                          <p className="font-mono text-[11px] font-bold text-gold-700">{formatFcfa(p.price)}</p>
+                          <p className="font-mono text-[11px] font-bold text-gold-700">{formatPrice(p.price)}</p>
                         </div>
                         <span className="text-[11px] text-ink-400">Voir →</span>
                       </button>
@@ -366,12 +385,12 @@ export default function StoreHeader() {
           >
             {/* Bouton retour ZennShop dans le menu mobile */}
             <Link
-              href="/marketplace"
+              href={backHref}
               className="flex items-center gap-2 rounded-xl bg-midnight-950 p-3 text-sm font-semibold text-gold-300 transition-colors hover:bg-midnight-900"
               onClick={closeMobile}
             >
               <IconChevronLeft className="h-4 w-4" />
-              <span>Retourner sur ZennShop</span>
+              <span>Retour</span>
             </Link>
 
             <div className="border-t border-line/60 pt-2 flex flex-col gap-1">

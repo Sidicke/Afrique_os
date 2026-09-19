@@ -1,2 +1,2 @@
-import BoutiqueParamsPage from "@/app/espace-admin/parametres/boutique/page";
+import BoutiqueParamsPage from "@/app/espace-vendeur/parametres/boutique/page";
 export default BoutiqueParamsPage;

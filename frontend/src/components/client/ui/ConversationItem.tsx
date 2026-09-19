@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { formatFcfa, initials } from "@/lib/utils";
+import { initials } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { IconBag, IconPackage } from "../icons";
 
 function timeLabel(iso: string): string {
@@ -27,6 +28,8 @@ export function ConversationContext({
   productImage?: string | null;
   orderReference?: string | null;
 }) {
+  const { formatPrice } = useTranslation();
+
   if (orderReference) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-gold-400/12 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-gold-700">
@@ -50,7 +53,7 @@ export function ConversationContext({
         )}
         <span className="truncate">
           {productName}
-          {productPrice ? ` · ${formatFcfa(Number(productPrice))}` : ""}
+          {productPrice ? ` · ${formatPrice(Number(productPrice))}` : ""}
         </span>
       </span>
     );
@@ -87,6 +90,8 @@ export function ConversationItem({
   orderReference?: string | null;
   isMine?: boolean;
 }) {
+  const { formatPrice } = useTranslation();
+
   return (
     <Link
       href={`/espace-client/discussions/${id}`}

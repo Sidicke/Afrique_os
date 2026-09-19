@@ -12,7 +12,7 @@
  * (voir docs/Boutique/description.md et docs/travaux/descriptions_assets_landing_page.md).
  */
 
-import { formatFcfa } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 export const store = {
   name: "Aziz Tech",
@@ -365,10 +365,10 @@ export const recommendationCategories = [
 
 /**
  * Formate un prix en FCFA avec séparateur de milliers (« 350 000 FCFA »).
- * Implémentation partagée avec le dashboard (lib/utils.formatFcfa).
+ * Implémentation partagée avec le dashboard (lib/utils.formatCurrency).
  */
 export function formatPrice(price: number): string {
-  return formatFcfa(price);
+  return formatCurrency(price);
 }
 
 /** Libellé de disponibilité à partir du stock (0 = rupture) */

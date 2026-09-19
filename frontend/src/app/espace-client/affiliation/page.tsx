@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usersApi, type ApiAffiliationDetails } from "@/lib/api";
-import { formatFcfa } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import {
   IconGift,
   IconCheck,
@@ -103,7 +103,7 @@ export default function AffiliationPage() {
                 <span className="text-sm font-semibold text-gold-700">pts</span>
               </div>
               <p className="mt-1 text-xs text-midnight-950/60">
-                Valeur : {formatFcfa(data?.pointsBalance || 0)} (1 pt = 1 FCFA)
+                Valeur : {formatCurrency(data?.pointsBalance || 0)} (1 pt = 1 FCFA)
               </p>
             </div>
 

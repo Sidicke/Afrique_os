@@ -1,7 +1,8 @@
 "use client";
 
 import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCard";
-import { cn, formatFcfa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type { AdminCategoryPerformance } from "@/types/admin";
 
 /**
@@ -15,6 +16,7 @@ export function CategoryBars({
   categories: AdminCategoryPerformance[] | undefined;
   loading: boolean;
 }) {
+  const { formatPrice } = useTranslation();
   const totalGmv = (categories ?? []).reduce((s, c) => s + c.gmvFcfa, 0);
   const maxGmv = Math.max(...(categories ?? []).map((c) => c.gmvFcfa), 1);
 
@@ -37,7 +39,7 @@ export function CategoryBars({
               <div className="flex items-baseline justify-between gap-3 text-xs">
                 <span className="font-semibold text-ink-800">{c.name}</span>
                 <span className="font-mono text-[10px] text-ink-500">
-                  {formatFcfa(c.gmvFcfa)}
+                  {formatPrice(c.gmvFcfa)}
                   <span
                     className={cn(
                       "ml-2 font-semibold",

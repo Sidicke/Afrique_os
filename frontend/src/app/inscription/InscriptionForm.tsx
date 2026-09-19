@@ -6,7 +6,6 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
-  Gift,
   Mail,
   MailCheck,
   Phone,
@@ -160,17 +159,30 @@ export default function InscriptionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
+  const roleParam = (searchParams.get("role") || searchParams.get("intent") || "").toLowerCase();
+  const planParam = searchParams.get("plan");
 
-  const [step, setStep] = useState<Step>("intent");
-  const [intent, setIntent] = useState<Intent>("acheter");
+  const isSellerIntent = Boolean(
+    roleParam === "seller" ||
+    roleParam === "vendeur" ||
+    roleParam === "vendre" ||
+    planParam
+  );
+
+  const isClientIntent = Boolean(
+    roleParam === "client" ||
+    roleParam === "buyer" ||
+    roleParam === "acheteur" ||
+    roleParam === "acheter"
+  );
+
+  const [step, setStep] = useState<Step>(() => (isSellerIntent || isClientIntent ? "identity" : "intent"));
+  const [intent, setIntent] = useState<Intent>(() => (isSellerIntent ? "vendre" : "acheter"));
 
   // Identité (étape 2)
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [referralCode, setReferralCode] = useState(
-    searchParams.get("ref")?.trim().toUpperCase() || "",
-  );
   const [phone, setPhone] = useState("");
 
   // Sécurité (étape 3)
@@ -196,6 +208,26 @@ export default function InscriptionForm() {
     setError(null);
     setStep("identity");
   };
+
+  const handleIdentityBack = () => {
+    if (isSellerIntent || isClientIntent) {
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        router.back();
+      } else {
+        router.push("/");
+      }
+    } else {
+      setStep("intent");
+    }
+  };
+
+  const stepperSteps = (isSellerIntent || isClientIntent) && step !== "intent"
+    ? ["Identité", "Sécurité"]
+    : STEPS;
+
+  const currentStepIndex = stepperSteps.length === 2
+    ? (step === "identity" ? 0 : 1)
+    : (step === "identity" ? 1 : 2);
 
   /* ---------- Étape 2 → 3 : envoi du code ---------- */
 
@@ -284,7 +316,7 @@ export default function InscriptionForm() {
 
     setBusy(true);
     try {
-      const auth = await authApi.completeRegistration({ referralCode: referralCode.trim() || undefined, 
+      const auth = await authApi.completeRegistration({
         name: `${firstName.trim()} ${lastName.trim()}`.trim(),
         email: email.trim(),
         password,
@@ -295,7 +327,7 @@ export default function InscriptionForm() {
       setSession({ accessToken: auth.accessToken, user: auth.user });
 
       if (intent === "vendre") {
-        router.push("/onboarding/boutique");
+        router.push(planParam ? `/onboarding/boutique?plan=${encodeURIComponent(planParam)}` : "/onboarding/boutique");
         return;
       }
       setStep("welcome");
@@ -425,11 +457,19 @@ export default function InscriptionForm() {
       intent={intent}
       eyebrow={intent === "vendre" ? "Créer un compte Vendeur" : "Créer un compte Client"}
       title={
-        step === "identity" ? "Faisons connaissance." : "Sécurisez votre compte."
+        step === "identity"
+          ? intent === "vendre"
+            ? "Créez votre compte vendeur"
+            : "Faisons connaissance."
+          : intent === "vendre"
+            ? "Sécurisez votre compte vendeur"
+            : "Sécurisez votre compte."
       }
       subtitle={
         step === "identity"
-          ? "L'inscription est rapide : seuls les éléments essentiels vous sont demandés."
+          ? intent === "vendre"
+            ? "Renseignez vos coordonnées pour accéder directement à la création de votre boutique."
+            : "L'inscription est rapide : seuls les éléments essentiels vous sont demandés."
           : `Nous venons d'envoyer un code à 6 chiffres à ${maskedEmail}.`
       }
       footer={
@@ -441,6 +481,23 @@ export default function InscriptionForm() {
               className="text-sm font-medium text-ink-500 hover:text-ink-800 hover:underline underline-offset-4 transition-all"
             >
               Changer d&apos;adresse e-mail ?
+            </button>
+          )}
+          {step === "identity" && (
+            <button
+              type="button"
+              onClick={() => {
+                if (intent === "vendre") {
+                  setIntent("acheter");
+                } else {
+                  setIntent("vendre");
+                }
+              }}
+              className="text-sm font-medium text-ink-500 hover:text-ink-800 hover:underline underline-offset-4 transition-all"
+            >
+              {intent === "vendre"
+                ? "Vous souhaitez plutôt acheter ? Créer un compte client"
+                : "Vous souhaitez plutôt vendre ? Créer un compte vendeur"}
             </button>
           )}
           <div>
@@ -465,7 +522,7 @@ export default function InscriptionForm() {
             className="space-y-5"
             noValidate
           >
-            <AuthStepper steps={STEPS} current={1} />
+            <AuthStepper steps={stepperSteps} current={currentStepIndex} />
             {error && <AuthError title={error.title} message={error.message} />}
 
             <div className="grid gap-5 sm:grid-cols-2">
@@ -531,34 +588,17 @@ export default function InscriptionForm() {
               </p>
             </div>
 
-            <div>
-              <AuthLabel htmlFor="referralCode">Code de parrainage (optionnel)</AuthLabel>
-              <AuthInput
-                id="referralCode"
-                icon={<Gift />}
-                type="text"
-                value={referralCode}
-                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                placeholder="Ex: AB12CD"
-                disabled={busy}
-              />
-              <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
-                Si un ami vous a invité, renseignez son code pour lui faire bénéficier du programme.
-              </p>
-            </div>
-
             <AuthSubmit busy={busy}>Continuer</AuthSubmit>
 
             <SocialAuthButtons
               mode="register"
               role={intent === "vendre" ? "VENDEUR" : "CLIENT"}
-              referralCode={referralCode}
               phone={phone}
               onError={(err) => setError(err)}
             />
 
             <div className="flex justify-start pt-2">
-              <AuthBackButton onClick={() => setStep("intent")} busy={busy} />
+              <AuthBackButton onClick={handleIdentityBack} busy={busy} />
             </div>
           </motion.form>
         )}
@@ -575,7 +615,7 @@ export default function InscriptionForm() {
             className="space-y-6"
             noValidate
           >
-            <AuthStepper steps={STEPS} current={2} />
+            <AuthStepper steps={stepperSteps} current={currentStepIndex} />
             {error && (
               <AuthError
                 title={error.title}

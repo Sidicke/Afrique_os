@@ -5,7 +5,8 @@ import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCa
 import { Modal } from "@/components/dashboard/ui/Modal";
 import { Toast } from "@/components/dashboard/ui/Toast";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, formatFcfa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type { AdminPlan } from "@/types/admin";
 import { adminService } from "@/services/adminService";
 
@@ -22,6 +23,7 @@ export function PlansManager({
   plans: AdminPlan[];
   onPlanUpdated: (updated: AdminPlan) => void;
 }) {
+  const { formatPrice } = useTranslation();
   const [target, setTarget] = useState<AdminPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -81,11 +83,11 @@ export function PlansManager({
             <dl className="mt-3 space-y-1 text-[11px]">
               <div className="flex justify-between">
                 <dt className="text-ink-400">Mensuel</dt>
-                <dd className="font-mono text-ink-700">{formatFcfa(p.monthlyPriceFcfa)}</dd>
+                <dd className="font-mono text-ink-700">{formatPrice(p.monthlyPriceFcfa)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-ink-400">Annuel</dt>
-                <dd className="font-mono text-ink-700">{formatFcfa(p.yearlyPriceFcfa)}</dd>
+                <dd className="font-mono text-ink-700">{formatPrice(p.yearlyPriceFcfa)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-ink-400">Boutiques</dt>
@@ -93,7 +95,7 @@ export function PlansManager({
               </div>
               <div className="flex justify-between">
                 <dt className="text-ink-400">MRR</dt>
-                <dd className="font-mono text-ink-700">{formatFcfa(p.mrrFcfa)}</dd>
+                <dd className="font-mono text-ink-700">{formatPrice(p.mrrFcfa)}</dd>
               </div>
             </dl>
             <button

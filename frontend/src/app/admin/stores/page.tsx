@@ -10,7 +10,7 @@ import { Avatar } from "@/components/dashboard/ui/Avatar";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { TableSkeleton } from "@/components/dashboard/ui/Skeleton";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, timeAgo, formatFcfa } from "@/lib/utils";
+import { cn, timeAgo, formatCurrency } from "@/lib/utils";
 import {
   StoreStatusBadge,
   PlanBadge,
@@ -301,7 +301,7 @@ export default function StoresPage() {
                         {r.ordersCount.toLocaleString("fr-FR")}
                       </td>
                       <td className="px-2 py-3.5 text-right font-mono text-[11px] text-ink-700">
-                        {formatFcfa(r.gmvFcfa)}
+                        {formatCurrency(r.gmvFcfa)}
                       </td>
                       <td className="px-2 py-3.5 font-mono text-[11px] text-ink-500">
                         {timeAgo(r.lastActivityAt)}
@@ -339,7 +339,7 @@ export default function StoresPage() {
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <PlanBadge plan={r.plan} />
                       <span className="font-mono text-[10px] text-ink-400">
-                        {formatFcfa(r.gmvFcfa)}
+                        {formatCurrency(r.gmvFcfa)}
                       </span>
                     </div>
                   </div>

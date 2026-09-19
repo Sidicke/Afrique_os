@@ -1,2 +1,2 @@
-import VisuelsPage from "@/app/espace-admin/parametres/boutique/visuels/page";
+import VisuelsPage from "@/app/espace-vendeur/parametres/boutique/visuels/page";
 export default VisuelsPage;

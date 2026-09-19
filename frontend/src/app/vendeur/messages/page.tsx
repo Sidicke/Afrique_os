@@ -1,2 +1,2 @@
-import MessageriePage from "@/app/espace-admin/messagerie/page";
+import MessageriePage from "@/app/espace-vendeur/messagerie/page";
 export default MessageriePage;

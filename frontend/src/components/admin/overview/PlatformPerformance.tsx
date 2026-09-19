@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import type { AdminPerformanceMetric, AdminPerformancePoint } from "@/types/admin";
 
 interface PlatformPerformanceProps {
@@ -17,12 +17,10 @@ const METRICS: Array<{ value: AdminPerformanceMetric; label: string }> = [
   { value: "stores", label: "Boutiques" },
 ];
 
-/** Formate la valeur selon la métrique (FCFA ou unités) */
+/** Formate la valeur selon la métrique (devise active ou unités) */
 function formatValue(metric: AdminPerformanceMetric, value: number): string {
   if (metric === "gmv" || metric === "revenue") {
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(".", ",")} M FCFA`;
-    if (value >= 1_000) return `${Math.round(value / 1_000).toLocaleString("fr-FR")} k FCFA`;
-    return `${value.toLocaleString("fr-FR")} FCFA`;
+    return formatCurrency(value);
   }
   return value.toLocaleString("fr-FR");
 }

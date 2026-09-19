@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { cn, formatFcfa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type {
   AdminOrdersSnapshot,
   AdminStoresSnapshot,
@@ -120,6 +121,7 @@ function OrdersSnapshot({ data }: { data: AdminOrdersSnapshot }) {
 /* ———————————————————————————————— Subscriptions ———————————————————————————————— */
 
 function SubscriptionsSnapshot({ data }: { data: AdminSubscriptionsSnapshot }) {
+  const { formatPrice } = useTranslation();
   const rows = [
     { label: "Gratuit", value: data.free, tone: "text-ink-500" },
     { label: "Essai", value: data.trial, tone: "text-blue-700" },
@@ -142,7 +144,7 @@ function SubscriptionsSnapshot({ data }: { data: AdminSubscriptionsSnapshot }) {
       </div>
       <div className="mt-3 flex items-center justify-between rounded-xl border border-gold-soft bg-gold-wash px-3 py-2">
         <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-500">MRR</span>
-        <span className="font-display text-sm font-bold text-gold-strong">{formatFcfa(data.mrrFcfa)}</span>
+        <span className="font-display text-sm font-bold text-gold-strong">{formatPrice(data.mrrFcfa)}</span>
       </div>
     </SnapshotCard>
   );

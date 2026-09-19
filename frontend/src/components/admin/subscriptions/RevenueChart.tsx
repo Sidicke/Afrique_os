@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCard";
 import { Skeleton } from "@/components/dashboard/ui/Skeleton";
-import { cn, formatFcfa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type { AdminRevenuePoint } from "@/types/admin";
 
 type Metric = "mrr" | "new" | "lost";
@@ -30,6 +31,7 @@ export function RevenueChart({
   series: AdminRevenuePoint[] | undefined;
   loading: boolean;
 }) {
+  const { formatPrice } = useTranslation();
   const [metric, setMetric] = useState<Metric>("mrr");
 
   if (loading || !series || series.length === 0) {
@@ -99,7 +101,7 @@ export function RevenueChart({
       />
 
       <p className="mt-1 font-mono text-[10px] text-ink-400">
-        {formatFcfa(getValue(latest))} ·{" "}
+        {formatPrice(getValue(latest))} ·{" "}
         <span className={deltaPct >= 0 ? "text-green-600" : "text-red-600"}>
           {deltaPct >= 0 ? "+" : ""}
           {deltaPct} %

@@ -2,9 +2,18 @@ export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-type SupportedCurrency = "XOF" | "XAF" | "NGN" | "GHS" | "KES" | "ZAR";
+export type SupportedCurrency = "XOF" | "XAF" | "NGN" | "GHS" | "KES" | "ZAR";
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
+export const EXCHANGE_RATES: Record<SupportedCurrency, number> = {
+  XOF: 1,
+  XAF: 1,
+  NGN: 0.40,
+  GHS: 41,
+  KES: 4.65,
+  ZAR: 33.2,
+};
+
+export const CURRENCY_SYMBOLS: Record<SupportedCurrency, string> = {
   XOF: "FCFA",
   XAF: "FCFA",
   NGN: "₦",
@@ -13,29 +22,37 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   ZAR: "R",
 };
 
-/** Formate un montant dynamiquement selon la devise sélectionnée */
+/** Formate un montant dynamiquement selon la devise sélectionnée avec taux de conversion */
 export function formatCurrency(amount: number, forceCurrency?: string): string {
-  let currency = forceCurrency;
+  let currency = (forceCurrency as SupportedCurrency);
   if (!currency && typeof window !== "undefined") {
-    currency = localStorage.getItem("zennshop_curr") || "XOF";
+    currency = (localStorage.getItem("zennshop_curr") as SupportedCurrency) || "XOF";
   }
   currency = currency || "XOF";
 
+  const rate = EXCHANGE_RATES[currency] || 1;
+  const converted = amount / rate;
+
+  const hasDecimals = ["ZAR"].includes(currency);
+  const maxFraction = hasDecimals ? 2 : 0;
+  const minFraction = hasDecimals && converted % 1 !== 0 ? 2 : 0;
+
   const formatted = new Intl.NumberFormat("fr-FR", {
-    maximumFractionDigits: 0,
+    minimumFractionDigits: minFraction,
+    maximumFractionDigits: maxFraction,
   })
-    .format(amount)
+    .format(converted)
     .replace(/[\u202f\u00a0]/g, " ");
-  
+
   const symbol = CURRENCY_SYMBOLS[currency] || currency;
-  // Par convention, le Naira, Cedi et Rand ont le symbole avant, les autres après
-  if (["NGN", "GHS", "ZAR"].includes(currency)) {
+
+  if (["NGN", "GHS", "KES", "ZAR"].includes(currency)) {
     return `${symbol} ${formatted}`;
   }
   return `${formatted} ${symbol}`;
 }
 
-/** Legacy alias (backward compatibility) - uses dynamic currency now! */
+/** Legacy alias (compatibilité descendante) - utilise la conversion multi-devise automatique */
 export function formatFcfa(amount: number | string): string {
   return formatCurrency(Number(amount) || 0);
 }
@@ -73,13 +90,26 @@ export function publicShopHref(
 }
 
 /**
- * Temps relatif en français (« à l'instant », « il y a 5 min », « il y a 3 j »).
+ * Temps relatif sensible à la langue (« à l'instant » / « just now »).
  * Renvoie "" si la date est invalide.
+ * @param iso - Date ISO 8601
+ * @param lang - "fr" (défaut) ou "en"
  */
-export function timeAgo(iso: string): string {
+export function timeAgo(iso: string, lang: "fr" | "en" = "fr"): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
+
+  if (lang === "en") {
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `${diffH} h ago`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD < 7) return `${diffD} d ago`;
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
   if (diffMin < 1) return "à l'instant";
   if (diffMin < 60) return `il y a ${diffMin} min`;
   const diffH = Math.floor(diffMin / 60);
@@ -101,5 +131,23 @@ export function roleHomePath(
 ): string {
   if (role === "ADMIN") return "/admin";
   if (role === "CLIENT") return clientFallback;
-  return "/espace-admin";
+  return "/espace-vendeur";
+}
+
+/**
+ * Formatte une date selon la langue active.
+ * @param iso - Date ISO 8601 ou objet Date
+ * @param lang - "fr" (défaut) ou "en"
+ * @param options - Options Intl.DateTimeFormat optionnelles
+ */
+export function formatDate(
+  iso: string | Date,
+  lang: "fr" | "en" = "fr",
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  if (Number.isNaN(d.getTime())) return "";
+  const locale = lang === "en" ? "en-GB" : "fr-FR";
+  const defaultOptions: Intl.DateTimeFormatOptions = options ?? { day: "numeric", month: "short", year: "numeric" };
+  return d.toLocaleDateString(locale, defaultOptions);
 }

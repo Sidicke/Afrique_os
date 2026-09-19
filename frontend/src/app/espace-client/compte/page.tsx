@@ -423,9 +423,9 @@ export default function ComptePage() {
                     <label htmlFor="profile-payment" className={labelCls}>Moyen de paiement préféré</label>
                     <select id="profile-payment" value={form.defaultPaymentMethod || ""} onChange={(e) => setForm((f) => ({ ...f, defaultPaymentMethod: e.target.value }))} className={inputCls + " h-[42px]"}>
                       <option value="">-- Choisir --</option>
-                      <option value="mobile_money">Mobile Money (Wave, Orange, MTN...)</option>
-                      <option value="cash_on_delivery">Paiement à la livraison</option>
-                      <option value="card">Carte Bancaire</option>
+                      <option value="MOBILE_MONEY">Mobile Money (Wave, Orange, MTN...)</option>
+                      <option value="CASH_ON_DELIVERY">Paiement à la livraison</option>
+                      <option value="CARD">Carte Bancaire</option>
                     </select>
                   </div>
 

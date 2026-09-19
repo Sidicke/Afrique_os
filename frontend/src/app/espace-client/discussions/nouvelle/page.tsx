@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { messagingApi } from "@/lib/api";
 import { getSessionUser } from "@/lib/api/session";
-import { formatFcfa } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { IconChat, IconAlert, IconStore } from "@/components/client/icons";
 
 /**
@@ -42,7 +42,7 @@ export default function NouvelleDiscussionPage() {
       ? `Bonjour, j'ai une question sur ma commande ${orderReference} : `
       : productName
         ? `Bonjour, je suis intéressé(e) par votre article « ${productName} »${
-            productPrice ? ` (${formatFcfa(Number(productPrice))})` : ""
+            productPrice ? ` (${formatCurrency(Number(productPrice))})` : ""
           }. Est-il disponible ?`
         : "Bonjour, je souhaite avoir plus de renseignements sur votre boutique.";
 

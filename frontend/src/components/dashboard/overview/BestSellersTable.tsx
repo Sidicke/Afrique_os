@@ -4,7 +4,7 @@ import { ProductItem } from "@/types/dashboard";
 import AssetImage from "@/components/ui/AssetImage";
 import { cn } from "@/lib/utils";
 import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCard";
-import { formatFcfa } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 interface BestSellersTableProps {
   products: ProductItem[];
@@ -62,7 +62,7 @@ export default function BestSellersTable({ products }: BestSellersTableProps) {
 
                 {/* Price */}
                 <td className="px-2 py-3 text-right font-mono font-medium text-ink-950">
-                  {formatFcfa(prod.priceFcfa)}
+                  {formatCurrency(prod.priceFcfa)}
                 </td>
 
                 {/* Sales Count */}
@@ -72,7 +72,7 @@ export default function BestSellersTable({ products }: BestSellersTableProps) {
 
                 {/* Total Revenue */}
                 <td className="px-2 py-3 text-right font-mono font-bold text-ink-950">
-                  {formatFcfa(prod.revenueFcfa)}
+                  {formatCurrency(prod.revenueFcfa)}
                 </td>
 
                 {/* Rating */}

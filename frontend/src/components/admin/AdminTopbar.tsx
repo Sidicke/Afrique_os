@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { cn, initials } from "@/lib/utils";
+import { cn, initials, formatCurrency } from "@/lib/utils";
 import { useSession } from "@/lib/useSession";
 import { setAdminPeriod, useAdminPeriod } from "@/lib/useAdminPeriod";
 import { useAdminVerifications } from "@/hooks/useAdminVerifications";
@@ -88,7 +88,7 @@ export default function AdminTopbar({
         ...orders.rows.map((o) => ({
           kind: "Order" as const,
           label: o.reference,
-          sub: `${o.customer.name} · ${o.amountFcfa.toLocaleString("fr-FR")} FCFA`,
+          sub: `${o.customer.name} · ${formatCurrency(o.amountFcfa)}`,
           href: `/admin/orders/${o.id}`,
         })),
       ];

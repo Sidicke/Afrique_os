@@ -7,9 +7,11 @@ import { ApiError } from "@/lib/api/http";
 import { productChatHref } from "@/lib/chat";
 import { publicProductImage } from "@/lib/api/mappers";
 import type { ApiProductDetail, ApiPublicProduct } from "@/lib/api/types";
-import { cn, formatFcfa, initials } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { VerifiedBadge } from "@/components/shared/VerifiedBadge";
 import Container from "@/components/ui/Container";
+import BackButton from "@/components/ui/BackButton";
 import ProductCard from "@/components/client/ProductCard";
 import { EmptyState } from "@/components/client/ui/EmptyState";
 import {
@@ -67,6 +69,8 @@ export default function ProductPage({
   slug: string;
   storeSlug?: string;
 }) {
+  const { formatPrice, t } = useTranslation();
+
   const [product, setProduct] = useState<ApiProductDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -74,13 +78,29 @@ export default function ProductPage({
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [qty, setQty] = useState(1);
   const [similar, setSimilar] = useState<ApiPublicProduct[] | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = () => {
+    const boutiqueSlug = storeSlug || product?.boutique.slug;
+    const url = typeof window !== "undefined"
+      ? `${window.location.origin}/b/${boutiqueSlug}/produit/${product?.slug}`
+      : "";
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const load = useCallback(() => {
     setError(null);
     setProduct(null);
     setSimilar(null);
-    catalogueApi
-      .productBySlug(slug)
+    const fetcher = storeSlug
+      ? catalogueApi.product(storeSlug, slug)
+      : catalogueApi.productBySlug(slug);
+
+    fetcher
       .then((p) => {
         // Sélection de variantes par défaut + état frais à chaque chargement
         const defaults: Record<string, string> = {};
@@ -99,7 +119,7 @@ export default function ProductPage({
           setError("Impossible de charger ce produit pour le moment.");
         }
       });
-  }, [slug]);
+  }, [slug, storeSlug]);
 
   useEffect(() => {
     const t = window.setTimeout(() => load(), 0);
@@ -190,7 +210,7 @@ export default function ProductPage({
         <EmptyState
           icon={<IconPackage className="h-6 w-6" />}
           title="Produit introuvable"
-          description="Ce produit n'existe pas ou n'est plus disponible. Retournez au marketplace pour continuer votre découverte."
+          description={t.marketplace.productNotFound}
           action={
             <Link
               href="/marketplace"
@@ -216,7 +236,7 @@ export default function ProductPage({
               onClick={() => setRetryKey((k) => k + 1)}
               className="cursor-pointer rounded-full bg-midnight-950 px-5 py-2.5 text-sm font-bold text-gold-300 transition-all hover:bg-midnight-800"
             >
-              Réessayer
+              {t.marketplace.productRetry}
             </button>
           }
         />
@@ -244,27 +264,46 @@ export default function ProductPage({
 
   return (
     <Container className="px-5 pb-14 pt-16 sm:pt-20 md:pb-20">
-      {/* Fil d'Ariane — retour toujours possible (skill §9 navigation) */}
-      <nav aria-label="Fil d'Ariane" className="flex items-center gap-2 text-sm">
-        <Link
-          href="/marketplace"
-          className="inline-flex items-center gap-1.5 font-semibold text-midnight-950/60 transition-colors hover:text-gold-700"
-        >
-          <IconArrowLeft className="h-4 w-4" />
-          Marketplace
-        </Link>
-        <span className="text-midnight-950/25">/</span>
-        <Link
-          href={`/b/${storeSlug || product.boutique.slug}`}
-          className="font-semibold text-midnight-950/60 transition-colors hover:text-gold-700"
-        >
-          {product.boutique.name}
-        </Link>
-        <span className="text-midnight-950/25">/</span>
-        <span className="truncate font-semibold text-midnight-950/80">
-          {product.name}
-        </span>
-      </nav>
+      {/* Navigation & Retour simple */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <BackButton label="Retour" variant="light" fallbackUrl="/marketplace" />
+        
+        <div className="flex items-center gap-3">
+          <nav aria-label="Fil d'Ariane" className="hidden sm:flex items-center gap-2 text-sm">
+            <Link
+              href="/marketplace"
+              className="font-semibold text-midnight-950/60 transition-colors hover:text-gold-700"
+            >
+              Marketplace
+            </Link>
+            <span className="text-midnight-950/25">/</span>
+            <Link
+              href={`/b/${storeSlug || product.boutique.slug}`}
+              className="font-semibold text-midnight-950/60 transition-colors hover:text-gold-700"
+            >
+              {product.boutique.name}
+            </Link>
+            <span className="text-midnight-950/25">/</span>
+            <span className="truncate max-w-[200px] font-semibold text-midnight-950/80">
+              {product.name}
+            </span>
+          </nav>
+
+          <button
+            type="button"
+            onClick={handleShare}
+            className="inline-flex items-center gap-1.5 rounded-full border border-midnight-950/15 bg-white px-3.5 py-1.5 text-xs font-semibold text-midnight-950/80 transition-all hover:border-gold-400 hover:text-gold-700 active:scale-95 cursor-pointer shadow-sm"
+            title="Copier le lien unique du produit"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+            <span>{copied ? t.marketplace.productCopied : t.marketplace.productShare}</span>
+          </button>
+        </div>
+      </div>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:gap-14">
         {/* ——— Galerie ——— */}
@@ -324,7 +363,7 @@ export default function ProductPage({
           {/* Boutique + note */}
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href={`/boutique/${product.boutique.slug}`}
+              href={`/b/${product.boutique.slug}`}
               className="inline-flex items-center gap-2 rounded-full border border-midnight-950/10 bg-white py-1.5 pl-1.5 pr-3 transition-all hover:border-gold-400/60"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-midnight-950 font-display text-xs font-bold text-gold-300">
@@ -345,7 +384,7 @@ export default function ProductPage({
                   {rating.toFixed(1)}
                 </span>
                 <span className="text-midnight-950/45">
-                  ({product.reviews.length} avis)
+                  ({product.reviews.length} {t.marketplace.productReviews})
                 </span>
               </span>
             )}
@@ -354,11 +393,11 @@ export default function ProductPage({
           {/* Prix */}
           <div className="flex flex-wrap items-baseline gap-3">
             <span className="font-display text-3xl font-bold text-gold-600 sm:text-4xl">
-              {formatFcfa(unitPrice)}
+              {formatPrice(unitPrice)}
             </span>
             {hasPromo && (
               <span className="text-lg text-midnight-950/35 line-through">
-                {formatFcfa(oldPrice)}
+                {formatPrice(oldPrice)}
               </span>
             )}
             <span
@@ -371,9 +410,9 @@ export default function ProductPage({
             >
               {inStock
                 ? stock <= 5
-                  ? `Stock limité (${stock})`
+                  ? `${t.marketplace.productStockLimited} (${stock})`
                   : "En stock"
-                : "Épuisé"}
+                : t.marketplace.productSoldOut}
             </span>
           </div>
 
@@ -419,18 +458,18 @@ export default function ProductPage({
             </div>
           )}
 
-          {/* Quantité + actions */}
+          {/* {t.marketplace.productQuantity} + actions */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold uppercase tracking-wider text-midnight-950/60">
-                Quantité
+                {t.marketplace.productQuantity}
               </span>
               <div className="inline-flex items-center rounded-full border border-midnight-950/12 bg-white">
                 <button
                   type="button"
                   onClick={() => setQty((q) => Math.max(1, q - 1))}
                   disabled={qty <= 1}
-                  aria-label="Diminuer la quantité"
+                  aria-label={t.marketplace.productDecreaseCount}
                   className="h-10 w-10 cursor-pointer rounded-l-full text-lg font-bold text-midnight-950/60 transition-colors hover:text-midnight-950 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   −
@@ -442,7 +481,7 @@ export default function ProductPage({
                   type="button"
                   onClick={() => setQty((q) => Math.min(Math.max(stock, 1), q + 1))}
                   disabled={!inStock || qty >= stock}
-                  aria-label="Augmenter la quantité"
+                  aria-label={t.marketplace.productIncreaseCount}
                   className="h-10 w-10 cursor-pointer rounded-r-full text-lg font-bold text-midnight-950/60 transition-colors hover:text-midnight-950 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   +
@@ -452,10 +491,10 @@ export default function ProductPage({
 
             <div className="flex flex-col gap-2.5 sm:flex-row">
               {/* Commander → achat DIRECT : le produit entre au panier et la
-                  commande (coordonnées + paiement) s'ouvre immédiatement sur
+                  {t.marketplace.productOrderHint}
                   la boutique, directement. */}
               <Link
-                href={`/boutique/${product.boutique.slug}?product=${product.id}&commander=1`}
+                href={`/b/${product.boutique.slug}?product=${product.id}&commander=1`}
                 className={cn(
                   "inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-bold transition-all",
                   inStock
@@ -464,7 +503,7 @@ export default function ProductPage({
                 )}
               >
                 <IconBag className="h-5 w-5" />
-                {inStock ? "Commander maintenant" : "Produit épuisé"}
+                {inStock ? t.marketplace.productOrderNow : t.marketplace.productOrderSoldOut}
               </Link>
               {/* Discuter → messagerie interne (contexte produit conservé) */}
               {discussHref && (
@@ -479,22 +518,20 @@ export default function ProductPage({
             </div>
             <p className="flex items-center gap-1.5 text-xs text-midnight-950/45">
               <IconShield className="h-3.5 w-3.5 text-gold-600" />
-              Commande publique sans compte : paiement et livraison gérés par
+              {t.marketplace.productPublicOrder}
               la boutique.
             </p>
           </div>
 
           {/* Description */}
-          {product.description && (
-            <div className="border-t border-midnight-950/8 pt-6">
+          <div className="border-t border-midnight-950/8 pt-6">
               <h2 className="font-display text-lg font-bold text-midnight-950">
                 Description
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-midnight-950/65">
-                {product.description}
+              <p className="mt-2 text-sm leading-relaxed text-midnight-950/65 whitespace-pre-wrap">
+                {product.description || "Aucune description fournie par le vendeur."}
               </p>
             </div>
-          )}
 
           {/* Réassurance boutique */}
           <div className="rounded-2xl border border-midnight-950/8 bg-white p-4">
@@ -511,12 +548,12 @@ export default function ProductPage({
                     )}
                   </p>
                   <p className="text-xs text-midnight-950/50">
-                    Vendeur vérifié par la plateforme
+                    {t.marketplace.productVerifiedSeller}
                   </p>
                 </div>
               </div>
               <Link
-                href={`/boutique/${product.boutique.slug}`}
+                href={`/b/${product.boutique.slug}`}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-midnight-950/15 px-4 py-2 text-xs font-bold text-midnight-950/70 transition-all hover:border-gold-400/60 hover:text-gold-700"
               >
                 <IconStore className="h-3.5 w-3.5 text-gold-600" />
@@ -528,8 +565,7 @@ export default function ProductPage({
       </div>
 
       {/* ——— Avis ——— */}
-      {product.reviews.length > 0 && (
-        <section aria-labelledby="product-reviews-title" className="mt-16">
+      <section aria-labelledby="product-reviews-title" className="mt-16">
           <div className="flex flex-wrap items-center gap-3">
             <h2
               id="product-reviews-title"
@@ -544,7 +580,7 @@ export default function ProductPage({
                   {rating.toFixed(1)} / 5
                 </span>
                 <span className="text-sm text-midnight-950/45">
-                  · {product.reviews.length} avis
+                  · {product.reviews.length} {t.marketplace.productReviews}
                 </span>
               </span>
             )}
@@ -576,8 +612,13 @@ export default function ProductPage({
               </article>
             ))}
           </div>
+          {product.reviews.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-midnight-950/15 bg-white/50 p-8 text-center mt-5">
+              <p className="text-sm font-medium text-midnight-950/50">Aucun avis pour le moment.</p>
+              <p className="mt-1 text-xs text-midnight-950/40">Soyez le premier à donner votre avis après l'achat !</p>
+            </div>
+          )}
         </section>
-      )}
 
       {/* ——— Produits similaires ——— */}
       {similar !== null && similar.length > 0 && (
@@ -585,7 +626,7 @@ export default function ProductPage({
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-gold-600">
-                Dans la même catégorie
+                {t.marketplace.productSameCategory}
               </p>
               <h2
                 id="product-similar-title"

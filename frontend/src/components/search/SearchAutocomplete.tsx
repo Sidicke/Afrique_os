@@ -6,7 +6,7 @@ import Link from "next/link";
 import { searchApi } from "@/lib/api/search";
 import type { ApiSearchResults } from "@/lib/api/search";
 import { VerifiedBadge } from "@/components/shared/VerifiedBadge";
-import { cn, formatFcfa, initials } from "@/lib/utils";
+import { cn, formatCurrency, initials } from "@/lib/utils";
 import { IconSearch, IconPackage, IconTag } from "@/components/client/icons";
 
 interface SearchAutocompleteProps {
@@ -342,7 +342,7 @@ export default function SearchAutocomplete({
                             </p>
                           </div>
                           <span className="font-mono text-xs font-bold text-midnight-950">
-                            {formatFcfa(priceNumber)}
+                            {formatCurrency(priceNumber)}
                           </span>
                         </Link>
                       );

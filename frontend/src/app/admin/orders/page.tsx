@@ -9,7 +9,7 @@ import { MiniStat } from "@/components/dashboard/ui/MiniStat";
 import { EmptyState } from "@/components/dashboard/ui/EmptyState";
 import { TableSkeleton } from "@/components/dashboard/ui/Skeleton";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, timeAgo, formatFcfa } from "@/lib/utils";
+import { cn, timeAgo, formatCurrency } from "@/lib/utils";
 import { OrderStatusBadge, AnomalyLevelBadge } from "@/components/admin/orders/OrderBadges";
 import { OrdersVolumeChart } from "@/components/admin/orders/OrdersVolumeChart";
 import { AdminKpiButton } from "@/components/admin/ui/AdminBits";
@@ -152,9 +152,9 @@ export default function OrdersPage() {
         <MiniStat
           icon="wallet"
           label="GMV"
-          value={kpis ? formatFcfa(kpis.gmvFcfa) : "-"}
+          value={kpis ? formatCurrency(kpis.gmvFcfa) : "-"}
           tone="gold"
-          hint={kpis ? `AOV ${formatFcfa(kpis.aovFcfa)}` : undefined}
+          hint={kpis ? `AOV ${formatCurrency(kpis.aovFcfa)}` : undefined}
         />
       </div>
 
@@ -335,7 +335,7 @@ export default function OrdersPage() {
                       </td>
                       <td className="px-2 py-3.5 text-ink-600">{r.sellerName}</td>
                       <td className="px-2 py-3.5 text-right font-mono text-[11px] text-ink-800">
-                        {formatFcfa(r.amountFcfa)}
+                        {formatCurrency(r.amountFcfa)}
                       </td>
                       <td className="px-2 py-3.5">
                         <OrderStatusBadge status={r.status} />
@@ -374,7 +374,7 @@ export default function OrdersPage() {
                     {r.customer.name} · {r.store.name}
                   </p>
                   <div className="mt-2 flex items-center justify-between">
-                    <p className="font-mono text-xs font-bold text-ink-950">{formatFcfa(r.amountFcfa)}</p>
+                    <p className="font-mono text-xs font-bold text-ink-950">{formatCurrency(r.amountFcfa)}</p>
                     <span className="font-mono text-[10px] text-ink-400">{timeAgo(r.createdAt)}</span>
                   </div>
                 </Link>

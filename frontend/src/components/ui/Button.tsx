@@ -22,7 +22,7 @@ const variantStyles: Record<ButtonVariant, string> = {
     "bg-gold-400 text-midnight-950 hover:bg-gold-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-gold-400/25 border border-gold-300/40",
   secondary:
     "border border-gold-400/40 text-ivory-50 bg-gold-400/5 hover:border-gold-400 hover:bg-gold-400/15 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-gold-400/10",
-  ghost: "text-midnight-950/80 hover:text-gold-400 hover:bg-white/10",
+  ghost: "text-ivory-50/80 hover:text-gold-400 hover:bg-white/10",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

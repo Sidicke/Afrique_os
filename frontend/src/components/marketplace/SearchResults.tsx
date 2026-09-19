@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { routes } from "@/lib/urls/routes";
 import { catalogueApi, searchApi, shopsApi } from "@/lib/api";
 import { publicProductImage } from "@/lib/api/mappers";
 import type { ApiBoutiqueCard, ApiPublicProduct } from "@/lib/api/types";
@@ -23,7 +24,8 @@ import {
   IconTag,
   IconX,
 } from "@/components/client/icons";
-import { cn, formatFcfa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { SkeletonBlock } from "@/components/client/ui/Skeleton";
 import BackButton from "@/components/ui/BackButton";
 
@@ -49,6 +51,8 @@ type ActiveTab = "all" | "products" | "shops";
 type SortOption = "relevance" | "price_asc" | "price_desc" | "name_asc";
 
 export default function SearchResults() {
+  const { formatPrice, t } = useTranslation();
+
   const router = useRouter();
   const params = useSearchParams();
 
@@ -79,6 +83,42 @@ export default function SearchResults() {
   const [initialShops, setInitialShops] = useState<ApiBoutiqueCard[]>([]);
   const [initialLoading, setInitialLoading] = useState(false);
 
+  // Historique des recherches récentes (localStorage)
+  const RECENT_KEY = "zennshop:recent_searches";
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(RECENT_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveRecentSearch = (term: string) => {
+    const clean = term.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().slice(0, 100);
+    if (!clean) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((s) => s.toLowerCase() !== clean.toLowerCase());
+      const next = [clean, ...filtered].slice(0, 6);
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      } catch {
+        // LocalStorage non disponible
+      }
+      return next;
+    });
+  };
+
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem(RECENT_KEY);
+    } catch {
+      // LocalStorage non disponible
+    }
+  };
+
   // Synchronise la valeur de l'input quand l'URL change
   useEffect(() => {
     setInputValue(qParam);
@@ -105,9 +145,9 @@ export default function SearchResults() {
     }
   }, [activeQuery]);
 
-  // Chargement des suggestions en direct lors de la saisie (debounced)
+  // Chargement des suggestions en direct lors de la saisie (debounced et assaini)
   useEffect(() => {
-    const trimmed = inputValue.trim();
+    const trimmed = inputValue.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().slice(0, 100);
     if (!trimmed || trimmed.length < 2) {
       setLiveSuggestions(null);
       setSuggestionsLoading(false);
@@ -212,8 +252,9 @@ export default function SearchResults() {
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setShowDropdown(false);
-    const cleaned = inputValue.trim();
+    const cleaned = inputValue.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().slice(0, 100);
     if (cleaned) {
+      saveRecentSearch(cleaned);
       router.push(`/recherche?q=${encodeURIComponent(cleaned)}`);
     }
   };
@@ -259,14 +300,19 @@ export default function SearchResults() {
             <input
               type="text"
               value={inputValue}
+              maxLength={100}
+              autoComplete="off"
+              spellCheck={false}
+              autoCorrect="off"
               onChange={(e) => {
                 setInputValue(e.target.value);
                 setShowDropdown(true);
               }}
               onFocus={() => {
-                if (inputValue.trim().length >= 2) setShowDropdown(true);
+                setShowDropdown(true);
               }}
               placeholder="Rechercher un produit, une marque, une boutique..."
+              aria-label="Rechercher un produit, une marque ou une boutique"
               className={cn(
                 "w-full bg-transparent px-3 py-1.5 text-midnight-950 placeholder:text-ink-400 focus:outline-none",
                 isHero ? "text-sm sm:text-base" : "text-sm"
@@ -282,7 +328,7 @@ export default function SearchResults() {
               <button
                 type="button"
                 onClick={handleClear}
-                className="p-1.5 text-ink-400 hover:text-midnight-950 transition-colors mr-1"
+                className="p-1.5 text-ink-400 hover:text-midnight-950 transition-colors mr-1 cursor-pointer"
                 aria-label="Effacer la saisie"
               >
                 <IconX className="h-4 w-4" />
@@ -292,7 +338,7 @@ export default function SearchResults() {
             <button
               type="submit"
               className={cn(
-                "inline-flex shrink-0 items-center justify-center rounded-xl bg-midnight-950 px-5 font-bold text-gold-300 transition-colors hover:bg-midnight-800",
+                "inline-flex shrink-0 items-center justify-center rounded-xl bg-midnight-950 px-5 font-bold text-gold-300 transition-colors hover:bg-midnight-800 cursor-pointer",
                 isHero ? "h-11 text-sm" : "h-10 text-xs"
               )}
             >
@@ -300,6 +346,43 @@ export default function SearchResults() {
             </button>
           </div>
         </form>
+
+        {/* ── Menu déroulant des recherches récentes ──────────── */}
+        {showDropdown && inputValue.trim().length < 2 && recentSearches.length > 0 && (
+          <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-midnight-950/10 bg-white p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center justify-between px-1 pb-2 border-b border-midnight-950/5 mb-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-400 flex items-center gap-1.5">
+                <IconSearch className="h-3 w-3 text-gold-600" />
+                {t.marketplace.searchRecent}
+              </span>
+              <button
+                type="button"
+                onClick={clearRecentSearches}
+                className="text-[11px] font-semibold text-ink-400 hover:text-midnight-950 transition-colors cursor-pointer"
+              >
+                Effacer
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 px-1 pt-1">
+              {recentSearches.map((term) => (
+                <button
+                  key={term}
+                  type="button"
+                  onClick={() => {
+                    setInputValue(term);
+                    saveRecentSearch(term);
+                    setShowDropdown(false);
+                    router.push(`/recherche?q=${encodeURIComponent(term)}`);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-line bg-gray-50/80 px-3 py-1.5 text-xs font-semibold text-midnight-950 hover:border-gold-500 hover:bg-gold-50 hover:text-midnight-950 transition-all cursor-pointer"
+                >
+                  <span className="text-ink-400 text-[10px]">⏱</span>
+                  <span>{term}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Menu déroulant des propositions en direct ──────────── */}
         {showDropdown && inputValue.trim().length >= 2 && (
@@ -311,7 +394,7 @@ export default function SearchResults() {
               </div>
             ) : !hasLiveResults ? (
               <div className="py-4 text-center text-xs text-ink-500">
-                Aucune suggestion directe. Appuyez sur <strong>Entrée</strong> pour lancer la recherche complète.
+                <>{t.marketplace.searchNoDirect}</>
               </div>
             ) : (
               <div className="space-y-4 divide-y divide-midnight-950/5">
@@ -383,13 +466,13 @@ export default function SearchResults() {
                 {liveSuggestions?.produits && liveSuggestions.produits.length > 0 && (
                   <div className="pt-2">
                     <span className="px-2 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-400">
-                      Produits proposés
+                      {t.marketplace.searchSuggestedProducts}
                     </span>
                     <div className="mt-1 space-y-1">
                       {liveSuggestions.produits.slice(0, 4).map((p) => {
                         const img = publicProductImage(p);
                         const productUrl = p.boutique?.slug
-                          ? `/b/${p.boutique.slug}/p/${p.slug}`
+                          ? routes.product(p.boutique.slug, p.slug)
                           : `/produit/${p.slug}`;
                         return (
                           <Link
@@ -417,7 +500,7 @@ export default function SearchResults() {
                               )}
                             </div>
                             <span className="font-mono text-xs font-bold text-midnight-950 whitespace-nowrap">
-                              {formatFcfa(p.price)}
+                              {formatPrice(p.price)}
                             </span>
                           </Link>
                         );
@@ -433,7 +516,7 @@ export default function SearchResults() {
                     onClick={() => handleSearchSubmit()}
                     className="flex w-full items-center justify-between rounded-xl bg-midnight-950/5 px-3 py-2 text-xs font-bold text-midnight-950 transition-colors hover:bg-midnight-950 hover:text-gold-300"
                   >
-                    <span>Voir tous les résultats pour « {inputValue.trim()} »</span>
+                    <span>{t.marketplace.searchSeeAll} « {inputValue.trim()} »</span>
                     <span className="font-mono text-[11px] text-ink-400">Entrée ↵</span>
                   </button>
                 </div>
@@ -448,10 +531,17 @@ export default function SearchResults() {
   // ── 1. État Accueil (recherche vide) ──────────────────────────
   if (!activeQuery) {
     return (
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center px-4 py-8 sm:px-6 sm:py-14 lg:px-8">
-        {/* Bouton de retour */}
-        <div className="w-full flex justify-start mb-6">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center px-4 pb-16 pt-2 sm:px-6 sm:pb-24 lg:px-8">
+        {/* Barre de navigation haute avec bouton retour bien visible */}
+        <div className="w-full flex items-center justify-between pb-5 mb-8 border-b border-midnight-950/8">
           <BackButton label="Retour au Marketplace" variant="light" fallbackUrl="/marketplace" />
+          <nav aria-label="Fil d'ariane" className="hidden sm:flex items-center gap-2 text-xs font-semibold text-ink-500">
+            <Link href="/marketplace" className="hover:text-midnight-950 transition-colors">
+              Marketplace
+            </Link>
+            <span className="text-midnight-950/20">/</span>
+            <span className="text-midnight-950">Recherche</span>
+          </nav>
         </div>
 
         <div className="relative flex w-full max-w-3xl flex-col items-center text-center">
@@ -465,7 +555,7 @@ export default function SearchResults() {
             Trouvez les meilleurs produits &amp; boutiques
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-600 sm:text-base">
-            Recherchez parmi des milliers d&apos;articles : mode africaine, électronique, cosmétiques naturels et créations locales vérifiées.
+            {t.marketplace.searchIntroTitle}
           </p>
 
           {/* Formulaire de recherche avec suggestions en direct */}
@@ -476,7 +566,7 @@ export default function SearchResults() {
           {/* Catégories populaires en accès rapide */}
           <div className="mt-10 w-full">
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-ink-400">
-              Catégories les plus consultées
+              {t.marketplace.searchPopCat}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2.5">
               {POPULAR_CATEGORIES.map((cat) => {
@@ -517,10 +607,10 @@ export default function SearchResults() {
               <IconSparkle className="h-5 w-5 text-gold-600" />
               <div>
                 <h2 className="font-display text-lg font-bold text-midnight-950 sm:text-xl">
-                  Articles populaires à découvrir
+                  {t.marketplace.searchPopArticles}
                 </h2>
                 <p className="text-xs text-ink-500">
-                  Sélection des articles les plus appréciés sur la plateforme
+                  {t.marketplace.searchPopArticlesDesc}
                 </p>
               </div>
             </div>
@@ -555,10 +645,10 @@ export default function SearchResults() {
                 <IconStore className="h-5 w-5 text-gold-600" />
                 <div>
                   <h2 className="font-display text-lg font-bold text-midnight-950 sm:text-xl">
-                    Boutiques partenaires à la une
+                    {t.marketplace.searchPartnerShops}
                   </h2>
                   <p className="text-xs text-ink-500">
-                    Commerces vérifiés avec livraison rapide
+                    {t.marketplace.searchPartnerShopsDesc}
                   </p>
                 </div>
               </div>
@@ -577,23 +667,23 @@ export default function SearchResults() {
 
   // ── 2. État Résultats de recherche (requête active) ─────────────
   return (
-    <div className="mx-auto flex w-full max-w-screen-2xl flex-col px-4 pb-16 pt-8 sm:px-6 sm:pt-12 md:pb-24 lg:px-8">
-      {/* Bouton retour & Fil d'ariane */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="mx-auto flex w-full max-w-screen-2xl flex-col px-4 pb-16 pt-2 sm:px-6 md:pb-24 lg:px-8">
+      {/* Barre de navigation haute avec bouton retour bien visible */}
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-midnight-950/8 pb-5">
         <BackButton label="Retour au Marketplace" variant="light" fallbackUrl="/marketplace" />
 
-        <div className="flex items-center gap-2 text-xs text-ink-500">
+        <nav aria-label="Fil d'ariane" className="flex items-center gap-2 text-xs font-semibold text-ink-500">
           <Link
             href="/marketplace"
-            className="font-medium hover:text-midnight-950 transition-colors"
+            className="hover:text-midnight-950 transition-colors"
           >
             Marketplace
           </Link>
-          <span>/</span>
-          <span className="font-semibold text-midnight-950 truncate max-w-xs">
+          <span className="text-midnight-950/20">/</span>
+          <span className="font-bold text-midnight-950 truncate max-w-xs">
             {isCategorySearch ? `Rayon ${categoryParam}` : `« ${qParam} »`}
           </span>
-        </div>
+        </nav>
       </div>
 
       {/* Barre de recherche d'affinage avec suggestions en direct */}
@@ -604,12 +694,12 @@ export default function SearchResults() {
         <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2 border-b border-midnight-950/8 pb-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-gold-600 font-semibold">
-              {isCategorySearch ? "Rayon sélectionné" : "Résultats de recherche"}
+              {isCategorySearch ? t.marketplace.searchCategory : "Résultats de recherche"}
             </p>
             <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-midnight-950 sm:text-3xl">
               {isCategorySearch ? (
                 <>
-                  Catégorie : <span className="text-gold-700 capitalize">{categoryParam}</span>
+                  {t.marketplace.searchCategoryPrefix} <span className="text-gold-700 capitalize">{categoryParam}</span>
                 </>
               ) : (
                 <>
@@ -619,7 +709,7 @@ export default function SearchResults() {
             </h1>
             {!loading && (
               <p className="mt-1 text-xs sm:text-sm text-ink-500">
-                <span className="font-semibold text-midnight-950">{totalResults}</span> élément{totalResults > 1 ? "s" : ""} trouvé{totalResults > 1 ? "s" : ""}
+                <span className="font-semibold text-midnight-950">{totalResults}</span>  {t.marketplace.searchResultCount}
                 {" ("}
                 <span className="font-medium text-midnight-950">{totalBoutiques}</span> boutique{totalBoutiques > 1 ? "s" : ""}, {" "}
                 <span className="font-medium text-midnight-950">{totalProduits}</span> produit{totalProduits > 1 ? "s" : ""}
@@ -720,7 +810,7 @@ export default function SearchResults() {
         {/* Rayons / Catégories associés */}
         {categories.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-xs font-medium text-ink-400">Rayons associés :</span>
+            <span className="text-xs font-medium text-ink-400">{t.marketplace.searchRelated}</span>
             {categories.map((cat) => (
               <Link
                 key={cat.id}
@@ -772,10 +862,10 @@ export default function SearchResults() {
           </div>
 
           <h2 className="mt-5 font-display text-xl sm:text-2xl font-bold text-midnight-950">
-            Aucun résultat pour «&nbsp;{activeQuery}&nbsp;»
+            {t.marketplace.searchEmptyTitle} «&nbsp;{activeQuery}&nbsp;»
           </h2>
           <p className="mt-2 max-w-md text-xs sm:text-sm leading-relaxed text-ink-500">
-            Nous n&apos;avons trouvé aucun produit ou boutique correspondant à votre critère. Vérifiez l&apos;orthographe ou tentez un mot-clé plus simple.
+            {t.marketplace.searchEmptyDesc}
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -790,7 +880,7 @@ export default function SearchResults() {
               href="/marketplace"
               className="rounded-full border border-midnight-950/15 bg-white px-6 py-2.5 text-xs sm:text-sm font-bold text-midnight-950 transition-colors hover:border-gold-500 hover:bg-gold-50"
             >
-              Explorer le catalogue général
+              {t.marketplace.searchExploreCatalog}
             </Link>
           </div>
 

@@ -93,9 +93,9 @@ const NAV_ITEMS = [
   {
     group: "Pilotage",
     items: [
-      { label: "Tableau de bord", href: "/espace-admin", icon: ICON_DASHBOARD },
-      { label: "Mes Boutiques", href: "/espace-admin/mes-boutiques", icon: ICON_STORES },
-      { label: "Mon Équipe", href: "/espace-admin/equipe", icon: ICON_TEAM },
+      { label: "Tableau de bord", href: "/espace-vendeur", icon: ICON_DASHBOARD },
+      { label: "Mes Boutiques", href: "/espace-vendeur/mes-boutiques", icon: ICON_STORES },
+      { label: "Mon Équipe", href: "/espace-vendeur/equipe", icon: ICON_TEAM },
     ],
   },
   {
@@ -103,20 +103,20 @@ const NAV_ITEMS = [
     items: [
       {
         label: "Commandes",
-        href: "/espace-admin/commandes",
+        href: "/espace-vendeur/commandes",
         badgeKey: "orders_to_handle" as const,
         icon: ICON_ORDERS,
       },
-      { label: "Produits", href: "/espace-admin/produits", icon: ICON_PRODUCTS },
-      { label: "Clients", href: "/espace-admin/clients", icon: ICON_CLIENTS },
-      { label: "Messagerie", href: "/espace-admin/messagerie", icon: ICON_MESSAGERIE },
+      { label: "Produits", href: "/espace-vendeur/produits", icon: ICON_PRODUCTS },
+      { label: "Clients", href: "/espace-vendeur/clients", icon: ICON_CLIENTS },
+      { label: "Messagerie", href: "/espace-vendeur/messagerie", icon: ICON_MESSAGERIE },
     ],
   },
   {
     group: "Analyse",
     items: [
-      { label: "Statistiques & Ventes", href: "/espace-admin/statistiques", icon: ICON_STATS },
-      { label: "Analytics Multi-boutique", href: "/espace-admin/analytics", icon: ICON_ANALYTICS },
+      { label: "Statistiques & Ventes", href: "/espace-vendeur/statistiques", icon: ICON_STATS },
+      { label: "Analytics Multi-boutique", href: "/espace-vendeur/analytics", icon: ICON_ANALYTICS },
     ],
   },
 ];
@@ -125,7 +125,7 @@ const NAV_ITEMS = [
 const PARAMETRES_TREE = [
   {
     label: "Ma boutique",
-    href: "/espace-admin/parametres/boutique",
+    href: "/espace-vendeur/parametres/boutique",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l1.5-5h15L21 9" />
@@ -135,16 +135,16 @@ const PARAMETRES_TREE = [
       </svg>
     ),
     children: [
-      { label: "Général", href: "/espace-admin/parametres/boutique", icon: "general" as const },
-      { label: "Couverture & logo", href: "/espace-admin/parametres/boutique/visuels", icon: "visuels" as const },
-      { label: "Contacts & réseaux", href: "/espace-admin/parametres/boutique/contacts", icon: "contacts" as const },
-      { label: "Livraison", href: "/espace-admin/parametres/boutique/livraison", icon: "livraison" as const },
-      { label: "Promotions", href: "/espace-admin/parametres/boutique/promotions", icon: "promotions" as const },
+      { label: "Général", href: "/espace-vendeur/parametres/boutique", icon: "general" as const },
+      { label: "Couverture & logo", href: "/espace-vendeur/parametres/boutique/visuels", icon: "visuels" as const },
+      { label: "Contacts & réseaux", href: "/espace-vendeur/parametres/boutique/contacts", icon: "contacts" as const },
+      { label: "Livraison", href: "/espace-vendeur/parametres/boutique/livraison", icon: "livraison" as const },
+      { label: "Promotions", href: "/espace-vendeur/parametres/boutique/promotions", icon: "promotions" as const },
     ],
   },
-  { label: "Profil", href: "/espace-admin/parametres/profil", icon: "profil" as const },
-  { label: "Notifications", href: "/espace-admin/parametres/notifications", icon: "notifications" as const },
-  { label: "Formule", href: "/espace-admin/parametres/formule", icon: "formule" as const },
+  { label: "Profil", href: "/espace-vendeur/parametres/profil", icon: "profil" as const },
+  { label: "Notifications", href: "/espace-vendeur/parametres/notifications", icon: "notifications" as const },
+  { label: "Formule", href: "/espace-vendeur/parametres/formule", icon: "formule" as const },
 ];
 
 /** Icônes ligne des sous-paramètres (style fichier, petit trait vertical) */
@@ -208,7 +208,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
   const ordersToHandle = orders?.filter((o) => ACTION_STATUSES.includes(o.status)).length ?? 0;
 
   // Arborescence « Paramètres Boutique » ouverte quand on est dans /dashboard/parametres
-  const inParametres = pathname.startsWith("/espace-admin/parametres");
+  const inParametres = pathname.startsWith("/espace-vendeur/parametres");
   const [parametresOpen, setParametresOpen] = useState(inParametres);
 
   /** Déconnexion — révocation serveur + session locale, retour à la connexion */
@@ -222,7 +222,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
   const handleParametresToggle = () => {
     setParametresOpen((o) => {
       const next = !o;
-      if (!inParametres) router.push("/espace-admin/parametres/boutique");
+      if (!inParametres) router.push("/espace-vendeur/parametres/boutique");
       return next;
     });
     onCloseMobile?.();
@@ -233,7 +233,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
       {/* Brand Header — épinglé en haut (ne défile pas) */}
       <div className="shrink-0 border-b border-line px-5 pb-5 pt-5">
         <div className="flex items-center justify-between">
-          <Link href="/espace-admin" className="group flex items-center gap-3">
+          <Link href="/espace-vendeur" className="group flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-soft bg-gold-wash font-display text-sm font-bold text-gold-strong transition-colors group-hover:bg-gold-mid group-hover:text-white">
               AC
             </span>
@@ -266,13 +266,23 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 pt-4 [scrollbar-width:thin]">
         {/* Navigation Section */}
         <div className="flex flex-col gap-6">
-          {NAV_ITEMS.map((group) => (
+          {NAV_ITEMS.map(group => {
+            const isBusiness = merchantProfile.plan === 'business' || merchantProfile.plan === 'enterprise';
+            const filteredItems = group.items.filter(item => {
+              if (item.label === 'Mes Boutiques' || item.label === 'Mon Équipe' || item.label === 'Analytics Multi-boutique') {
+                return isBusiness;
+              }
+              return true;
+            });
+            if (filteredItems.length === 0) return null;
+            return { ...group, items: filteredItems };
+          }).filter(Boolean).map((group: any) => (
             <div key={group.group}>
               <h4 className="mb-2.5 px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-500">
                 {group.group}
               </h4>
               <nav className="flex flex-col gap-1">
-                {group.items.map((item) => {
+                {group.items.map((item: any) => {
                   const isActive = pathname === item.href;
                   return (
                     <Link
@@ -469,7 +479,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
           </div>
           <div className="flex items-center gap-1.5">
             <Link
-              href="/espace-admin/parametres/formule"
+              href="/espace-vendeur/parametres/formule"
               onClick={onCloseMobile}
               className="rounded-lg border border-line px-2 py-1 font-mono text-[10px] font-semibold text-ink-600 transition-colors hover:border-gold-mid hover:text-gold-strong"
             >

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { RevenueDataPoint } from "@/types/dashboard";
 import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCard";
-import { formatFcfa } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 interface RevenueChartProps {
   dataPoints: RevenueDataPoint[];
@@ -130,7 +130,7 @@ export default function RevenueChart({ dataPoints }: RevenueChartProps) {
               Chiffre d&apos;Affaires Cumulé
             </span>
             <div className="mt-1 flex flex-wrap items-baseline gap-3">
-              <h3 className="font-display text-3xl font-bold text-ink-950">{formatFcfa(totalCurrent)}</h3>
+              <h3 className="font-display text-3xl font-bold text-ink-950">{formatCurrency(totalCurrent)}</h3>
               <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-mono text-xs font-semibold text-green-700">
                 ▲ +{delta.toFixed(1)}% vs période précédente
               </span>
@@ -244,8 +244,8 @@ export default function RevenueChart({ dataPoints }: RevenueChartProps) {
             }}
           >
             <p className="font-mono text-[10px] font-semibold uppercase text-gold-strong">{activePoint.date}</p>
-            <p className="mt-0.5 font-display text-sm font-bold text-ink-950">{formatFcfa(activePoint.currentPeriodFcfa)}</p>
-            <p className="text-[10px] text-ink-400">Précédent : {formatFcfa(activePoint.previousPeriodFcfa)}</p>
+            <p className="mt-0.5 font-display text-sm font-bold text-ink-950">{formatCurrency(activePoint.currentPeriodFcfa)}</p>
+            <p className="text-[10px] text-ink-400">Précédent : {formatCurrency(activePoint.previousPeriodFcfa)}</p>
           </div>
         )}
       </div>

@@ -1,2 +1,2 @@
-import PortefeuillePage from "@/app/espace-admin/portefeuille/page";
+import PortefeuillePage from "@/app/espace-vendeur/portefeuille/page";
 export default PortefeuillePage;

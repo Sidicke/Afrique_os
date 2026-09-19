@@ -92,7 +92,7 @@ export default function RecherchePage() {
   return (
     <>
       <Navbar />
-      <main id="main-content" className="min-h-screen bg-ivory-50">
+      <main id="main-content" className="min-h-screen bg-ivory-50 pt-20 sm:pt-28">
         <Suspense fallback={<SearchFallback />}>
           <SearchResults />
         </Suspense>

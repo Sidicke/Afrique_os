@@ -7,6 +7,7 @@ import { Modal } from "@/components/dashboard/ui/Modal";
 import { Icon } from "@/components/dashboard/icons";
 import { products } from "@/constants/store";
 import type { ShopConfig } from "@/lib/shopConfig";
+import { useTranslation } from "@/lib/i18n";
 
 export function PromotionsSection({
   form,

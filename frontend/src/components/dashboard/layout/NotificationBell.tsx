@@ -261,9 +261,9 @@ export default function NotificationBell() {
   const navigate = (n: (typeof items)[number]) => {
     if (!n.readAt) void markAsRead(n.id);
     setOpen(false);
-    if (n.type === "new_message") router.push("/espace-admin/messagerie");
-    else if (n.type === "low_stock") router.push("/espace-admin/produits");
-    else router.push("/espace-admin/commandes");
+    if (n.type === "new_message") router.push("/espace-vendeur/messagerie");
+    else if (n.type === "low_stock") router.push("/espace-vendeur/produits");
+    else router.push("/espace-vendeur/commandes");
   };
 
   return (
@@ -493,7 +493,7 @@ export default function NotificationBell() {
           </div>
 
           <Link
-            href="/espace-admin/commandes"
+            href="/espace-vendeur/commandes"
             onClick={() => setOpen(false)}
             className="block border-t border-line bg-ink-50/60 px-4 py-2.5 text-center font-mono text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-50"
           >

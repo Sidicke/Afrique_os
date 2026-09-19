@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { routes } from "@/lib/urls/routes";
 import { productChatHref } from "@/lib/chat";
-import { formatFcfa } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { publicProductImage } from "@/lib/api/mappers";
 import type { ApiPublicProduct } from "@/lib/api/types";
 import { IconChat, IconStar, IconStore } from "./icons";
@@ -46,6 +46,8 @@ function MiniStars({ rating }: { rating: number }) {
  * actions : la boutique d'origine et la discussion avec le vendeur.
  */
 export default function ProductCard({ product }: { product: ApiPublicProduct }) {
+  const { formatPrice } = useTranslation();
+
   const price = Number(product.price);
   const oldPrice = product.oldPrice !== null && product.oldPrice !== undefined
     ? Number(product.oldPrice)
@@ -78,11 +80,11 @@ export default function ProductCard({ product }: { product: ApiPublicProduct }) 
 
   return (
     <div className="group flex h-full flex-col overflow-hidden rounded-3xl border border-midnight-950/8 bg-white shadow-sm shadow-midnight-950/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-gold-400/50 hover:shadow-lg hover:shadow-midnight-950/10">
-      {/* Clic principal → page produit canonique (/b/:boutiqueSlug/p/:productSlug) */}
+      {/* Clic principal → page produit canonique (/b/:boutiqueSlug/produit/:productSlug) */}
       <Link
         href={productHref}
         className="flex h-full flex-col"
-        aria-label={`Voir le produit ${product.name}`}
+        aria-label={`Voir en boutique ${product.name}`}
       >
         {/* Visuel — photo de couverture plein cadre, comme les cartes boutique */}
         <div className="relative aspect-square overflow-hidden bg-gray-100">
@@ -93,23 +95,23 @@ export default function ProductCard({ product }: { product: ApiPublicProduct }) 
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           {hasPromo && (
-            <span className="absolute left-3 top-3 rounded-full bg-terracotta px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-white shadow-sm">
+            <span className="absolute left-3 top-3 rounded-full bg-terracotta px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wider text-white shadow-sm">
               -{discount}%
             </span>
           )}
           {!inStock && (
-            <span className="absolute left-3 top-3 rounded-full bg-midnight-950/80 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
+            <span className="absolute left-3 top-3 rounded-full bg-midnight-950/80 px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wider text-white backdrop-blur-sm">
               Épuisé
             </span>
           )}
           {/* Boutique d'origine */}
           {boutique && (
-            <span className="absolute bottom-3 left-3 inline-flex max-w-[80%] items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-midnight-950 shadow-sm backdrop-blur-sm">
-              <IconStore className="h-2.5 w-2.5 shrink-0 text-gold-600" />
+            <span className="absolute bottom-3 left-3 inline-flex max-w-[80%] items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-midnight-950 shadow-sm backdrop-blur-sm">
+              <IconStore className="h-3.5 w-3.5 shrink-0 text-gold-600" />
               <span className="truncate">{boutique.name}</span>
-              {/* Badge vérifié — logo ✓ de la boutique d'origine */}
+              {/* Badge vérifié */}
               {boutique.verificationStatus === "VERIFIED" && (
-                <VerifiedBadge className="h-3 w-3" />
+                <VerifiedBadge className="h-3.5 w-3.5" />
               )}
             </span>
           )}
@@ -118,11 +120,11 @@ export default function ProductCard({ product }: { product: ApiPublicProduct }) 
         {/* Contenu */}
         <div className="flex flex-1 flex-col gap-1.5 p-4">
           {product.category?.name && (
-            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-gold-700">
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-gold-700">
               {product.category.name}
             </span>
           )}
-          <h3 className="line-clamp-2 font-display text-[15px] font-bold leading-snug text-midnight-950">
+          <h3 className="line-clamp-2 font-display text-base font-bold leading-snug text-midnight-950">
             {product.name}
           </h3>
 
@@ -152,11 +154,11 @@ export default function ProductCard({ product }: { product: ApiPublicProduct }) 
 
           <div className="mt-auto flex items-baseline gap-2 pt-1.5">
             <span className="text-base font-bold text-gold-600">
-              {formatFcfa(price)}
+              {formatPrice(price)}
             </span>
             {hasPromo && (
               <span className="text-xs text-midnight-950/55 line-through">
-                {formatFcfa(oldPrice)}
+                {formatPrice(oldPrice)}
               </span>
             )}
           </div>
@@ -167,7 +169,7 @@ export default function ProductCard({ product }: { product: ApiPublicProduct }) 
           (zone tactile ≥ 44px, règle UX) puis côte à côte dès sm */}
       <div className="flex flex-col items-stretch gap-2 border-t border-midnight-950/8 p-2.5 sm:p-3 sm:flex-row sm:items-center">
         <Link
-          href={shopHref}
+          href={`${shopHref}?product=${product.id}`}
           className="flex min-h-[40px] sm:min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border border-midnight-950/15 px-2.5 sm:px-3 py-2 text-xs font-semibold text-midnight-950/70 transition-all duration-200 hover:border-gold-400/70 hover:bg-gold-400/5 hover:text-midnight-950"
         >
           <IconStore className="h-3.5 w-3.5 shrink-0 text-gold-600" />

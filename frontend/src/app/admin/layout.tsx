@@ -29,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     if (user.role !== "ADMIN") {
       // Un non-administrateur n'accède jamais à la console plateforme
-      router.replace(user.role === "CLIENT" ? "/espace-client" : "/espace-admin");
+      router.replace(user.role === "CLIENT" ? "/espace-client" : "/espace-vendeur");
     }
   }, [router, session]);
 

@@ -4,7 +4,6 @@ import Navbar from "@/components/sections/Navbar";
 import HomeHero from "@/components/home/HomeHero";
 import LiveMarketplace from "@/components/home/LiveMarketplace";
 import UnifiedValueProp from "@/components/sections/UnifiedValueProp";
-import MobileCTA from "@/components/ui/MobileCTA";
 import StructuredData from "@/components/seo/StructuredData";
 
 // Lazy loading des sections below-the-fold
@@ -56,9 +55,6 @@ export default function Home() {
 
         {/* 6 — Vision & Compréhension (storytelling final, remplace FAQ répétée) */}
         <VisionFAQ />
-
-        {/* CTA sticky mobile */}
-        <MobileCTA />
       </main>
       <Footer />
     </>

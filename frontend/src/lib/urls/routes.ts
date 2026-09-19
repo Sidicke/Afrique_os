@@ -106,9 +106,9 @@ export const routes = {
   shop: (boutiqueSlug: string, params?: DiscoveryFilterParams) => 
     `/b/${encodeURIComponent(boutiqueSlug)}${params ? buildDiscoveryQuery(params) : ''}`,
   
-  /** Fiche Produit Scôpée Boutique : /b/:boutiqueSlug/p/:productSlug */
+  /** Fiche Produit Scôpée Boutique : /b/:boutiqueSlug/produit/:productSlug */
   product: (boutiqueSlug: string, productSlug: string) => 
-    `/b/${encodeURIComponent(boutiqueSlug)}/p/${encodeURIComponent(productSlug)}`,
+    `/b/${encodeURIComponent(boutiqueSlug)}/produit/${encodeURIComponent(productSlug)}`,
   
   /** Rayon / Catégorie Boutique : /b/:boutiqueSlug/c/:categorySlug */
   shopCategory: (boutiqueSlug: string, categorySlug: string, params?: DiscoveryFilterParams) => 

@@ -1,2 +1,2 @@
-import ParametresPage from "@/app/espace-admin/parametres/page";
+import ParametresPage from "@/app/espace-vendeur/parametres/page";
 export default ParametresPage;

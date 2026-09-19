@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { routes } from "@/lib/urls/routes";
 import Container from "@/components/ui/Container";
-import { formatFcfa } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import { catalogueApi } from "@/lib/api";
 import { publicProductImage } from "@/lib/api/mappers";
 import { ApiPublicProduct } from "@/lib/api/types";
@@ -25,48 +25,18 @@ function discountPercent(p: ApiPublicProduct): number {
 }
 
 export default function MarketplaceDailyDeals() {
+    const { formatPrice, t } = useTranslation();
+
   const [products, setProducts] = useState<ApiPublicProduct[]>([]);
   const [hasPromos, setHasPromos] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Timer state — fin de journée réelle
-  const [timeLeft, setTimeLeft] = useState({
-    days: 0,
-    hours: 0,
-    mins: 0,
-    secs: 0,
-  });
-
-  useEffect(() => {
-    // End of day
-    const calculateTimeLeft = () => {
-      const now = new Date();
-      const endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const difference = endOfDay.getTime() - now.getTime();
-
-      if (difference > 0) {
-        setTimeLeft({
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          mins: Math.floor((difference / 1000 / 60) % 60),
-          secs: Math.floor((difference / 1000) % 60),
-        });
-      }
-    };
-
-    calculateTimeLeft();
-    const timer = setInterval(calculateTimeLeft, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     async function fetchProducts() {
       try {
         const response = await catalogueApi.allProducts({ sort: "popular", limit: 12 });
         // Priorité aux promos RÉELLES (ancien prix du backend) ; sinon on met en
-        // avant les produits populaires sans inventer de rabais.
+        // avant les produits populaires sans inventer de rabais ni de faux compteurs.
         const promos = response.items.filter(isRealPromo).slice(0, 4);
         if (promos.length > 0) {
           setHasPromos(true);
@@ -92,35 +62,34 @@ export default function MarketplaceDailyDeals() {
   return (
     <section className="py-8 bg-ivory-50">
       <Container size="wide">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4 border-b border-line pb-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4 border-b border-line pb-4">
           <div className="flex items-center gap-3">
-            <span className="bg-midnight-950 text-gold-300 rounded px-3 py-1.5 font-mono text-xs font-bold tracking-wider uppercase">
-              {hasPromos ? "DAILY DEALS" : "SÉLECTION DU JOUR"}
+            <span className="bg-midnight-950 text-gold-300 rounded-lg px-3 py-1.5 font-mono text-xs font-bold tracking-wider uppercase">
+              {hasPromos ? t.marketplace.dealsDirect : t.marketplace.dealsSelection}
             </span>
-            <h2 className="font-display text-xl font-extrabold text-midnight-950">
-              {hasPromos ? "Ventes Flash du Jour" : "Nos produits populaires"}
+            <h2 className="font-display text-xl sm:text-2xl font-extrabold text-midnight-950">
+              {hasPromos ? "Promotions des boutiques" : "Produits les plus populaires"}
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <span className="text-terracotta font-mono text-xs font-bold uppercase tracking-wider">Offres limitées :</span>
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <div className="bg-surface border border-line text-midnight-950 rounded-md w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-mono font-bold text-xs shadow-xs">
-                {String(timeLeft.days).padStart(2, "0")}
-              </div>
-              <span className="text-ink-400 text-xs font-bold">:</span>
-              <div className="bg-surface border border-line text-midnight-950 rounded-md w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-mono font-bold text-xs shadow-xs">
-                {String(timeLeft.hours).padStart(2, "0")}
-              </div>
-              <span className="text-ink-400 text-xs font-bold">:</span>
-              <div className="bg-surface border border-line text-midnight-950 rounded-md w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-mono font-bold text-xs shadow-xs">
-                {String(timeLeft.mins).padStart(2, "0")}
-              </div>
-              <span className="text-ink-400 text-xs font-bold">:</span>
-              <div className="bg-surface border border-line text-midnight-950 rounded-md w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-mono font-bold text-xs shadow-xs">
-                {String(timeLeft.secs).padStart(2, "0")}
-              </div>
-            </div>
+          <div className="flex items-center gap-3">
+            {hasPromos ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-terracotta/10 px-3 py-1 font-mono text-xs font-bold text-terracotta">
+                <span className="h-1.5 w-1.5 rounded-full bg-terracotta" aria-hidden="true" />
+                {t.marketplace.dealsSubtitle}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-400/15 px-3 py-1 font-mono text-xs font-bold text-gold-800">
+                <span className="h-1.5 w-1.5 rounded-full bg-gold-500" aria-hidden="true" />
+                Tendances de la semaine
+              </span>
+            )}
+            <Link
+              href="/recherche"
+              className="text-xs sm:text-sm font-bold text-midnight-950 hover:text-gold-strong transition-colors"
+            >
+              Voir tout →
+            </Link>
           </div>
         </div>
 
@@ -137,7 +106,7 @@ export default function MarketplaceDailyDeals() {
 
               const href = product.boutique?.slug
                 ? routes.product(product.boutique.slug, product.slug)
-                : `/b/_/p/${product.slug}`;
+                : `/produit/${product.slug}`;
 
               return (
                 <Link
@@ -166,17 +135,17 @@ export default function MarketplaceDailyDeals() {
                       {product.name}
                     </h3>
                     <p className="text-sm text-midnight-950/60 line-clamp-2 mb-4">
-                      {product.description || "Offre exclusive à ne pas manquer ! Profitez d'une réduction exceptionnelle aujourd'hui."}
+                      {product.description || t.marketplace.dealsDefaultDesc}
                     </p>
 
                     <div className="mt-auto mb-4">
                       <div className="flex items-end gap-3 mb-1">
                         <span className="text-2xl font-bold text-gold-600">
-                          {formatFcfa(Number(product.price))}
+                          {formatPrice(Number(product.price))}
                         </span>
                         {promo && (
                           <span className="text-sm text-midnight-950/40 line-through mb-1">
-                            {formatFcfa(Number(product.oldPrice))}
+                            {formatPrice(Number(product.oldPrice))}
                           </span>
                         )}
                       </div>

@@ -21,19 +21,19 @@ const SESSION_KEY = "zennshop:api-session";
 function readFromStorage(): Session | null {
   if (typeof window === "undefined") return null;
   try {
-    // Migration sécurisée : privilégie sessionStorage (effacé à la fermeture de l'onglet)
-    const raw =
-      window.sessionStorage.getItem(SESSION_KEY) ||
-      window.localStorage.getItem(SESSION_KEY);
+    // Lecture depuis localStorage pour partager la session entre les onglets
+    let raw = window.localStorage.getItem(SESSION_KEY);
+    // Rétrocompatibilité si c'était dans sessionStorage
+    if (!raw) {
+      raw = window.sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        window.localStorage.setItem(SESSION_KEY, raw);
+        window.sessionStorage.removeItem(SESSION_KEY);
+      }
+    }
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Session>;
     if (typeof parsed.accessToken !== "string" || !parsed.user) return null;
-
-    // Nettoie l'ancien localStorage si présent
-    if (window.localStorage.getItem(SESSION_KEY)) {
-      window.localStorage.removeItem(SESSION_KEY);
-      window.sessionStorage.setItem(SESSION_KEY, raw);
-    }
 
     return { accessToken: parsed.accessToken, user: parsed.user };
   } catch {
@@ -48,9 +48,8 @@ function persist() {
   try {
     if (typeof window !== "undefined") {
       if (current) {
-        window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(current));
+        window.localStorage.setItem(SESSION_KEY, JSON.stringify(current));
       } else {
-        window.sessionStorage.removeItem(SESSION_KEY);
         window.localStorage.removeItem(SESSION_KEY);
       }
     }
@@ -81,6 +80,10 @@ export function getBoutiqueId(): string | null {
 }
 
 /** Slug public de la boutique du vendeur connecté, ou null */
+export function getBoutiqueName(): string | null {
+  return (current?.user as any)?.boutiqueName ?? null;
+}
+
 export function getBoutiqueSlug(): string | null {
   return current?.user.boutiqueSlug ?? null;
 }
@@ -113,4 +116,15 @@ export function subscribeSession(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+
+/**
+ * Change la boutique active du vendeur dans la session locale.
+ * Permet la navigation multi-boutiques sans reconnexion.
+ */
+export function switchActiveBoutique(boutiqueId: string, boutiqueSlug: string, boutiqueName?: string): void {
+  if (!current) return;
+  current = { ...current, user: { ...current.user, boutiqueId, boutiqueSlug, boutiqueName: boutiqueName || (current.user as any).boutiqueName } as any };
+  persist();
 }

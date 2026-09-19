@@ -30,7 +30,7 @@ function destinationFor(role: string): string {
     case "ADMIN":
       return "/admin";
     case "VENDEUR":
-      return "/espace-admin";
+      return "/espace-vendeur";
     default:
       return "/espace-client";
   }
@@ -93,7 +93,10 @@ export default function ConnexionForm() {
       footer={
         <>
           <span className="text-ink-600">Pas encore de compte ?</span>{" "}
-          <Link href="/inscription" className="font-medium text-gold-strong hover:underline underline-offset-4">
+          <Link
+            href={next ? `/inscription?next=${encodeURIComponent(next)}` : "/inscription"}
+            className="font-medium text-gold-strong hover:underline underline-offset-4"
+          >
             Créer un compte
           </Link>
         </>

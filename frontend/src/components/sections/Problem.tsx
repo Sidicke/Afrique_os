@@ -4,8 +4,11 @@ import Section from "@/components/ui/Section";
 import Container from "@/components/ui/Container";
 import Reveal from "@/components/animations/Reveal";
 import Link from "next/link";
+import { useTranslation } from "@/lib/i18n";
 
 export default function Problem() {
+  const { t } = useTranslation();
+
   return (
     <Section id="probleme" tone="dark" className="relative overflow-hidden py-28 sm:py-40">
       <div className="pointer-events-none absolute inset-0 gold-grid opacity-20" aria-hidden="true" />
@@ -19,28 +22,28 @@ export default function Problem() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-300 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold-300" />
               </span>
-              Le constat
+              {t.problem.label}
             </span>
           </Reveal>
 
           <Reveal direction="up" delay={0.1}>
             <h2 className="mt-10 font-display text-4xl font-semibold leading-[1.08] tracking-tight text-ivory-50 sm:text-5xl md:text-6xl lg:text-7xl">
-              Le commerce existe.
+              {t.problem.title1}
             </h2>
           </Reveal>
 
           <Reveal direction="up" delay={0.15}>
             <h2 className="mt-3 font-display text-4xl font-semibold leading-[1.08] tracking-tight text-ivory-50/40 sm:text-5xl md:text-6xl lg:text-7xl">
-              Mais qui le voit&nbsp;?
+              {t.problem.title2}
             </h2>
           </Reveal>
 
           <Reveal direction="up" delay={0.25}>
             <p className="mt-10 max-w-2xl text-lg leading-relaxed text-ivory-50/60 sm:text-xl sm:leading-relaxed">
-              Votre boutique est pleine. Vos clients sont fidèles. Votre savoir-faire est réel.
+              {t.problem.description}
               <br />
               <span className="text-ivory-50/90 font-medium">
-                Pourtant, quelqu&apos;un à trois rues de là ne sait même pas que vous existez.
+                {t.problem.descriptionStrong}
               </span>
             </p>
           </Reveal>
@@ -51,18 +54,18 @@ export default function Problem() {
               {/* Reality */}
               <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-8">
                 <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-semibold">
-                  La réalité
+                  {t.problem.realityLabel}
                 </span>
                 <h3 className="mt-3 font-display text-2xl font-semibold text-ivory-50 sm:text-3xl">
-                  Un vrai commerce, de vrais produits.
+                  {t.problem.realityTitle}
                 </h3>
                 <p className="mt-3 text-sm text-ivory-50/60">
-                  Vos présentoirs sont remplis. Vos clients viennent. Vous travaillez.
+                  {t.problem.realityDesc}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
-                  {["Stock réel", "Savoir-faire", "Clientèle fidèle", "Activité quotidienne"].map((t) => (
-                    <span key={t} className="rounded-full bg-emerald-400/10 px-3 py-1 text-[11px] font-medium text-emerald-400">
-                      {t}
+                  {t.problem.realityTags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-emerald-400/10 px-3 py-1 text-[11px] font-medium text-emerald-400">
+                      {tag}
                     </span>
                   ))}
                 </div>
@@ -71,18 +74,18 @@ export default function Problem() {
               {/* Visibility */}
               <div className="rounded-3xl border border-amber-400/20 bg-amber-400/5 p-8">
                 <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">
-                  La visibilité
+                  {t.problem.visibilityLabel}
                 </span>
                 <h3 className="mt-3 font-display text-2xl font-semibold text-ivory-50 sm:text-3xl">
-                  Invisible pour qui ne vous connaît pas.
+                  {t.problem.visibilityTitle}
                 </h3>
                 <p className="mt-3 text-sm text-ivory-50/60">
-                  Pas de vitrine en ligne. Pas d&apos;adresse numérique. Pas de découvrabilité.
+                  {t.problem.visibilityDesc}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
-                  {["Aucune URL", "Aucun catalogue public", "Dépendance au bouche-à-oreille", "Aucune présence 24/7"].map((t) => (
-                    <span key={t} className="rounded-full bg-amber-400/10 px-3 py-1 text-[11px] font-medium text-amber-300">
-                      {t}
+                  {t.problem.visibilityTags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-amber-400/10 px-3 py-1 text-[11px] font-medium text-amber-300">
+                      {tag}
                     </span>
                   ))}
                 </div>
@@ -93,15 +96,15 @@ export default function Problem() {
           {/* ── Bridge quote ── */}
           <Reveal delay={0.5} className="mt-16 text-center">
             <p className="font-display text-2xl font-medium text-gold-300 tracking-tight sm:text-3xl">
-              La valeur existe déjà.
+              {t.problem.bridge}
               <br />
-              <span className="text-ivory-50/50">La visibilité ne suit pas.</span>
+              <span className="text-ivory-50/50">{t.problem.bridgeSub}</span>
             </p>
             <Link
               href="#solution"
               className="mt-6 inline-flex items-center gap-2 text-sm text-ivory-50/50 transition-colors hover:text-gold-300"
             >
-              Comment changer ça
+              {t.problem.bridgeCta}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="animate-bounce">
                 <path d="M12 5v14M19 12l-7 7-7-7" />
               </svg>

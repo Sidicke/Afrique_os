@@ -1,2 +1,2 @@
-import ProfilPage from "@/app/espace-admin/parametres/profil/page";
+import ProfilPage from "@/app/espace-vendeur/parametres/profil/page";
 export default ProfilPage;

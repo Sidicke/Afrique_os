@@ -142,11 +142,11 @@ export default function AdminSidebar({ mobileOpen = false, onCloseMobile }: Admi
         <div className="flex items-center justify-between">
           <Link href="/admin" className="group flex items-center gap-3" onClick={onCloseMobile}>
             <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-soft bg-midnight-950 font-display text-xs font-bold text-gold-300 transition-colors group-hover:bg-midnight-800">
-              AC
+              ZS
             </span>
             <div className="flex flex-col">
               <span className="font-display text-sm font-bold tracking-wide text-ink-950">
-                ZennShop <span className="text-gold-strong">OS</span>
+                Zenn<span className="text-gold-600">Shop</span>
               </span>
               <span className="font-mono text-[10px] uppercase tracking-widest text-ink-400">
                 Administration

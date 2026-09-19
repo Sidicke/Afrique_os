@@ -7,8 +7,14 @@ import { catalogueApi, shopsApi } from "@/lib/api";
 import type { ApiCategoryCount } from "@/lib/api/types";
 import Container from "@/components/ui/Container";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 
-export default function MarketplaceHero() {
+interface MarketplaceHeroProps {
+  onSelectCategory?: (category: string) => void;
+}
+
+export default function MarketplaceHero({ onSelectCategory }: MarketplaceHeroProps = {}) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [stats, setStats] = useState<{ shops: number; products: number } | null>(null);
   // Menu « Toutes les catégories » — catégories RÉELLES du catalogue global
@@ -76,17 +82,23 @@ export default function MarketplaceHero() {
                       <li key={cat.slug}>
                         <button
                           type="button"
-                          onClick={() => router.push(`/recherche?category=${encodeURIComponent(cat.slug)}`)}
-                          className="group flex w-full items-center justify-between px-3.5 py-2.5 text-left transition-colors hover:bg-gold-wash/60"
+                          onClick={() => {
+                            if (onSelectCategory) {
+                              onSelectCategory(cat.slug);
+                            } else {
+                              router.push(`/recherche?category=${encodeURIComponent(cat.slug)}`);
+                            }
+                          }}
+                          className="group flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-gold-wash/60 cursor-pointer"
                         >
-                          <span className="text-xs font-medium text-ink-800 group-hover:text-midnight-950">
+                          <span className="text-sm font-medium text-ink-800 group-hover:text-midnight-950">
                             {cat.name}
                           </span>
                           <span className="flex items-center gap-1.5">
-                            <span className="font-mono text-[10px] font-semibold text-ink-600">
+                            <span className="font-mono text-xs font-semibold text-ink-600">
                               {cat.count}
                             </span>
-                            <span className="text-[10px] font-mono font-semibold text-ink-600 group-hover:text-gold-strong">
+                            <span className="text-xs font-mono font-semibold text-ink-600 group-hover:text-gold-strong">
                               ›
                             </span>
                           </span>
@@ -99,92 +111,96 @@ export default function MarketplaceHero() {
             </div>
           ) : null}
 
-          {/* CENTER HERO MAIN BANNER (Like eMarket Office Furniture Banner) */}
+          {/* CENTER HERO MAIN BANNER */}
           <div className={cn("flex flex-col gap-4", categoriesLoading || categories.length > 0 ? "lg:col-span-6" : "lg:col-span-9")}>
-            <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-line bg-gradient-to-r from-[#fef5e7] via-[#fffdf9] to-[#f9ede1] p-6 shadow-sm min-h-[360px]">
+            <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-[#fbf8f2] via-[#fffdfa] to-[#f4ede3] p-6 sm:p-8 shadow-sm min-h-[380px]">
               <div className="absolute right-0 top-0 h-full w-1/2 opacity-25 pointer-events-none bg-[radial-gradient(#c4b697_1px,transparent_1px)] [background-size:16px_16px]" />
               
-              <div className="relative z-10 max-w-md">
-                <span className="inline-block rounded-md bg-gold-400/20 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-gold-strong mb-2">
-                  Mobilier &amp; Décoration d&apos;Intérieur
+              <div className="relative z-10 max-w-xl">
+                <span className="inline-flex items-center gap-2 rounded-full border border-african-green/25 bg-african-green/5 px-3 py-1 font-mono text-xs font-bold uppercase tracking-wider text-african-green mb-3">
+                  <span className="h-1.5 w-1.5 rounded-full bg-african-green" aria-hidden="true" />
+                  {t.marketplace.heroTag}
                 </span>
-                <h1 className="font-display text-3xl font-extrabold tracking-tight text-midnight-950 sm:text-4xl">
-                  SOLDE JUSQU&apos;À <span className="text-terracotta">50% DE RÉDUCTION</span>
+                <h1 className="font-display text-2xl sm:text-4xl lg:text-[36px] font-extrabold tracking-tight text-midnight-950 leading-tight">
+                  {t.marketplace.heroTitleAlt} <span className="text-terracotta">{t.marketplace.heroTitleHighlight}</span>
                 </h1>
-                <p className="mt-2 text-xs leading-relaxed text-ink-600 sm:text-sm">
-                  Découvrez la meilleure sélection de meubles et produits haut de gamme pour équiper vos bureaux et espaces de travail.
+                <p className="mt-3 text-sm sm:text-base leading-relaxed text-midnight-950/80">
+                  {t.marketplace.heroDesc}
                 </p>
-                <div className="mt-6 flex items-center gap-3">
+                <div className="mt-6 flex flex-wrap items-center gap-3">
                   <Link
-                    href="/marketplace#boutiques"
-                    className="inline-flex items-center justify-center rounded-lg bg-midnight-950 px-6 py-2.5 text-xs font-bold text-gold-300 shadow-md transition-all hover:bg-midnight-800 hover:shadow-lg"
+                    href="#marketplace-catalogue"
+                    className="inline-flex items-center justify-center rounded-xl bg-midnight-950 px-6 py-3 text-sm font-bold text-gold-300 shadow-md transition-all hover:bg-midnight-800 active:scale-[0.98]"
                   >
-                    ACHETER MAINTENANT
+                    {t.marketplace.heroExplore}
                   </Link>
-                  <span className="text-[11px] font-semibold text-ink-500">
-                    Offre limitée
-                  </span>
+                  <Link
+                    href="#boutiques"
+                    className="inline-flex items-center justify-center rounded-xl border border-midnight-950/15 bg-white/90 backdrop-blur-sm px-5 py-3 text-sm font-bold text-midnight-950 transition-all hover:bg-white hover:border-gold-400/50 active:scale-[0.98]"
+                  >
+                    {t.marketplace.heroSeeShops}
+                  </Link>
                 </div>
               </div>
 
               {/* Stat footer badge inside hero */}
               {stats && (
-                <div className="relative z-10 mt-6 border-t border-line/80 pt-3 flex items-center justify-between text-[11px] font-mono text-ink-500">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-african-green" aria-hidden="true" />
-                    {stats.shops} Boutiques Actives
+                <div className="relative z-10 mt-6 border-t border-line/80 pt-4 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm font-mono text-midnight-950/75">
+                  <span className="flex items-center gap-2 font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-african-green" aria-hidden="true" />
+                    {stats.shops} {stats.shops > 1 ? t.marketplace.heroPartnerShops : t.marketplace.heroPartnerShops}
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-gold-500" aria-hidden="true" />
-                    {stats.products.toLocaleString("fr-FR")} Produits Disponibles
+                  <span className="flex items-center gap-2 font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-gold-500" aria-hidden="true" />
+                    {stats.products.toLocaleString("fr-FR")} {t.marketplace.heroAvailableProducts}
                   </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* RIGHT PROMO CARDS (2 Stacked banners like eMarket image) */}
+          {/* RIGHT ACTION CARDS (Authentic platform shortcuts) */}
           <div className="lg:col-span-3 flex flex-col gap-4">
-            {/* Card 1: Colorful Pillows */}
-            <div className="flex flex-1 flex-col justify-between overflow-hidden rounded-xl border border-line bg-gradient-to-br from-[#ebf5fb] to-[#e8f8f5] p-4 shadow-sm">
+            {/* Card 1: Verified Boutiques */}
+            <div className="flex flex-1 flex-col justify-between overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-[#ebf5fb] to-[#f4fbf7] p-5 shadow-sm">
               <div>
-                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">
-                  Coussins & Textiles
+                <span className="font-mono text-xs font-bold uppercase tracking-wider text-african-green">
+                  {t.marketplace.cardCertified}
                 </span>
-                <h3 className="font-display text-sm font-bold text-midnight-950 mt-0.5">
-                  Coussins Colorés Design
+                <h3 className="font-display text-base font-bold text-midnight-950 mt-1">
+                  {t.marketplace.cardVerifiedShops}
                 </h3>
-                <p className="mt-1 font-mono text-xs font-bold text-terracotta">
-                  À partir de <span className="text-sm font-extrabold">15.000 FCFA</span>
+                <p className="mt-1.5 text-xs sm:text-sm text-midnight-950/75 leading-relaxed">
+                  {t.marketplace.cardVerifiedDesc}
                 </p>
               </div>
-              <button
-                onClick={() => router.push('/recherche?q=Coussin')}
-                className="mt-3 w-fit text-[11px] font-bold text-midnight-950 underline decoration-gold-400 underline-offset-4 hover:text-gold-strong"
+              <Link
+                href="#boutiques"
+                className="mt-4 inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-midnight-950 underline decoration-gold-400 underline-offset-4 hover:text-gold-strong"
               >
-                Découvrir →
-              </button>
+                {t.marketplace.cardDiscoverShops}
+              </Link>
             </div>
 
-            {/* Card 2: Interior Design Sofa */}
-            <div className="flex flex-1 flex-col justify-between overflow-hidden rounded-xl border border-line bg-gradient-to-br from-[#fef5e7] to-[#fdedec] p-4 shadow-sm">
+            {/* Card 2: Mobile Money Sovereign Payments */}
+            <div className="flex flex-1 flex-col justify-between overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-[#fef5e7] to-[#fdf2e9] p-5 shadow-sm">
               <div>
-                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">
-                  Architecture d&apos;Intérieur
+                <span className="font-mono text-xs font-bold uppercase tracking-wider text-terracotta">
+                  {t.marketplace.cardSecurePayment}
                 </span>
-                <h3 className="font-display text-sm font-bold text-midnight-950 mt-0.5">
-                  Salons & Canapés Modernes
+                <h3 className="font-display text-base font-bold text-midnight-950 mt-1">
+                  {t.marketplace.cardMobileMoney}
                 </h3>
-                <p className="mt-1 font-mono text-xs font-bold text-gold-strong">
-                  Collection Exclusive 2026
+                <p className="mt-1.5 text-xs sm:text-sm text-midnight-950/75 leading-relaxed">
+                  {t.marketplace.cardPaymentDesc}
                 </p>
               </div>
-              <button
-                onClick={() => router.push('/recherche?q=Salon')}
-                className="mt-3 w-fit text-[11px] font-bold text-midnight-950 underline decoration-terracotta underline-offset-4 hover:text-terracotta"
+              <Link
+                href="#marketplace-catalogue"
+                className="mt-4 inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-midnight-950 underline decoration-terracotta underline-offset-4 hover:text-terracotta"
               >
-                Voir le catalogue →
-              </button>
+                {t.marketplace.cardSeeAll}
+              </Link>
             </div>
           </div>
 

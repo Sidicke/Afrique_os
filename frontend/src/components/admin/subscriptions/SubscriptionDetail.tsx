@@ -7,7 +7,8 @@ import { Modal } from "@/components/dashboard/ui/Modal";
 import { Toast } from "@/components/dashboard/ui/Toast";
 import { Field, TextArea, SelectInput } from "@/components/dashboard/ui/Field";
 import { Icon } from "@/components/dashboard/icons";
-import { cn, timeAgo, formatFcfa } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type { AdminSubscriptionDetail } from "@/types/admin";
 import { adminService } from "@/services/adminService";
 import { SubscriptionStatusBadge, PlanBadge } from "@/components/admin/stores/StoreBadges";
@@ -36,6 +37,7 @@ interface SubscriptionDetailProps {
  * administratives : changement de plan (montée/descente) et suspension.
  */
 export function SubscriptionDetail({ sub, adminName, planNames, onUpdated }: SubscriptionDetailProps) {
+  const { formatPrice } = useTranslation();
   const [planModal, setPlanModal] = useState(false);
   const [suspendModal, setSuspendModal] = useState(false);
   const [newPlan, setNewPlan] = useState("");
@@ -154,8 +156,8 @@ export function SubscriptionDetail({ sub, adminName, planNames, onUpdated }: Sub
           <CardHeader title="Plan & cycle" />
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
             <InfoRow label="Plan actuel" value={s.plan} />
-            <InfoRow label="Prix (mois)" value={formatFcfa(s.planPriceFcfa)} />
-            <InfoRow label="Montant facturé" value={s.amountFcfa > 0 ? formatFcfa(s.amountFcfa) : "-"} />
+            <InfoRow label="Prix (mois)" value={formatPrice(s.planPriceFcfa)} />
+            <InfoRow label="Montant facturé" value={s.amountFcfa > 0 ? formatPrice(s.amountFcfa) : "-"} />
             <InfoRow label="Cycle" value={s.billingCycle === "yearly" ? "Annuel" : "Mensuel"} />
             <InfoRow label="Début" value={new Date(s.startedAt).toLocaleDateString("fr-FR")} />
             <InfoRow label="Échéance" value={s.renewalDate ? new Date(s.renewalDate).toLocaleDateString("fr-FR") : "-"} />
@@ -200,7 +202,7 @@ export function SubscriptionDetail({ sub, adminName, planNames, onUpdated }: Sub
                       )}
                     >
                       {pc.priceDiffFcfa >= 0 ? "+" : ""}
-                      {formatFcfa(pc.priceDiffFcfa)} / mois
+                      {formatPrice(pc.priceDiffFcfa)} / mois
                     </p>
                   </div>
                 </li>
@@ -233,7 +235,7 @@ export function SubscriptionDetail({ sub, adminName, planNames, onUpdated }: Sub
                         <TransactionTypeBadge type={tx.type} />
                       </td>
                       <td className="px-2 py-3 text-right font-mono text-[11px] text-ink-800">
-                        {formatFcfa(tx.amountFcfa)}
+                        {formatPrice(tx.amountFcfa)}
                       </td>
                       <td className="px-2 py-3 text-ink-600">{tx.status}</td>
                       <td className="px-2 py-3 font-mono text-[10px] text-ink-400">

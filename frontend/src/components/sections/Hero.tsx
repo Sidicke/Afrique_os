@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { heroFrames } from "@/constants/theme";
+import { useTranslation } from "@/lib/i18n";
 
 /* ─── FRAME PRELOADER ─── */
 function useFramePreloader(frames: typeof heroFrames) {
@@ -118,6 +119,7 @@ function useCanvasRenderer(
 
 /* ─── MAIN HERO ─── */
 export default function Hero() {
+  const { t } = useTranslation();
   const prefersReducedMotion = useReducedMotion();
   const sectionRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -197,7 +199,7 @@ export default function Hero() {
       ref={sectionRef}
       id="hero"
       className="hero-viewport relative flex items-end overflow-hidden bg-midnight-950"
-      aria-label="Présentation d'ZennShop"
+      aria-label={t.hero.srDescription}
     >
       {/* ── Layer 1: Film Canvas ── */}
       <div className="absolute inset-0" aria-hidden="true">
@@ -264,7 +266,7 @@ export default function Hero() {
               >
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-300 opacity-60" />
               </span>
-              La boutique en ligne pensée pour le commerce africain
+              {t.hero.badgeAfrique}
             </span>
           </motion.div>
 
@@ -276,9 +278,9 @@ export default function Hero() {
             custom={0.12}
             className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-ivory-50 sm:text-5xl md:text-6xl lg:text-[4.2rem] xl:text-7xl"
           >
-            Votre commerce,
+            {t.hero.title}
             <br />
-            <span className="text-gold-gradient">en pleine lumière.</span>
+            <span className="text-gold-gradient">{t.hero.titleGold}</span>
           </motion.h1>
 
           {/* Subtitle */}
@@ -289,10 +291,9 @@ export default function Hero() {
             custom={0.24}
             className="hero-subline mt-5 max-w-xl text-base leading-relaxed text-ivory-50/65 sm:text-lg sm:leading-relaxed lg:text-xl"
           >
-            Créez votre boutique, présentez vos produits, recevez vos commandes
-            et gérez votre activité, 
+            {t.hero.subtitleFull}{" "}
             <span className="font-medium text-ivory-50/85">
-              sans changer la façon dont vous travaillez avec vos clients.
+              {t.hero.subtitleStrong}
             </span>
           </motion.p>
 
@@ -309,7 +310,7 @@ export default function Hero() {
               id="hero-cta-primary"
               className="group inline-flex min-h-[52px] items-center justify-center gap-2.5 rounded-xl bg-gold-400 px-7 py-3.5 font-display text-[15px] font-semibold text-midnight-950 shadow-lg shadow-gold-400/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-gold-300 hover:shadow-xl hover:shadow-gold-400/30 active:scale-[0.98] sm:px-8"
             >
-              Créer ma boutique
+              {t.hero.ctaCreate}
               <svg
                 width="18"
                 height="18"
@@ -345,7 +346,7 @@ export default function Hero() {
                 <circle cx="12" cy="12" r="10" />
                 <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
               </svg>
-              Voir comment ça marche
+              {t.hero.ctaHowItWorks}
             </a>
           </motion.div>
 
@@ -364,7 +365,7 @@ export default function Hero() {
                     <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.2 0-2.4-.25-3.5-.7L3 21l1.7-6A8.5 8.5 0 1 1 21 11.5z" />
                   </svg>
                 ),
-                text: "WhatsApp intégré",
+                text: t.hero.trust_whatsapp,
               },
               {
                 icon: (
@@ -373,7 +374,7 @@ export default function Hero() {
                     <path d="M1 10h22" />
                   </svg>
                 ),
-                text: "Mobile Money · FCFA",
+                text: t.hero.trust_mobilemoney,
               },
               {
                 icon: (
@@ -382,7 +383,7 @@ export default function Hero() {
                     <path d="M9 12l2 2 4-4" />
                   </svg>
                 ),
-                text: "Gratuit pour commencer",
+                text: t.hero.trust_free,
               },
             ].map((item) => (
               <span
@@ -400,8 +401,8 @@ export default function Hero() {
       </div>
 
       {/* ── Accessible description ── */}
-      <div className="sr-only" role="img" aria-label="Film montrant la transformation d'une boutique high-tech physique en commerce connecté grâce à ZennShop. Un commerçant passe d'un commerce dispersé entre WhatsApp, photos et appels à une boutique en ligne professionnelle où il reçoit et gère ses commandes.">
-        Ce film montre la transformation d&apos;un commerce physique en commerce connecté.
+      <div className="sr-only" role="img" aria-label={t.hero.srDescription}>
+        {t.hero.srDescription}
       </div>
     </section>
   );

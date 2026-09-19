@@ -1,68 +1,70 @@
 "use client";
+import { useTranslation } from "@/lib/i18n";
 
 import Container from "@/components/ui/Container";
 
-const TRUST_ITEMS = [
-  {
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-400 w-8 h-8">
-        <rect x="1" y="3" width="15" height="13"></rect>
-        <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-        <circle cx="5.5" cy="18.5" r="2.5"></circle>
-        <circle cx="18.5" cy="18.5" r="2.5"></circle>
-      </svg>
-    ),
-    title: "Livraison partout",
-    desc: "Dans toute l'Afrique",
-  },
-  {
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-400 w-8 h-8">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-      </svg>
-    ),
-    title: "Paiement sécurisé",
-    desc: "Transactions protégées",
-  },
-  {
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-400 w-8 h-8">
-        <polyline points="20 12 20 22 4 22 4 12"></polyline>
-        <rect x="2" y="7" width="20" height="5"></rect>
-        <line x1="12" y1="22" x2="12" y2="7"></line>
-        <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
-        <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
-      </svg>
-    ),
-    title: "Offres spéciales",
-    desc: "Promotions régulières",
-  },
-  {
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-400 w-8 h-8">
-        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
-      </svg>
-    ),
-    title: "Satisfaction garantie",
-    desc: "Retour sous 7 jours",
-  },
-];
 
 export default function TrustBar() {
+  const { t } = useTranslation();
+  const TRUST_ITEMS = [
+    {
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-600 w-6 h-6">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+      ),
+      title: t.marketplace.trustVerifiedTitle,
+      desc: t.marketplace.trustVerifiedDesc,
+    },
+    {
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-600 w-6 h-6">
+          <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+          <path d="M12 18h.01" />
+        </svg>
+      ),
+      title: t.marketplace.trustPaymentTitle,
+      desc: t.marketplace.trustPaymentDesc,
+    },
+    {
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-600 w-6 h-6">
+          <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+          <path d="M15 18H9" />
+          <path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" />
+          <circle cx="17" cy="18" r="2" />
+          <circle cx="7" cy="18" r="2" />
+        </svg>
+      ),
+      title: "Livraison directe",
+      desc: "Par la boutique dans votre ville",
+    },
+    {
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-600 w-6 h-6">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ),
+      title: `${t.marketplace.trustWhatsappTitle} vendeur`,
+      desc: t.marketplace.trustWhatsappDesc,
+    },
+  ];
+
   return (
-    <section className="border-y border-line bg-surface py-4 shadow-sm">
+    <section className="border-y border-line bg-surface py-5 shadow-xs">
       <Container size="wide">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 sm:gap-6">
           {TRUST_ITEMS.map((item) => (
-            <div key={item.title} className="flex items-center gap-3 px-2">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gold-wash text-terracotta">
+            <div key={item.title} className="flex items-center gap-3.5 px-2">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gold-wash text-terracotta shadow-xs">
                 {item.icon}
               </div>
               <div>
-                <h4 className="font-display text-xs font-bold uppercase tracking-wider text-midnight-950">
+                <h4 className="font-display text-sm font-bold text-midnight-950">
                   {item.title}
                 </h4>
-                <p className="text-[11px] font-medium text-ink-500">{item.desc}</p>
+                <p className="text-xs sm:text-sm font-medium text-midnight-950/65">{item.desc}</p>
               </div>
             </div>
           ))}

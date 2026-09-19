@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 
 const STORAGE_KEY = "zennshop:cookies-consent";
 
@@ -13,6 +14,7 @@ interface CookiePreferences {
 }
 
 export function CookieConsent() {
+  const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -89,10 +91,11 @@ export function CookieConsent() {
       aria-labelledby="cookie-title"
       className="fixed bottom-4 left-4 right-4 z-[9999] mx-auto max-w-xl animate-in fade-in slide-in-from-bottom-6 duration-300 sm:bottom-6 sm:left-auto sm:right-6"
     >
-      <div className="relative overflow-hidden rounded-3xl border border-gold-400/30 bg-midnight-950/95 p-5 sm:p-6 text-white shadow-2xl shadow-midnight-950/60 backdrop-blur-xl">
-        {/* Halo doré décoratif en arrière-plan */}
+      {/* Carte claire — fond blanc secondaire de la plateforme avec bordure douce et ombre élégante */}
+      <div className="relative overflow-hidden rounded-3xl border border-line bg-white/95 p-5 sm:p-6 text-midnight-950 shadow-2xl shadow-midnight-950/12 backdrop-blur-xl">
+        {/* Halo doré très doux en arrière-plan */}
         <div
-          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gold-500/15 blur-3xl"
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gold-400/10 blur-3xl"
           aria-hidden="true"
         />
 
@@ -100,47 +103,47 @@ export function CookieConsent() {
           /* Vue Standard */
           <div className="relative z-10 space-y-4">
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gold-400/30 bg-gold-400/10 text-gold-300 shadow-inner">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-gold-500/25 bg-gold-50 text-gold-700 shadow-sm">
                 <CookieIcon className="h-6 w-6" />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <h3 id="cookie-title" className="font-display text-base font-bold text-white tracking-wide">
-                    Expérience & Confidentialité
+                  <h3 id="cookie-title" className="font-display text-base font-bold text-midnight-950 tracking-tight">
+                    {t.cookies.title}
                   </h3>
-                  <span className="rounded-full border border-gold-400/30 bg-gold-400/10 px-2 py-0.5 font-mono text-[9px] font-semibold text-gold-300">
-                    RGPD
+                  <span className="rounded-full border border-gold-500/30 bg-gold-50 px-2 py-0.5 font-mono text-[9px] font-semibold text-gold-700">
+                    {t.cookies.badge}
                   </span>
                 </div>
-                <p className="text-xs leading-relaxed text-white/75">
-                  ZennShop utilise des cookies nécessaires au bon fonctionnement de votre panier, à la sécurisation des paiements et à la personnalisation de vos découvertes marchandes.
+                <p className="text-xs leading-relaxed text-ink-600">
+                  {t.cookies.description}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-white/10">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-line">
               <button
                 type="button"
                 onClick={handleRejectNonEssential}
-                className="cursor-pointer text-center text-xs font-medium text-white/60 transition-colors hover:text-white/90 underline-offset-4 hover:underline py-1 sm:py-0"
+                className="cursor-pointer text-center text-xs font-medium text-ink-500 transition-colors hover:text-midnight-950 underline-offset-4 hover:underline py-1 sm:py-0"
               >
-                Continuer sans accepter
+                {t.cookies.continueWithoutAccepting}
               </button>
 
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowDetails(true)}
-                  className="flex-1 sm:flex-initial cursor-pointer rounded-xl border border-white/20 bg-white/5 px-3.5 py-2 text-xs font-semibold text-white transition-all hover:bg-white/10 hover:border-white/30"
+                  className="flex-1 sm:flex-initial cursor-pointer rounded-xl border border-line bg-paper px-3.5 py-2 text-xs font-semibold text-ink-800 transition-all hover:bg-white hover:border-gold-500/40 hover:text-midnight-950 shadow-sm"
                 >
-                  Personnaliser
+                  {t.cookies.customize}
                 </button>
                 <button
                   type="button"
                   onClick={handleAcceptAll}
-                  className="flex-1 sm:flex-initial cursor-pointer rounded-xl bg-gradient-to-r from-gold-400 to-gold-500 px-5 py-2 text-xs font-bold text-midnight-950 transition-all hover:from-gold-300 hover:to-gold-400 hover:shadow-lg hover:shadow-gold-400/20 active:scale-[0.98]"
+                  className="flex-1 sm:flex-initial cursor-pointer rounded-xl bg-midnight-950 px-5 py-2 text-xs font-bold text-white transition-all hover:bg-midnight-900 hover:shadow-lg hover:shadow-midnight-950/15 active:scale-[0.98]"
                 >
-                  Tout accepter
+                  {t.cookies.acceptAll}
                 </button>
               </div>
             </div>
@@ -148,20 +151,20 @@ export function CookieConsent() {
         ) : (
           /* Vue Personnalisation détaillée */
           <div className="relative z-10 space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-400/10 text-gold-300">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-50 text-gold-700 border border-gold-500/20">
                   <CookieIcon className="h-4 w-4" />
                 </div>
-                <h3 className="font-display text-sm font-bold text-white">
-                  Préférences des cookies
+                <h3 className="font-display text-sm font-bold text-midnight-950">
+                  {t.cookies.detailsTitle}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowDetails(false)}
-                className="cursor-pointer rounded-lg p-1 text-white/50 hover:bg-white/10 hover:text-white transition-colors"
-                aria-label="Retour"
+                className="cursor-pointer rounded-lg p-1 text-ink-400 hover:bg-ink-100 hover:text-midnight-950 transition-colors"
+                aria-label={t.cookies.back}
               >
                 <CloseIcon className="h-4 w-4" />
               </button>
@@ -169,29 +172,29 @@ export function CookieConsent() {
 
             <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1 text-xs">
               {/* Essentiels */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-start justify-between gap-3">
+              <div className="rounded-2xl border border-line bg-paper/70 p-3 flex items-start justify-between gap-3">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white">Cookies essentiels</span>
-                    <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white/70">
-                      Obligatoire
+                    <span className="font-semibold text-midnight-950">{t.cookies.essentialTitle}</span>
+                    <span className="rounded-md bg-ink-100 px-1.5 py-0.5 font-mono text-[9px] text-ink-600 font-medium">
+                      {t.cookies.essentialRequired}
                     </span>
                   </div>
-                  <p className="text-[11px] text-white/60 leading-normal">
-                    Requis pour la connexion, la gestion du panier, la sécurité des transactions et le maintien de votre session.
+                  <p className="text-[11px] text-ink-500 leading-normal">
+                    {t.cookies.essentialDesc}
                   </p>
                 </div>
-                <div className="relative flex h-5 w-9 shrink-0 items-center rounded-full bg-gold-400/30 p-0.5 opacity-80 cursor-not-allowed">
-                  <span className="h-4 w-4 translate-x-4 rounded-full bg-gold-300 shadow-sm" />
+                <div className="relative flex h-5 w-9 shrink-0 items-center rounded-full bg-gold-500/20 p-0.5 opacity-80 cursor-not-allowed">
+                  <span className="h-4 w-4 translate-x-4 rounded-full bg-gold-600 shadow-sm" />
                 </div>
               </div>
 
               {/* Analytiques */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-start justify-between gap-3">
+              <div className="rounded-2xl border border-line bg-paper/70 p-3 flex items-start justify-between gap-3">
                 <div className="space-y-0.5">
-                  <span className="font-semibold text-white">Analytiques & Performance</span>
-                  <p className="text-[11px] text-white/60 leading-normal">
-                    Mesure anonyme de l&apos;utilisation pour détecter les ralentissements et fluidifier la plateforme.
+                  <span className="font-semibold text-midnight-950">{t.cookies.analyticsTitle}</span>
+                  <p className="text-[11px] text-ink-500 leading-normal">
+                    {t.cookies.analyticsDesc}
                   </p>
                 </div>
                 <button
@@ -199,25 +202,25 @@ export function CookieConsent() {
                   onClick={() => setAnalytics((a) => !a)}
                   className={cn(
                     "relative flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors",
-                    analytics ? "bg-gold-400" : "bg-white/20"
+                    analytics ? "bg-midnight-950" : "bg-ink-200"
                   )}
                   aria-pressed={analytics}
                 >
                   <span
                     className={cn(
-                      "h-4 w-4 rounded-full bg-midnight-950 transition-transform shadow-sm",
-                      analytics ? "translate-x-4" : "translate-x-0 bg-white"
+                      "h-4 w-4 rounded-full bg-white transition-transform shadow-sm",
+                      analytics ? "translate-x-4" : "translate-x-0"
                     )}
                   />
                 </button>
               </div>
 
               {/* Préférences */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3 flex items-start justify-between gap-3">
+              <div className="rounded-2xl border border-line bg-paper/70 p-3 flex items-start justify-between gap-3">
                 <div className="space-y-0.5">
-                  <span className="font-semibold text-white">Personnalisation marchande</span>
-                  <p className="text-[11px] text-white/60 leading-normal">
-                    Mémorisation de vos boutiques favorites, devise locale et ville de livraison préférée.
+                  <span className="font-semibold text-midnight-950">{t.cookies.preferencesTitle}</span>
+                  <p className="text-[11px] text-ink-500 leading-normal">
+                    {t.cookies.preferencesDesc}
                   </p>
                 </div>
                 <button
@@ -225,42 +228,42 @@ export function CookieConsent() {
                   onClick={() => setPreferences((p) => !p)}
                   className={cn(
                     "relative flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors",
-                    preferences ? "bg-gold-400" : "bg-white/20"
+                    preferences ? "bg-midnight-950" : "bg-ink-200"
                   )}
                   aria-pressed={preferences}
                 >
                   <span
                     className={cn(
-                      "h-4 w-4 rounded-full bg-midnight-950 transition-transform shadow-sm",
-                      preferences ? "translate-x-4" : "translate-x-0 bg-white"
+                      "h-4 w-4 rounded-full bg-white transition-transform shadow-sm",
+                      preferences ? "translate-x-4" : "translate-x-0"
                     )}
                   />
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-white/10">
+            <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-line">
               <button
                 type="button"
                 onClick={() => setShowDetails(false)}
-                className="cursor-pointer text-xs font-semibold text-white/60 hover:text-white transition-colors"
+                className="cursor-pointer text-xs font-semibold text-ink-500 hover:text-midnight-950 transition-colors"
               >
-                Retour
+                {t.cookies.back}
               </button>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleSaveCustom}
-                  className="cursor-pointer rounded-xl border border-gold-400/40 bg-gold-400/10 px-3.5 py-1.5 text-xs font-semibold text-gold-300 hover:bg-gold-400/20 transition-all"
+                  className="cursor-pointer rounded-xl border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-midnight-950 hover:border-gold-500/50 hover:bg-paper transition-all shadow-sm"
                 >
-                  Enregistrer
+                  {t.cookies.savePreferences}
                 </button>
                 <button
                   type="button"
                   onClick={handleAcceptAll}
-                  className="cursor-pointer rounded-xl bg-gold-400 px-4 py-1.5 text-xs font-bold text-midnight-950 hover:bg-gold-300 transition-all"
+                  className="cursor-pointer rounded-xl bg-midnight-950 px-4 py-1.5 text-xs font-bold text-white hover:bg-midnight-900 transition-all shadow-sm"
                 >
-                  Tout accepter
+                  {t.cookies.acceptAll}
                 </button>
               </div>
             </div>

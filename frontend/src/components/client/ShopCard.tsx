@@ -40,7 +40,7 @@ export default function ShopCard({ shop }: { shop: ApiBoutiqueCard }) {
 
         {/* Badge catégorie */}
         {shop.category && (
-          <span className="absolute left-3 top-3 z-10 rounded-full bg-white/95 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-midnight-950 shadow-sm backdrop-blur-sm">
+          <span className="absolute left-3 top-3 z-10 rounded-full bg-white/95 px-3 py-1 font-mono text-xs font-bold uppercase tracking-wider text-midnight-950 shadow-sm backdrop-blur-sm">
             {shop.category}
           </span>
         )}
@@ -51,14 +51,14 @@ export default function ShopCard({ shop }: { shop: ApiBoutiqueCard }) {
         <div className="flex items-start justify-between gap-2">
           <h3 className="flex items-center gap-1.5 font-display text-lg font-bold leading-snug text-midnight-950">
             {shop.name}
-            {/* Badge vérifié — confiance officielle */}
+            {/* Badge vérifié */}
             {shop.verificationStatus === "VERIFIED" && (
               <VerifiedBadge className="mt-0.5" />
             )}
           </h3>
           <span
             className={cn(
-              "mt-1 shrink-0 rounded-full px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider",
+              "mt-1 shrink-0 rounded-full px-2.5 py-0.5 font-mono text-xs font-bold uppercase tracking-wider",
               shop.productsCount > 0
                 ? "bg-gold-400/15 text-gold-700"
                 : "bg-midnight-950/5 text-midnight-950/40",
@@ -69,11 +69,11 @@ export default function ShopCard({ shop }: { shop: ApiBoutiqueCard }) {
         </div>
 
         {shop.tagline && (
-          <p className="text-[13px] font-semibold text-midnight-950/60">{shop.tagline}</p>
+          <p className="text-sm font-semibold text-midnight-950/70">{shop.tagline}</p>
         )}
 
         {shop.description && (
-          <p className="line-clamp-2 text-[13px] leading-relaxed text-midnight-950/65">
+          <p className="line-clamp-2 text-sm leading-relaxed text-midnight-950/70">
             {shop.description}
           </p>
         )}

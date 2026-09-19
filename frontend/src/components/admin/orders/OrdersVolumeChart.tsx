@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCard";
 import { Skeleton } from "@/components/dashboard/ui/Skeleton";
-import { cn, formatFcfa } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 import type { AdminOrderVolumePoint } from "@/types/admin";
 
 type Metric = "orders" | "gmv";
@@ -20,6 +21,8 @@ export function OrdersVolumeChart({
   volume: AdminOrderVolumePoint[] | undefined;
   loading: boolean;
 }) {
+  const { formatPrice } = useTranslation();
+
   const [metric, setMetric] = useState<Metric>("orders");
 
   if (loading || !volume || volume.length === 0) {
@@ -74,7 +77,7 @@ export function OrdersVolumeChart({
       <p className="mt-1 font-mono text-[10px] text-ink-400">
         {metric === "orders"
           ? `Pic : ${maxOrders} commandes · total ${volume.reduce((s, p) => s + p.orders, 0).toLocaleString("fr-FR")}`
-          : `GMV total : ${formatFcfa(volume.reduce((s, p) => s + p.gmvFcfa, 0))}`}
+          : `GMV total : ${formatPrice(volume.reduce((s, p) => s + p.gmvFcfa, 0))}`}
       </p>
 
       <div className="mt-3 flex h-52 items-end gap-1.5">
@@ -93,7 +96,7 @@ export function OrdersVolumeChart({
                 <span className="font-mono text-[10px] font-bold text-white">
                   {metric === "orders"
                     ? `${v} cmd`
-                    : formatFcfa(v)}
+                    : formatPrice(v)}
                 </span>
               </div>
               <div

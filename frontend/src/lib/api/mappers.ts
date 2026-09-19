@@ -69,10 +69,10 @@ export function toApiOrderStatus(status: OrderStatus): ApiOrderStatus {
 }
 
 const PAYMENT_UPPER: Record<PaymentMethod, string> = {
-  mobile_money: "MOBILE_MONEY",
-  cash_on_delivery: "CASH_ON_DELIVERY",
-  card: "CARD",
-  whatsapp_direct: "WHATSAPP_DIRECT",
+  MOBILE_MONEY: "MOBILE_MONEY",
+  CASH_ON_DELIVERY: "CASH_ON_DELIVERY",
+  CARD: "CARD",
+  WHATSAPP_DIRECT: "WHATSAPP_DIRECT",
 };
 
 export function toApiPaymentMethod(
@@ -274,6 +274,7 @@ export function toDashboardProduct(api: ApiProduct): ProductItem {
   const sales = api._count?.orderItems ?? 0;
   return {
     id: api.id,
+    slug: api.slug,
     name: api.name,
     category: api.category?.name ?? "",
     brand: api.brand?.name ?? "",
@@ -387,28 +388,28 @@ export function toOverview(
         }
       );
     }),
-    monthlyGoalFcfa: 0,
+    monthlyGoalFcfa: (api as any).monthlyGoalFcfa ?? 500000,
   };
 }
 
 /** Statistiques par période */
-export function toStats(api: ApiStats, products: ProductItem[]): StatsData {
+export function toStats(api: any, products: ProductItem[]): StatsData {
   return {
-    kpis: api.kpis as StatsData["kpis"],
-    // Garde défensive : même règle que toOverview
-    revenueChart: (api.revenueChart ?? []).map((p) => ({
+    kpis: api.kpis,
+    revenueChart: (api.chart ?? api.revenueChart ?? []).map((p: any) => ({
       date: shortDate(p.date),
       currentPeriodFcfa: p.currentPeriodFcfa,
       previousPeriodFcfa: p.previousPeriodFcfa,
     })),
-    repeatCustomerRate: api.repeatCustomerRate,
-    customerSegments: api.customerSegments,
-    activeDays: (api.activeDays ?? []).map((d) => ({
-      day: d.day as StatsData["activeDays"][number]["day"],
+    repeatCustomerRate: api.repeatCustomerRatio ?? api.repeatCustomerRate ?? 0,
+    customerSegments: api.segments ?? api.customerSegments ?? { retailersPercent: 0, distributorsPercent: 0, wholesalersPercent: 0 },
+    activeDays: (api.activeDays ?? []).map((d: any) => ({
+      day: d.day,
       ordersCount: d.ordersCount,
       isPeakDay: d.isPeakDay,
     })),
     bestSellers: (products ?? []).slice(0, 5),
+    requiresBusiness: api.requiresBusiness,
   };
 }
 
@@ -426,10 +427,10 @@ const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
 
 /** Libellés des moyens de paiement (minuscules côté API) */
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
-  mobile_money: "Mobile Money",
-  cash_on_delivery: "Paiement à la livraison",
-  card: "Carte bancaire",
-  whatsapp_direct: "WhatsApp",
+  MOBILE_MONEY: "Mobile Money",
+  CASH_ON_DELIVERY: "Paiement à la livraison",
+  CARD: "Carte bancaire",
+  WHATSAPP_DIRECT: "WhatsApp",
 };
 
 /** Libellé français d'un moyen de paiement (checkout + confirmation) */

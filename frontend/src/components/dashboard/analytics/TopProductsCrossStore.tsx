@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { formatFcfa } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n";
 
 export interface CrossStoreProduct {
   id: string;
@@ -22,6 +22,7 @@ const DEMO_PRODUCTS: CrossStoreProduct[] = [
 ];
 
 export default function TopProductsCrossStore({ products = DEMO_PRODUCTS }: { products?: CrossStoreProduct[] }) {
+  const { formatPrice } = useTranslation();
   return (
     <div className="rounded-2xl border border-line bg-surface p-6">
       <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-gold-strong">Top Produits — Toutes boutiques</span>
@@ -41,7 +42,7 @@ export default function TopProductsCrossStore({ products = DEMO_PRODUCTS }: { pr
               <p className="text-[11px] text-ink-400">{product.storeName} · {product.units} unités</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-display text-sm font-bold text-ink-950">{formatFcfa(product.revenue)}</p>
+              <p className="font-display text-sm font-bold text-ink-950">{formatPrice(product.revenue)}</p>
               <span className={cn(
                 "font-mono text-[10px] font-semibold",
                 product.growth >= 0 ? "text-green-600" : "text-red-500"

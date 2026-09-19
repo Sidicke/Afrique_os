@@ -1,10 +1,11 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { defaultVariant, type CartLine, type Product, type ProductVariant } from "@/constants/store";
 import { productPrice, type DeliveryPack } from "@/lib/shopConfig";
 import { useShopConfig } from "@/lib/useShopConfig";
+import { useParams } from "next/navigation";
 
 interface CartContextValue {
   lines: CartLine[];
@@ -50,6 +51,36 @@ export default function CartProvider({ children }: { children: ReactNode }) {
   const [deliveryPackId, setDeliveryPackId] = useState<string | null>(null);
   const [initialStep, setInitialStep] = useState<"cart" | "checkout">("cart");
   const config = useShopConfig();
+  const params = useParams();
+  const boutiqueSlug = params?.boutiqueSlug || params?.slug || "unknown";
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load cart from local storage on mount
+  useEffect(() => {
+    try {
+      if (boutiqueSlug === "unknown") return;
+      const saved = localStorage.getItem("zennshop_cart");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.boutiqueSlug === boutiqueSlug && Array.isArray(parsed.lines)) {
+          setLines(parsed.lines);
+        } else if (parsed.boutiqueSlug !== boutiqueSlug) {
+          // Si on change de boutique, on vide le panier de l'ancienne boutique !
+          localStorage.removeItem("zennshop_cart");
+        }
+      }
+    } catch (err) {}
+    setIsLoaded(true);
+  }, [boutiqueSlug]);
+
+  // Save cart to local storage on changes
+  useEffect(() => {
+    if (boutiqueSlug !== "unknown" && isLoaded) {
+      localStorage.setItem("zennshop_cart", JSON.stringify({ boutiqueSlug, lines }));
+    }
+  }, [lines, boutiqueSlug, isLoaded]);
+
 
   const add = useCallback((product: Product, variant?: ProductVariant, negotiatedPrice?: number, conversationId?: string) => {
     const chosen = variant ?? defaultVariant(product);

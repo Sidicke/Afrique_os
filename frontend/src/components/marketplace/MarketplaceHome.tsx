@@ -12,25 +12,15 @@ import MarketplaceShops from "./MarketplaceShops";
 import MarketplaceCatalogue from "./MarketplaceCatalogue";
 
 /**
- * Accueil du Marketplace — l'espace commercial PUBLIC de la plateforme
- * (aucun compte requis pour découvrir).
- *
- * Hiérarchie enrichie (inspirée eMarket) :
- *   1. Hero (recherche + sidebar catégories + visuels)
- *   2. Barre de confiance (trust)
- *   3. Offres du jour (daily deals avec countdown)
- *   4. Bannière promo (coupon)
- *   5. Catégories visuelles (cartes avec icônes)
- *   6. Derniers ajouts (latest products)
- *   7. Boutiques partenaires
- *   8. Bannière vendeur (CTA ouvrir sa boutique)
- *   9. Catalogue trending (produits avec tri)
- *
- * Toutes les données viennent du backend (boutiques ACTIVE, produits actifs).
- *
- * `hideSellerBanner` : masque le CTA « Ouvrez votre boutique gratuitement »
- * dans les espaces connectés (ex. accueil client) où le recrutement de
- * vendeurs n'a pas sa place.
+ * Accueil du Marketplace : espace commercial public de la plateforme.
+ * 
+ * Structure épurée et 100% dynamique :
+ *   1. Hero (recherche, catégories réelles du backend, métriques en direct)
+ *   2. Barre de confiance souveraine (Mobile Money, boutiques vérifiées, WhatsApp direct)
+ *   3. Offres et sélections réelles (promotions authentiques du backend)
+ *   4. Catégories visuelles dynamiques
+ *   5. Catalogue interactif et boutiques partenaires
+ *   6. Bannière commerçant (0 FCFA pour démarrer)
  */
 export default function MarketplaceHome({
   hideSellerBanner = false,
@@ -39,40 +29,41 @@ export default function MarketplaceHome({
 }) {
   const [category, setCategory] = useState<string | null>(null);
 
+  const handleCategorySelect = (slug: string) => {
+    setCategory(slug);
+    const el = document.getElementById("marketplace-catalogue");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <div className="flex flex-col bg-paper min-h-screen">
-      {/* 1. Hero eMarket (Menu catégories + Banner central + Bannières promos droites) */}
-      <MarketplaceHero />
+      {/* 1. Hero : recherche, catégories réelles et métriques DB */}
+      <MarketplaceHero onSelectCategory={handleCategorySelect} />
 
-      {/* 2. Banner Coupon Gift Special */}
-      <div className="py-2">
-        <Container size="wide">
-          <PromoBanner variant="coupon" />
-        </Container>
-      </div>
-
-      {/* 3. Offres du Jour (Daily Deals avec Countdown) */}
-      <MarketplaceDailyDeals />
-
-      {/* 4. Barre de Confiance / Réassurance */}
+      {/* 2. Barre de réassurance souveraine : Mobile Money, contact direct, boutiques vérifiées */}
       <TrustBar />
 
-      <Container size="wide" className="flex flex-col gap-10 py-8">
-        {/* 5. Catégories Visuelles */}
+      {/* 3. Offres et sélections réelles */}
+      <MarketplaceDailyDeals />
+
+      <Container size="wide" className="flex flex-col gap-12 py-10">
+        {/* 4. Catégories visuelles réelles */}
         <MarketplaceCategories
           activeCategory={category}
           onChange={setCategory}
         />
 
-        {/* 6 & 7. Layout 2 Colonnes eMarket : Sidebar + Main Catalogue */}
-        <div className="grid gap-6 lg:grid-cols-12">
-          {/* Sidebar : Derniers produits + Bannières (Visible uniquement sur Desktop) */}
+        {/* 5. Layout Catalogue : Sidebar derniers ajouts + Catalogue principal + Boutiques */}
+        <div className="grid gap-8 lg:grid-cols-12">
+          {/* Sidebar : Derniers produits réels (Desktop) */}
           <aside className="hidden lg:block lg:col-span-3">
             <MarketplaceLatestProducts />
           </aside>
 
-          {/* Zone principale : Produits Tendance & Boutiques (Prend tout l'espace 12 cols sur Mobile/Tablette, 9 cols sur Desktop) */}
-          <main className="col-span-12 lg:col-span-9 flex flex-col gap-10">
+          {/* Zone principale : Catalogue avec filtres et Boutiques partenaires */}
+          <main className="col-span-12 lg:col-span-9 flex flex-col gap-12">
             <MarketplaceCatalogue
               category={category}
               onClearCategory={() => setCategory(null)}
@@ -82,7 +73,7 @@ export default function MarketplaceHome({
           </main>
         </div>
 
-        {/* 8. Bannière Vendeur — masquée pour un utilisateur qui a déjà une boutique */}
+        {/* 6. Bannière Vendeur : masquée pour un utilisateur qui a déjà une boutique */}
         {!hideSellerBanner && <PromoBanner variant="seller" />}
       </Container>
     </div>

@@ -99,28 +99,28 @@ export default function MarketplaceCategories({
   return (
     <section id="marketplace-categories" aria-label="Filtrer par catégorie" className="scroll-mt-24">
       <div className="mb-4 flex flex-col items-center sm:items-start">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-gold-700">
+        <p className="font-mono text-xs uppercase tracking-[0.2em] font-semibold text-gold-700">
           Notre catalogue
         </p>
-        <h2 className="mt-1 font-display text-xl font-bold text-midnight-950">
+        <h2 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-midnight-950">
           Explorer par catégorie
         </h2>
       </div>
 
-      <div className="flex overflow-x-auto pb-4 sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 hide-scrollbar">
+      <div className="flex overflow-x-auto pb-4 sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 hide-scrollbar snap-x">
         {/* "Tout" Card */}
         <button
           type="button"
           onClick={() => onChange(null)}
           className={cn(
-            "group flex min-w-[140px] flex-col items-center justify-center gap-3 rounded-2xl border p-4 text-center transition-all cursor-pointer",
+            "group flex min-w-[140px] flex-col items-center justify-center gap-3 rounded-2xl border p-4 text-center transition-all cursor-pointer active:scale-[0.98]",
             activeCategory === null
               ? "border-midnight-950 bg-midnight-950 shadow-md"
               : "border-midnight-950/8 bg-white hover:-translate-y-0.5 hover:border-gold-400/50 hover:shadow-md"
           )}
         >
           <div className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-xl",
+            "flex h-11 w-11 items-center justify-center rounded-xl",
             activeCategory === null ? "bg-white/10 text-gold-300" : "bg-gold-400/10 text-gold-600"
           )}>
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -129,16 +129,16 @@ export default function MarketplaceCategories({
           </div>
           <div className="flex flex-col items-center gap-1">
             <span className={cn(
-              "text-sm font-semibold",
+              "text-sm sm:text-base font-bold",
               activeCategory === null ? "text-white" : "text-midnight-950"
             )}>
               Tout explorer
             </span>
             <span className={cn(
-              "font-mono text-[10px]",
+              "font-mono text-xs",
               activeCategory === null ? "text-gold-300" : "text-midnight-950/70"
             )}>
-              ---
+              Tous rayons
             </span>
           </div>
         </button>
@@ -153,27 +153,27 @@ export default function MarketplaceCategories({
               onClick={() => onChange(active ? null : cat.slug)}
               aria-pressed={active}
               className={cn(
-                "group flex min-w-[140px] flex-col items-center justify-center gap-3 rounded-2xl border p-4 text-center transition-all cursor-pointer",
+                "group flex min-w-[140px] flex-col items-center justify-center gap-3 rounded-2xl border p-4 text-center transition-all cursor-pointer active:scale-[0.98]",
                 active
                   ? "border-midnight-950 bg-midnight-950 shadow-md"
                   : "border-midnight-950/8 bg-white hover:-translate-y-0.5 hover:border-gold-400/50 hover:shadow-md"
               )}
             >
               <div className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
                 active ? "bg-white/10 text-gold-300" : "bg-gold-400/10 text-gold-600 group-hover:bg-gold-400/20"
               )}>
                 <CategoryIcon name={cat.name} className="h-5 w-5" />
               </div>
               <div className="flex flex-col items-center gap-1">
                 <span className={cn(
-                  "text-sm font-semibold",
+                  "text-sm sm:text-base font-bold",
                   active ? "text-white" : "text-midnight-950"
                 )}>
                   {cat.name}
                 </span>
                 <span className={cn(
-                  "font-mono text-[10px]",
+                  "font-mono text-xs",
                   active ? "text-gold-300" : "text-midnight-950/70"
                 )}>
                   {cat.count} produit{cat.count > 1 ? "s" : ""}

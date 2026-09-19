@@ -39,8 +39,8 @@ export const PLANS: PlanDef[] = [
       "Statistiques essentielles",
       "Support standard",
     ],
-    cta: "Créer ma boutique",
-    ctaHref: "/inscription",
+    cta: "Lancer ma boutique",
+    ctaHref: "/inscription?role=seller",
   },
   {
     id: "business",
@@ -64,7 +64,7 @@ export const PLANS: PlanDef[] = [
       "Gestion d'équipe (2 collaborateurs)",
     ],
     cta: "Passer à Business",
-    ctaHref: "/inscription?plan=business",
+    ctaHref: "/inscription?role=seller&plan=business",
     highlight: true,
   },
   {

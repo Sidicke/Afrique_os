@@ -3,8 +3,11 @@
 import Section from "@/components/ui/Section";
 import Container from "@/components/ui/Container";
 import Reveal from "@/components/animations/Reveal";
+import { useTranslation } from "@/lib/i18n";
 
 export default function Solution() {
+  const { t } = useTranslation();
+
   return (
     <Section id="solution" tone="dark" className="relative overflow-hidden py-28 sm:py-40">
       <div className="pointer-events-none absolute inset-0 gold-grid opacity-20" aria-hidden="true" />
@@ -17,23 +20,23 @@ export default function Solution() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-300 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold-300" />
               </span>
-              La transformation
+              {t.solution.label}
             </span>
           </Reveal>
 
           <Reveal direction="up" delay={0.1}>
             <h2 className="mt-10 font-display text-4xl font-semibold leading-[1.08] tracking-tight text-ivory-50 sm:text-5xl md:text-6xl lg:text-7xl">
-              Nous ne changeons pas
+              {t.solution.title1}
               <br />
-              votre commerce.
+              {t.solution.title1b}
             </h2>
           </Reveal>
 
           <Reveal direction="up" delay={0.15}>
             <h2 className="mt-3 font-display text-4xl font-semibold leading-[1.08] tracking-tight text-gold-gradient sm:text-5xl md:text-6xl lg:text-7xl">
-              Nous changeons la façon
+              {t.solution.title2}
               <br />
-              dont il est&nbsp;vu.
+              {t.solution.title2b}
             </h2>
           </Reveal>
 
@@ -46,15 +49,10 @@ export default function Solution() {
                 {/* Before */}
                 <div className="p-8 lg:col-span-5 lg:border-r lg:border-white/10">
                   <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-amber-300 font-semibold">
-                    Avant
+                    {t.solution.beforeLabel}
                   </span>
                   <div className="mt-6 space-y-4">
-                    {[
-                      "Photos dans la galerie",
-                      "Prix dans un cahier",
-                      "Clients par le bouche-à-oreille",
-                      "Commandes dans les messages",
-                    ].map((item) => (
+                    {t.solution.beforeItems.map((item) => (
                       <div key={item} className="flex items-center gap-3 rounded-xl bg-white/3 px-4 py-3">
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
                         <span className="text-sm text-ivory-50/60">{item}</span>
@@ -75,15 +73,10 @@ export default function Solution() {
                 {/* After */}
                 <div className="p-8 lg:col-span-5">
                   <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-semibold">
-                    Après
+                    {t.solution.afterLabel}
                   </span>
                   <div className="mt-6 space-y-4">
-                    {[
-                      "Boutique en ligne professionnelle",
-                      "Catalogue structuré en FCFA",
-                      "Découverte via le marketplace",
-                      "Commandes dans l'espace vendeur",
-                    ].map((item) => (
+                    {t.solution.afterItems.map((item) => (
                       <div key={item} className="flex items-center gap-3 rounded-xl bg-emerald-400/5 border border-emerald-400/10 px-4 py-3">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
                         <span className="text-sm font-medium text-ivory-50/90">{item}</span>
@@ -97,9 +90,9 @@ export default function Solution() {
 
           <Reveal delay={0.45} className="mt-12">
             <p className="font-display text-xl font-medium text-ivory-50/80">
-              Votre boutique garde son nom, sa voix, son identité.
+              {t.solution.conclusion}
               <br />
-              <span className="text-gold-300">Notre plateforme s&apos;occupe de l&apos;infrastructure.</span>
+              <span className="text-gold-300">{t.solution.conclusionGold}</span>
             </p>
           </Reveal>
         </div>

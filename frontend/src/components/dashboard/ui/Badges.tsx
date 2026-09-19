@@ -28,10 +28,10 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
 /** Badge de moyen de paiement */
 export function PaymentBadge({ method }: { method: PaymentMethod }) {
   const config: Record<PaymentMethod, { label: string; className: string }> = {
-    mobile_money: { label: "Mobile Money", className: "bg-green-100 text-green-700" },
-    cash_on_delivery: { label: "À la livraison", className: "bg-gold-wash text-gold-strong" },
-    card: { label: "Carte", className: "bg-ink-100 text-ink-700" },
-    whatsapp_direct: { label: "Directe", className: "bg-blue-100 text-blue-700" },
+    MOBILE_MONEY: { label: "Mobile Money", className: "bg-green-100 text-green-700" },
+    CASH_ON_DELIVERY: { label: "À la livraison", className: "bg-gold-wash text-gold-strong" },
+    CARD: { label: "Carte", className: "bg-ink-100 text-ink-700" },
+    WHATSAPP_DIRECT: { label: "Directe", className: "bg-blue-100 text-blue-700" },
   };
   const { label, className } = config[method];
   return <span className={cn(base, className)}>{label}</span>;

@@ -1,2 +1,2 @@
-import ClientsPage from "@/app/espace-admin/clients/page";
+import ClientsPage from "@/app/espace-vendeur/clients/page";
 export default ClientsPage;

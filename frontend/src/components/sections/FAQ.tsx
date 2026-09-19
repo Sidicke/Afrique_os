@@ -4,19 +4,9 @@ import { useState } from "react";
 import Section from "@/components/ui/Section";
 import Container from "@/components/ui/Container";
 import Reveal from "@/components/animations/Reveal";
+import { useTranslation } from "@/lib/i18n";
 
-const FAQ_ITEMS = [
-  { q: "Faut-il savoir coder ?", a: "Non. Nom, téléphone, produits, prix. C'est tout." },
-  { q: "Comment mes clients me trouvent ?", a: "Via votre lien unique, le marketplace, ou les réseaux sociaux." },
-  { q: "Mes clients doivent-ils créer un compte ?", a: "Non. Nom, téléphone, adresse. Trois champs." },
-  { q: "Comment fonctionne la messagerie ?", a: "Le client vous écrit depuis la fiche produit. L'historique est conservé." },
-  { q: "Combien ça coûte ?", a: "Starter : gratuit. Pro : 15 000 FCFA/mois. Business : 45 000 FCFA/mois." },
-  { q: "Comment gérer mes produits ?", a: "Photos, prix FCFA, catégories, variantes, stock. Tout depuis l'espace vendeur." },
-  { q: "Comment les commandes arrivent-elles ?", a: "Instantanément dans votre espace vendeur avec tous les détails." },
-  { q: "Comment fonctionne la vérification ?", a: "Pièce d'identité + preuve d'activité. Badge « Vérifiée ✓ » une fois validé." },
-];
-
-function FaqItem({ item }: { item: (typeof FAQ_ITEMS)[0] }) {
+function FaqItem({ item }: { item: { q: string; a: string } }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={`rounded-2xl border transition-all ${open ? "border-gold-400/30 bg-gold-400/5" : "border-white/10 bg-white/3 hover:border-white/20"}`}>
@@ -34,6 +24,8 @@ function FaqItem({ item }: { item: (typeof FAQ_ITEMS)[0] }) {
 }
 
 export default function FAQ() {
+  const { t } = useTranslation();
+
   return (
     <Section id="faq" tone="dark" className="relative overflow-hidden py-28 sm:py-32">
       <div className="pointer-events-none absolute inset-0 gold-grid opacity-20" aria-hidden="true" />
@@ -41,12 +33,12 @@ export default function FAQ() {
         <div className="text-center">
           <Reveal direction="up">
             <h2 className="font-display text-3xl font-semibold leading-[1.1] tracking-tight text-ivory-50 sm:text-4xl md:text-5xl">
-              Questions <span className="text-gold-gradient">fréquentes.</span>
+              {t.faq.title} <span className="text-gold-gradient">{t.faq.titleGold}</span>
             </h2>
           </Reveal>
         </div>
         <div className="mt-10 space-y-2">
-          {FAQ_ITEMS.map((item) => (
+          {t.faq.items.map((item) => (
             <Reveal key={item.q} direction="up">
               <FaqItem item={item} />
             </Reveal>
