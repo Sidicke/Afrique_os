@@ -777,7 +777,7 @@ export class AdminService {
         delivered,
         cancelled,
         gmvFcfa: Math.round(gmv),
-        aovFcfa: total > 0 ? Math.round(gmv / total) : 0,
+        aovFcfa: total - cancelled > 0 ? Math.round(gmv / (total - cancelled)) : 0,
       },
       total: filteredTotal,
       volume: await this.buildOrderVolume(),
