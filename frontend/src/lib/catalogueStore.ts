@@ -94,13 +94,16 @@ export async function loadPublicShop(slug: string): Promise<void> {
     updateShopConfig(toShopConfig(shop));
     // 2. Catalogue produits + catégories (ids backend → panier/commande réels)
     const products = shop.products.map(toPublicProduct);
-    const categoryNames = [
-      "Tous",
-      ...shop.categories.map((c) => c.name).filter(Boolean),
-    ];
+    const directCategories = (shop.categories ?? []).map((c) => c.name.trim()).filter(Boolean);
+    const productCategories = (shop.products ?? [])
+      .map((p) => p.category?.name?.trim())
+      .filter((c): c is string => Boolean(c));
+    const allUniqueCategories = Array.from(new Set([...directCategories, ...productCategories]));
+    const categoryNames = ["Tous", ...allUniqueCategories];
+
     setCatalogue({
       products,
-      categories: categoryNames.length > 1 ? categoryNames : current.categories,
+      categories: categoryNames,
       brands: uniqueBrands(products),
       boutiqueId: shop.id,
       boutiqueSlug: shop.slug,

@@ -58,7 +58,7 @@ export function PriorityActions({ actions }: PriorityActionsProps) {
     <section className="rounded-2xl border border-line bg-surface p-4 sm:p-6 shadow-sm shadow-ink-950/[0.03]">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-display text-base font-semibold text-ink-950">Needs your attention</h3>
+          <h3 className="font-display text-base font-semibold text-ink-950">À votre attention</h3>
           <p className="mt-0.5 text-xs text-ink-500">Actions nécessitant votre intervention</p>
         </div>
         <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-100/70 text-red-600">
@@ -75,7 +75,7 @@ export function PriorityActions({ actions }: PriorityActionsProps) {
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
-          <p className="text-sm font-medium text-green-700">Everything looks good. Aucune action requise.</p>
+          <p className="text-sm font-medium text-green-700">Tout est en ordre. Aucune action requise.</p>
         </div>
       ) : (
         <ul className="mt-4 divide-y divide-line/70">

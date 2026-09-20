@@ -69,7 +69,7 @@ export interface Review {
 export interface Product {
   id: string;
   name: string;
-  category: Exclude<Category, "Tous">;
+  category: string;
   /** Marque du produit (ex. Samsung) — filtre « Marques » de la vitrine */
   brand?: string;
   /** Prix en FCFA */
@@ -83,6 +83,12 @@ export interface Product {
   sku: string;
   variants: ProductVariant[];
   reviews: Review[];
+  /** Mis en avant */
+  isFeatured?: boolean;
+  /** Date de création pour le filtre nouveautés */
+  createdAt?: string;
+  /** Nombre de ventes pour le filtre meilleures ventes */
+  salesCount?: number;
   /** Boutique d'origine (catalogue global / futur Marketplace) */
   boutique?: { name: string; slug: string };
 }

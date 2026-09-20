@@ -1,64 +1,36 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useAsyncResource } from "./useAsyncResource";
-import { shopsApi, dashboardApi } from "@/lib/api";
-import { toOverview } from "@/lib/api/mappers";
+import { dashboardApi } from "@/lib/api";
 
-export function useMultiAnalytics() {
+const STORE_COLORS = [
+  "bg-blue-700",
+  "bg-gold-strong",
+  "bg-green-600",
+  "bg-purple-600",
+  "bg-rose-600",
+  "bg-amber-600",
+];
+
+export function useMultiAnalytics(period: string = "30_days") {
   const fetcher = useCallback(async () => {
-    const shops = await shopsApi.myShops();
+    const raw = await dashboardApi.multiStoreAnalytics(period as any);
     
-    // Fetch stats for all shops in parallel
-    const results = await Promise.all(
-      shops.map(async (shop) => {
-        try {
-          const apiOverview = await dashboardApi.overview(shop.id);
-          // We don't strictly need products/orders for the high level KPIs, we can mock them here for the mapper
-          const overview = toOverview(apiOverview, [], []);
-          return { shop, overview };
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
-
-    let totalRevenue = 0;
-    let totalOrders = 0;
-    
-    const storeRevenues = validResults.map((r, i) => {
-      const revenue = r.overview.kpis.revenue.rawNumber;
-      const orders = r.overview.kpis.orders.rawNumber;
-      totalRevenue += revenue;
-      totalOrders += orders;
-      
-      const colors = ["bg-blue-700", "bg-gold-strong", "bg-green-600", "bg-purple-600", "bg-terracotta"];
-      
-      return {
-        storeId: r.shop.id,
-        storeName: r.shop.name,
-        revenue,
-        orders,
-        growth: r.overview.kpis.revenue.changePercent,
-        color: colors[i % colors.length]
-      };
-    });
-
-    const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    // Assign UI theme colors to store revenues
+    const storeRevenues = (raw.storeRevenues || []).map((store, index) => ({
+      ...store,
+      color: STORE_COLORS[index % STORE_COLORS.length],
+    }));
 
     return {
-      kpis: {
-        totalRevenue,
-        totalOrders,
-        avgBasket,
-        // Mock a positive trend based on aggregated data (could be calculated precisely if we had historic data)
-        revenueGrowth: storeRevenues.reduce((acc, s) => acc + s.growth, 0) / (storeRevenues.length || 1),
-      },
+      kpis: raw.kpis,
       storeRevenues,
+      topProducts: raw.topProducts || [],
+      funnel: raw.funnel,
     };
-  }, []);
+  }, [period]);
 
   return useAsyncResource(fetcher, "Impossible de charger l'analytique multi-boutique.");
 }
+

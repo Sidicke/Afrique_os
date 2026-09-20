@@ -34,16 +34,40 @@ export function ProductGrid() {
     onDiscount: false,
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12;
+
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    return products.filter((product, index) => {
       if (activeCategory !== 'Tous' && product.category !== activeCategory) return false;
       // Filtre marque — sélectionné depuis la section « Marques » ou la sidebar
       if (activeBrand && product.brand !== activeBrand) return false;
       // Le filtre « En promotion » reflète la config active
       if (filters.onDiscount && !getPromotion(config, product.id)) return false;
+      // Filtre « Nouveautés » : créés récemment (ou récents dans le catalogue)
+      if (filters.newArrival) {
+        if (product.createdAt) {
+          const isRecent = Date.now() - new Date(product.createdAt).getTime() <= 45 * 24 * 60 * 60 * 1000;
+          if (!isRecent) return false;
+        } else if (index >= Math.ceil(products.length / 2)) {
+          return false;
+        }
+      }
+      // Filtre « Meilleures ventes » : ventes enregistrées ou produit vedette
+      if (filters.bestSeller) {
+        const isBestSeller = (product.salesCount && product.salesCount > 0) || product.isFeatured;
+        if (!isBestSeller) return false;
+      }
       return true;
     });
-  }, [products, activeCategory, activeBrand, filters.onDiscount, config]);
+  }, [products, activeCategory, activeBrand, filters, config]);
+
+  // Reset à la page 1 si les filtres changent
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, currentPage, pageSize]);
 
   const resetBrand = () => setActiveBrand(null);
 
@@ -194,41 +218,77 @@ export function ProductGrid() {
             </div>
           </div>
 
-          {/* Grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-
-          {/* Pagination */}
-          <div className="mt-12 flex items-center justify-center space-x-2">
-            <button className="flex items-center space-x-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-black transition-colors cursor-pointer">
-              <IconChevronLeft className="h-4 w-4" />
-              <span>Précédent</span>
-            </button>
-            
-            <div className="hidden space-x-1 sm:flex">
-              {[1, 2, 3, '...', 8, 9, 10].map((page, i) => (
+          {/* Grid ou État vide */}
+          {paginatedProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-16 text-center">
+              <p className="font-display text-lg font-bold text-midnight-950">Aucun produit trouvé</p>
+              <p className="mt-1 text-sm text-gray-500 max-w-sm">
+                Aucun article ne correspond à votre sélection pour le moment.
+              </p>
+              {(activeCategory !== 'Tous' || activeBrand || filters.newArrival || filters.bestSeller || filters.onDiscount) && (
                 <button
-                  key={i}
-                  className={cn(
-                    "min-w-[32px] rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
-                    page === 1
-                      ? "bg-midnight-950 text-gold-300"
-                      : "text-gray-500 hover:bg-gold-400/10 hover:text-midnight-950"
-                  )}
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory('Tous');
+                    setActiveBrand(null);
+                    setFilters({ newArrival: false, bestSeller: false, onDiscount: false });
+                  }}
+                  className="mt-4 rounded-full bg-midnight-950 px-5 py-2 text-xs font-semibold text-gold-300 hover:bg-midnight-900 transition-colors cursor-pointer"
                 >
-                  {page}
+                  Réinitialiser les filtres
                 </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
+              {paginatedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
               ))}
             </div>
+          )}
 
-            <button className="flex items-center space-x-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-black transition-colors cursor-pointer">
-              <span>Suivant</span>
-              <IconChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          {/* Pagination Réelle */}
+          {totalPages > 1 && (
+            <div className="mt-12 flex items-center justify-center space-x-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center space-x-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-black transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <IconChevronLeft className="h-4 w-4" />
+                <span>Précédent</span>
+              </button>
+              
+              <div className="flex space-x-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={cn(
+                      "min-w-[32px] h-8 rounded-lg px-2 text-sm font-medium transition-colors cursor-pointer",
+                      currentPage === page
+                        ? "bg-midnight-950 text-gold-300 font-bold"
+                        : "text-gray-600 hover:bg-gold-400/10 hover:text-midnight-950"
+                    )}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center space-x-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-black transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span>Suivant</span>
+                <IconChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </section>

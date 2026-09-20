@@ -130,7 +130,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
             href="/admin/stores"
             className="mb-2 inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-ink-500 transition-colors hover:text-gold-strong"
           >
-            <Icon name="chevronLeft" size={12} /> Stores Management
+            <Icon name="chevronLeft" size={12} /> Gestion des boutiques
           </Link>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display text-2xl font-semibold tracking-tight text-ink-950">
@@ -166,7 +166,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Store identity (doc 05 §16) */}
         <DashboardCard className="p-6">
-          <CardHeader title="Store identity" />
+          <CardHeader title="Identité de la boutique" />
           <div className="mt-4 flex items-center gap-3">
             <Avatar name={s.name} size="lg" />
             <div>
@@ -175,7 +175,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
             </div>
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
-            <InfoRow label="Store ID" value={s.id} mono />
+            <InfoRow label="ID boutique" value={s.id} mono />
             <InfoRow label="Catégorie" value={s.category ?? "-"} />
             <InfoRow label="Localisation" value={s.location ?? "-"} />
             <InfoRow label="Créée le" value={new Date(s.createdAt).toLocaleDateString("fr-FR")} />
@@ -192,13 +192,13 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
         {/* Merchant (doc 05 §18) */}
         <DashboardCard className="p-6">
           <CardHeader
-            title="Merchant"
+            title="Marchand"
             action={
               <Link
                 href={`/admin/users/${s.merchant.id}`}
                 className="font-mono text-[10px] font-semibold text-blue-700 hover:text-blue-600"
               >
-                View merchant →
+                Voir le marchand →
               </Link>
             }
           />
@@ -211,7 +211,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
             </div>
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
-            <InfoRow label="Merchant ID" value={s.merchant.id} mono />
+            <InfoRow label="ID marchand" value={s.merchant.id} mono />
             <InfoRow label="Inscrit le" value={new Date(s.merchant.joinedAt).toLocaleDateString("fr-FR")} />
             <InfoRow label="Compte" value={s.merchant.accountStatus} />
           </dl>
@@ -223,14 +223,14 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
         {/* Verification (doc 05 §19) */}
         <DashboardCard className="p-6">
           <CardHeader
-            title="Verification"
+            title="Vérification KYC"
             action={
               s.verificationStatus ? (
                 <Link
                   href="/admin/verification"
                   className="font-mono text-[10px] font-semibold text-blue-700 hover:text-blue-600"
                 >
-                  View case →
+                  Voir le dossier →
                 </Link>
               ) : undefined
             }
@@ -255,7 +255,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
 
         {/* Subscription (doc 05 §22) */}
         <DashboardCard className="p-6">
-          <CardHeader title="Subscription" />
+          <CardHeader title="Abonnement" />
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-line bg-ink-50/40 px-4 py-3">
               <p className="font-mono text-[9px] font-semibold uppercase tracking-wider text-ink-400">
@@ -295,7 +295,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
 
       {/* Modération (doc 05 §23) */}
       <DashboardCard className="p-6">
-        <CardHeader title="Moderation" subtitle="Signalements et avertissements actifs" />
+        <CardHeader title="Modération" subtitle="Signalements et avertissements actifs" />
         <div className="mt-4 grid grid-cols-3 gap-3">
           <div
             className={cn(
@@ -346,11 +346,11 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent activity (doc 05 §21) */}
         <DashboardCard className="p-6">
-          <CardHeader title="Recent activity" />
+          <CardHeader title="Activité récente" />
           <ul className="mt-4 space-y-0">
             {s.activity.length === 0 ? (
               <p className="rounded-xl border border-dashed border-line bg-ink-50/50 px-4 py-6 text-center text-xs text-ink-400">
-                No activity yet.
+                Aucune activité pour cette boutique.
               </p>
             ) : (
               s.activity.slice(0, 6).map((ev) => (
@@ -370,11 +370,11 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
 
         {/* Admin history (doc 05 §31) */}
         <DashboardCard className="p-6">
-          <CardHeader title="Admin history" subtitle="Traçabilité des actions administratives" />
+          <CardHeader title="Historique administratif" subtitle="Traçabilité des actions administratives" />
           <ol className="mt-4 space-y-0">
             {s.history.length === 0 ? (
               <p className="rounded-xl border border-dashed border-line bg-ink-50/50 px-4 py-6 text-center text-xs text-ink-400">
-                No history yet.
+                Aucun historique disponible.
               </p>
             ) : (
               [...s.history].reverse().map((ev, idx) => (
@@ -407,13 +407,13 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
       {/* Notes internes (doc 05 §32) */}
       <DashboardCard className="p-6">
         <CardHeader
-          title="Internal notes"
+          title="Notes internes"
           subtitle="Réservé à l'équipe, invisible pour le vendeur"
         />
         <div className="mt-4 space-y-3">
           {s.notes.length === 0 ? (
             <p className="rounded-xl border border-dashed border-line bg-ink-50/50 px-4 py-6 text-center text-xs text-ink-400">
-              No internal notes yet.
+              Aucune note interne pour le moment.
             </p>
           ) : (
             s.notes.map((note) => (
@@ -448,7 +448,7 @@ export function StoreDetail({ store, adminName, onUpdated }: StoreDetailProps) {
       {/* Panneau d'actions (doc 05 §25-28) */}
       <DashboardCard className="border-gold-soft/60 p-6">
         <CardHeader
-          title="Administrative actions"
+          title="Actions administratives"
           subtitle={
             actionLocked
               ? "Cette boutique est bloquée : aucune action supplémentaire n'est possible."

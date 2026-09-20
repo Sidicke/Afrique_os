@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BoutiqueOwnerGuard } from '../boutiques/guards/boutique-owner.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -25,7 +26,15 @@ import { ProductsService } from './products.service';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  // ===== Routes vendeur (scopées à sa boutique) =====
+  // ===== Routes vendeur (scopées à sa boutique ou son compte) =====
+
+  @Get('owner')
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tous les produits de toutes les boutiques du vendeur' })
+  findAllForOwner(@CurrentUser('id') userId: string) {
+    return this.productsService.findAllForOwner(userId);
+  }
 
   @Get('boutique/:boutiqueId')
   @UseGuards(BoutiqueOwnerGuard)

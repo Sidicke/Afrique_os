@@ -24,6 +24,7 @@ export interface UpdateShopInput {
   description?: string;
   city?: string;
   country?: string;
+  monthlyGoalFcfa?: number;
   email?: string;
   phone?: string;
   whatsappNumber?: string;
@@ -154,4 +155,41 @@ export const shopsApi = {
       { method: "POST" },
     );
   },
+
+  /** Collaborateurs de l'équipe (100% réel BD) */
+  getTeam(boutiqueId: string) {
+    return apiFetch<ApiTeamMember[]>(`/boutiques/${encodeURIComponent(boutiqueId)}/team`);
+  },
+
+  inviteTeamMember(boutiqueId: string, input: { email: string; role?: "ADMIN" | "EDITOR" | "VIEWER"; name?: string }) {
+    return apiFetch<ApiTeamMember>(`/boutiques/${encodeURIComponent(boutiqueId)}/team`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  updateTeamMember(boutiqueId: string, memberId: string, input: { role?: "ADMIN" | "EDITOR" | "VIEWER"; status?: "PENDING" | "ACTIVE" | "REVOKED" }) {
+    return apiFetch<ApiTeamMember>(`/boutiques/${encodeURIComponent(boutiqueId)}/team/${encodeURIComponent(memberId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  removeTeamMember(boutiqueId: string, memberId: string) {
+    return apiFetch<{ success: boolean }>(`/boutiques/${encodeURIComponent(boutiqueId)}/team/${encodeURIComponent(memberId)}`, {
+      method: "DELETE",
+    });
+  },
 };
+
+export interface ApiTeamMember {
+  id: string;
+  boutiqueId: string;
+  email: string;
+  name: string | null;
+  role: "ADMIN" | "EDITOR" | "VIEWER";
+  status: "PENDING" | "ACTIVE" | "REVOKED";
+  invitedAt: string;
+  acceptedAt?: string | null;
+  createdAt: string;
+}

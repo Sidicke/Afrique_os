@@ -8,7 +8,7 @@ const STATUS_META: Record<
   { label: string; dot: string; text: string; badge: string }
 > = {
   operational: {
-    label: "Operational",
+    label: "Opérationnel",
     dot: "bg-green-600",
     text: "text-green-700",
     badge: "bg-green-100 text-green-700",
@@ -48,7 +48,7 @@ export function SystemStatus({ components }: SystemStatusProps) {
     <section className="rounded-2xl border border-line bg-surface p-4 sm:p-6 shadow-sm shadow-ink-950/[0.03]">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h3 className="font-display text-base font-semibold text-ink-950">System status</h3>
+          <h3 className="font-display text-base font-semibold text-ink-950">État du système</h3>
           <p className="mt-0.5 text-xs text-ink-500">État de l&apos;infrastructure plateforme</p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 font-mono text-[10px] font-semibold text-green-700">

@@ -21,7 +21,7 @@ import type { AdminProfileData } from "@/types/admin";
 
 /**
  * Profil de l'administrateur (doc 02 §15) — distinct des paramètres globaux
- * de la plateforme : identité, sécurité du compte, sessions actives,
+ * de la plateforme : identité, sécurité du compte (mot de passe),
  * activité récente et préférences de notification personnelles.
  */
 export default function AdminProfilePage() {
@@ -95,13 +95,8 @@ export default function AdminProfilePage() {
             <SecurityCard profile={data} apply={apply} />
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            {/* Sessions actives */}
-            <SessionsCard profile={data} apply={apply} />
-
-            {/* Activité récente */}
-            <ActivityCard profile={data} />
-          </div>
+          {/* Activité récente */}
+          <ActivityCard profile={data} />
 
           {/* Préférences de notification (compte admin) */}
           <NotificationPrefsCard profile={data} apply={apply} />
@@ -151,11 +146,10 @@ function IdentityCard({
   );
 }
 
-/* ———————————————— Sécurité (mot de passe + 2FA) ———————————————— */
+/* ———————————————— Sécurité (mot de passe) ———————————————— */
 
 function SecurityCard({
-  profile,
-  apply,
+  apply: _apply,
 }: {
   profile: AdminProfileData;
   apply: (p: AdminProfileData) => void;
@@ -164,15 +158,10 @@ function SecurityCard({
   const [nextPassword, setNextPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
-  const toggle2fa = async (enabled: boolean) => {
-    const updated = await adminService.setTwoFactor(enabled);
-    if (updated) apply(updated);
-  };
-
   return (
     <SectionShell
       title="Sécurité du compte"
-      description="Mot de passe et double authentification."
+      description="Changez votre mot de passe de connexion administrateur."
       onSave={async () => {
         if (nextPassword !== confirm) {
           throw new Error("Les deux mots de passe ne correspondent pas.");
@@ -195,77 +184,10 @@ function SecurityCard({
           <TextInput type="password" value={confirm} onChange={setConfirm} placeholder="••••••••" />
         </Field>
       </div>
-
-      <div className="border-t border-line pt-4">
-        <SettingRow
-          label="Double authentification"
-          description="Protégez votre accès administrateur avec un code à usage unique."
-          checked={profile.security.twoFactorEnabled}
-          onChange={(v) => void toggle2fa(v)}
-        />
-      </div>
     </SectionShell>
   );
 }
 
-/* ———————————————— Sessions actives ———————————————— */
-
-function SessionsCard({
-  profile,
-  apply,
-}: {
-  profile: AdminProfileData;
-  apply: (p: AdminProfileData) => void;
-}) {
-  const revoke = async (id: string) => {
-    const updated = await adminService.revokeSession(id);
-    if (updated) apply(updated);
-  };
-
-  return (
-    <DashboardCard className="p-6">
-      <CardHeader title="Sessions actives" subtitle="Appareils connectés à votre compte" />
-      <ul className="mt-4 space-y-2.5">
-        {profile.sessions.map((s) => (
-          <li
-            key={s.id}
-            className="flex items-center gap-3 rounded-xl border border-line bg-ink-50/40 px-4 py-3"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-500">
-              <Icon name="shield" size={15} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 text-xs font-semibold text-ink-950">
-                {s.label}
-                {s.current && (
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 font-mono text-[9px] font-semibold text-green-700">
-                    Appareil actuel
-                  </span>
-                )}
-              </p>
-              <p className="font-mono text-[10px] text-ink-400">
-                {s.location} · actif {timeAgo(s.lastActiveAt)}
-              </p>
-            </div>
-            {!s.current && (
-              <button
-                onClick={() => void revoke(s.id)}
-                className="cursor-pointer rounded-lg border border-line bg-surface px-2.5 py-1.5 font-mono text-[10px] font-semibold text-red-600 transition-colors hover:border-red-200 hover:bg-red-100/60"
-              >
-                Révoquer
-              </button>
-            )}
-          </li>
-        ))}
-        {profile.sessions.length === 0 && (
-          <p className="rounded-xl border border-dashed border-line bg-ink-50/50 px-4 py-6 text-center text-xs text-ink-400">
-            Aucune session active.
-          </p>
-        )}
-      </ul>
-    </DashboardCard>
-  );
-}
 
 /* ———————————————— Activité récente ———————————————— */
 

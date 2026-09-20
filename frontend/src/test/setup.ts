@@ -9,8 +9,46 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+// Polyfill in-memory localStorage pour Node 26+
+class MemoryStorage {
+  private store = new Map<string, string>();
+  get length() {
+    return this.store.size;
+  }
+  clear() {
+    this.store.clear();
+  }
+  getItem(key: string) {
+    return this.store.has(key) ? this.store.get(key)! : null;
+  }
+  setItem(key: string, value: string) {
+    this.store.set(key, String(value));
+  }
+  removeItem(key: string) {
+    this.store.delete(key);
+  }
+  key(index: number) {
+    return Array.from(this.store.keys())[index] ?? null;
+  }
+}
+
+const memoryStorage = new MemoryStorage();
+Object.defineProperty(globalThis, "localStorage", {
+  value: memoryStorage,
+  configurable: true,
+  writable: true,
+});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "localStorage", {
+    value: memoryStorage,
+    configurable: true,
+    writable: true,
+  });
+}
+
 afterEach(() => {
   cleanup();
+  memoryStorage.clear();
 });
 
 // next/image → simple <img> (AssetImage l'utilise partout)

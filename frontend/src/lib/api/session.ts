@@ -122,9 +122,13 @@ export function subscribeSession(listener: () => void): () => void {
 /**
  * Change la boutique active du vendeur dans la session locale.
  * Permet la navigation multi-boutiques sans reconnexion.
+ * Recharge la config boutique isolée pour la nouvelle boutique.
  */
 export function switchActiveBoutique(boutiqueId: string, boutiqueSlug: string, boutiqueName?: string): void {
   if (!current) return;
   current = { ...current, user: { ...current.user, boutiqueId, boutiqueSlug, boutiqueName: boutiqueName || (current.user as any).boutiqueName } as any };
   persist();
+  // Recharge la config boutique isolée après le changement de session
+  // (import dynamique pour éviter les dépendances circulaires)
+  import("@/lib/shopConfig").then(({ reloadShopConfig }) => reloadShopConfig()).catch(() => {});
 }

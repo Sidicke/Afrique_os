@@ -8,6 +8,7 @@ import { useSession } from "@/lib/useSession";
 import { merchantProfile } from "@/services/dashboardService";
 import { getBoutiqueName } from "@/lib/api/session";
 import NotificationBell from "./NotificationBell";
+import { CurrencySelector } from "./CurrencySelector";
 
 interface TopbarProps {
   onOpenMobileSidebar?: () => void;
@@ -79,6 +80,10 @@ export default function DashboardTopbar({
 
       {/* Right: Actions, Notifications & Profile */}
       <div className="flex items-center gap-3 sm:gap-4">
+        {/* Sélecteur de Devise */}
+        <div className="w-24 sm:w-auto shrink-0">
+          <CurrencySelector />
+        </div>
 
         {/* Voir ma boutique — sortie discrète vers la vitrine réelle du vendeur */}
         <Link
@@ -101,12 +106,12 @@ export default function DashboardTopbar({
 
         {/* Merchant Profile Avatar */}
         <div className="flex items-center gap-2.5 border-l border-line pl-3">
-          <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-gold-soft bg-gold-wash font-display text-sm font-bold text-gold-strong shadow-sm">
+          <div suppressHydrationWarning className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-gold-soft bg-gold-wash font-display text-sm font-bold text-gold-strong shadow-sm">
             {merchantProfile.avatarInitials}
           </div>
           <div className="hidden text-left xl:block">
-            <p className="text-xs font-semibold leading-tight text-ink-950">{merchantProfile.name}</p>
-            <p className="font-mono text-[10px] text-gold-strong">{getBoutiqueName() || merchantProfile.shopName}</p>
+            <p suppressHydrationWarning className="text-xs font-semibold leading-tight text-ink-950">{merchantProfile.name}</p>
+            <p suppressHydrationWarning className="font-mono text-[10px] text-gold-strong">{(session?.user as any)?.boutiqueName || session?.user?.boutiqueSlug || getBoutiqueName() || merchantProfile.shopName}</p>
           </div>
         </div>
       </div>

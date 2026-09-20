@@ -11,7 +11,12 @@
  */
 
 import { API_BASE_URL } from "./config";
-import { clearSession, getAccessToken, setSession } from "./session";
+import {
+  clearSession,
+  getAccessToken,
+  setSession,
+  getSessionUser,
+} from "./session";
 
 export class ApiError extends Error {
   constructor(
@@ -64,6 +69,12 @@ function refreshAccessToken(): Promise<string | null> {
           accessToken: string;
           user: import("./types").ApiUser;
         };
+        const currentUser = getSessionUser();
+        if (currentUser) {
+          data.user.boutiqueId = currentUser.boutiqueId;
+          data.user.boutiqueSlug = currentUser.boutiqueSlug;
+          (data.user as any).boutiqueName = (currentUser as any).boutiqueName;
+        }
         setSession({ accessToken: data.accessToken, user: data.user });
         return data.accessToken;
       } catch {

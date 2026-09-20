@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardCard, CardHeader, SectionLabel } from "@/components/dashboard/ui/DashboardCard";
 import { Icon } from "@/components/dashboard/icons";
 import { Toast } from "@/components/dashboard/ui/Toast";
 import { cn } from "@/lib/utils";
+import { usersApi, shopsApi } from "@/lib/api";
+import { useSession } from "@/lib/useSession";
 import {
   merchantProfile,
   PLAN_LABEL,
@@ -26,9 +28,10 @@ const PLANS = [
     price: 0,
     period: "gratuit",
     tagline: "Commencez à vendre gratuitement",
+    maxShops: 1,
     features: [
       "Jusqu'à 20 produits",
-      "1 boutique",
+      "1 boutique unique",
       "Commission : 5 %",
       "Support standard",
     ],
@@ -38,13 +41,14 @@ const PLANS = [
     name: "Business",
     price: 12500,
     period: "/ mois",
-    tagline: "Pour les vendeurs réguliers",
+    tagline: "Pour les vendeurs multi-enseignes",
+    maxShops: 3,
     highlight: true,
     features: [
       "Jusqu'à 150 produits",
-      "Jusqu'à 3 boutiques",
-      "Commission : 2 %",
-      "Analytics & Segmentation",
+      "Jusqu'à 3 boutiques indépendantes",
+      "Commission réduite : 2 %",
+      "Analytics consolidés & multi-boutiques",
     ],
   },
   {
@@ -52,24 +56,47 @@ const PLANS = [
     name: "Enterprise",
     price: "Sur mesure",
     period: "",
-    tagline: "Besoins spécifiques",
+    tagline: "Pour grands réseaux & franchises",
+    maxShops: 999,
     features: [
       "Produits illimités",
-      "Multi-boutiques avancé",
-      "Commission négociée",
-      "Accompagnement dédié",
+      "Boutiques illimitées",
+      "Commission préférentielle négociée",
+      "Accompagnement dédié VIP",
     ],
   },
 ];
 
 export function FormuleSection() {
+  const session = useSession();
   const [toast, setToast] = useState<string | null>(null);
-  // Carte « Actuelle » : le vrai plan du vendeur (boutique.plan), pas un choix codé en dur
-  const currentPlanId = PLAN_TO_CARD[merchantProfile.plan] ?? null;
+  const [activePlan, setActivePlan] = useState<string>("business");
+  const [shops, setShops] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      usersApi.me().catch(() => null),
+      shopsApi.myShops().catch(() => []),
+    ]).then(([profile, myShops]) => {
+      if (profile?.plan) {
+        setActivePlan(profile.plan.toLowerCase());
+      } else if (session?.user && (session.user as any).plan) {
+        setActivePlan(String((session.user as any).plan).toLowerCase());
+      }
+      if (Array.isArray(myShops)) {
+        setShops(myShops);
+      }
+      setLoading(false);
+    });
+  }, [session]);
+
+  const currentPlanId = PLAN_TO_CARD[activePlan] ?? "business";
+  const currentPlanConfig = PLANS.find((p) => p.id === currentPlanId) || PLANS[1];
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Formule actuelle */}
+      {/* Formule actuelle du compte vendeur */}
       <DashboardCard className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -78,19 +105,19 @@ export function FormuleSection() {
             </span>
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-500">
-                Votre formule actuelle
+                Abonnement du compte commerçant
               </p>
               <div className="mt-0.5 flex flex-wrap items-center gap-2">
                 <h3 className="font-display text-xl font-semibold text-ink-950">
-                  {PLAN_LABEL[merchantProfile.plan] ?? merchantProfile.plan}
+                  {PLAN_LABEL[activePlan] ?? activePlan.toUpperCase()}
                 </h3>
                 <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-green-700">
                   <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
-                  Active
+                  Actif sur tout le compte
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-ink-500">
-                {PLAN_PRICE_LINE[merchantProfile.plan] ?? ""}
+                {PLAN_PRICE_LINE[activePlan] ?? "12 500 FCFA / mois · Multi-enseignes activé"}
               </p>
             </div>
           </div>
@@ -103,6 +130,31 @@ export function FormuleSection() {
             Gérer la facturation
           </button>
         </div>
+
+        {/* Boutiques couvertes */}
+        {shops.length > 0 && (
+          <div className="mt-5 rounded-xl border border-line/80 bg-ink-50/50 p-3.5 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-ink-800">
+                Enseignes couvertes par votre abonnement ({shops.length} / {currentPlanConfig.maxShops === 999 ? "Illimité" : currentPlanConfig.maxShops}) :
+              </span>
+              <span className="font-mono text-[11px] text-gold-strong font-semibold">
+                Toutes vos boutiques bénéficient de vos avantages
+              </span>
+            </div>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {shops.map((s) => (
+                <span
+                  key={s.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 py-1 text-xs font-medium text-ink-800 shadow-2xs"
+                >
+                  <Icon name="store" size={12} className="text-gold-strong" />
+                  {s.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </DashboardCard>
 
       {/* Comparatif des formules */}

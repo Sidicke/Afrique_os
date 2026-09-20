@@ -4,7 +4,7 @@
  */
 
 export type OrderStatus = "pending" | "paid" | "shipping" | "delivered" | "cancelled";
-export type PaymentMethod = "MOBILE_MONEY" | "CASH_ON_DELIVERY" | "CARD" | "WHATSAPP_DIRECT";
+export type PaymentMethod = "MOBILE_MONEY" | "CASH_ON_DELIVERY" | "CARD" | "WHATSAPP_DIRECT" | "FEDAPAY";
 
 export interface Order {
   id: string;
@@ -22,6 +22,7 @@ export interface Order {
   /** Motif d'annulation saisi par le client (présent si annulée avec motif) */
   cancellationReason?: string;
   createdAt: string;
+  boutique?: { id: string; name: string; slug: string };
 }
 
 export interface ProductItem {
@@ -38,6 +39,8 @@ export interface ProductItem {
   stock: number;
   image: string;
   status: "in_stock" | "low_stock" | "out_of_stock";
+  isActive?: boolean;
+  boutique?: { id: string; name: string; slug: string };
 }
 
 /** Variante saisie dans le formulaire d'ajout de produit (brouillon) */
@@ -50,6 +53,7 @@ export interface NewVariantDraft {
   priceDelta?: number;
   /** Stock propre à cette variante */
   stock?: number;
+  image?: string;
 }
 
 /** Saisie complète du formulaire d'ajout de produit (miroir de CreateProductDto) */
@@ -68,6 +72,7 @@ export interface NewProductDraft {
   brandId?: string;
   images?: string[];
   variants?: NewVariantDraft[];
+  boutiqueId?: string;
 }
 
 /** Option de catégorie pour les sélecteurs du dashboard */

@@ -64,6 +64,14 @@ export class OrdersController {
 
   // ===== Routes vendeur (scopées à sa boutique) =====
 
+  @Get('owner')
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Toutes les commandes de toutes les boutiques du vendeur connecté' })
+  findAllForOwner(@CurrentUser() user: AuthenticatedUser) {
+    return this.ordersService.findAllForOwner(user.id);
+  }
+
   @Get('boutique/:boutiqueId')
   @UseGuards(BoutiqueOwnerGuard)
   @Roles('VENDEUR', 'ADMIN')
@@ -84,6 +92,18 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateStatus(boutiqueId, id, dto);
+  }
+
+  @Post('boutique/:boutiqueId/:id/remind')
+  @UseGuards(BoutiqueOwnerGuard)
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Rappeler le paiement au client' })
+  remindPayment(
+    @Param('boutiqueId') boutiqueId: string,
+    @Param('id') id: string,
+  ) {
+    return this.ordersService.remindPayment(boutiqueId, id);
   }
 
   /** Historique d'un client (par numéro de téléphone) — vitrine */

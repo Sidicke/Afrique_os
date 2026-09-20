@@ -29,6 +29,7 @@ const adminProductSelect = {
   brandId: true,
   brand: { select: { id: true, name: true, slug: true } },
   variants: { select: { id: true, name: true, value: true, priceDelta: true, stock: true } },
+  boutique: { select: { id: true, name: true, slug: true } },
   createdAt: true,
   updatedAt: true,
   _count: { select: { orderItems: true } },
@@ -112,6 +113,21 @@ export class ProductsService {
   async findAllForAdmin(boutiqueId: string) {
     return this.prisma.product.findMany({
       where: { boutiqueId },
+      select: adminProductSelect,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findAllForOwner(userId: string) {
+    const boutiques = await this.prisma.boutique.findMany({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    const boutiqueIds = boutiques.map((b) => b.id);
+    if (boutiqueIds.length === 0) return [];
+
+    return this.prisma.product.findMany({
+      where: { boutiqueId: { in: boutiqueIds } },
       select: adminProductSelect,
       orderBy: { createdAt: 'desc' },
     });
@@ -428,7 +444,7 @@ export class ProductsService {
   async findOnePublic(boutiqueSlug: string, productId: string) {
     const product = await this.prisma.product.findFirst({
       where: {
-        id: productId,
+        OR: [{ id: productId }, { slug: productId }],
         isActive: true,
         boutique: { slug: boutiqueSlug, status: 'ACTIVE' },
       },
@@ -487,6 +503,15 @@ export class ProductsService {
 
   // ===== Helpers =====
 
+  private generateCode(length = 6): string {
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+    let code = '';
+    for (let i = 0; i < length; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
   private slugify(value: string): string {
     return (
       value
@@ -495,20 +520,18 @@ export class ProductsService {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-        .slice(0, 80) || 'produit'
+        .slice(0, 60) || 'produit'
     );
   }
 
   private async uniqueSlug(boutiqueId: string, base: string): Promise<string> {
-    let slug = base;
-    let n = 1;
     while (true) {
+      const code = this.generateCode(6);
+      const slug = `${base}-${code}`;
       const existing = await this.prisma.product.findUnique({
         where: { boutiqueId_slug: { boutiqueId, slug } },
       });
       if (!existing) return slug;
-      n += 1;
-      slug = `${base}-${n}`;
     }
   }
 }

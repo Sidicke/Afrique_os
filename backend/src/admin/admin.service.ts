@@ -131,7 +131,7 @@ export class AdminService {
     const change = (current: number, previous: number) =>
       previous > 0 ? Math.round(((current - previous) / previous) * 1000) / 10 : 100;
 
-    const [pendingVerifications, openReports, activeStores, suspendedStores] =
+    const [pendingVerifications, openReports, activeSubscriptions, activeStores, suspendedStores] =
       await this.prisma.$transaction([
         this.prisma.boutique.count({ where: { verificationStatus: VerificationStatus.PENDING } }),
         this.prisma.moderationReport.count({
@@ -199,14 +199,35 @@ export class AdminService {
       performance: await this.buildPerformanceSeries(period, periodUsers, periodStores, periodOrders),
       activity: await this.buildActivity(start),
       snapshots: await this.buildSnapshots(),
-      systemStatus: [
-        { id: 'api', label: 'API', status: 'operational', detail: '100 %' },
-        { id: 'database', label: 'Base de données', status: 'operational', detail: '14 ms' },
-        { id: 'messaging', label: 'Messagerie temps réel', status: 'operational', detail: '12 connexions' },
-        { id: 'email', label: 'E-mails transactionnels', status: 'operational', detail: '3,4 s de latence' },
-        { id: 'storage', label: 'Stockage médias', status: 'operational', detail: '86 %' },
-      ],
+      systemStatus: await this.buildSystemStatus(),
     };
+  }
+
+  /** Calcule l'état réel du système à partir de métriques live (doc 03 §21). */
+  private async buildSystemStatus() {
+    const dbStart = Date.now();
+    const [productCount, pendingOrderCount] = await Promise.all([
+      this.prisma.product.count(),
+      this.prisma.order.count({ where: { status: { in: [OrderStatus.PENDING, OrderStatus.PAID] } } }),
+    ]);
+    const dbMs = Date.now() - dbStart;
+
+    const uptimeSeconds = Math.floor(process.uptime());
+    const hours = Math.floor(uptimeSeconds / 3600);
+    const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+    const uptimeLabel = hours > 0 ? `${hours}h ${minutes}min` : `${minutes} min`;
+
+    return [
+      { id: 'api', label: 'API', status: 'operational' as const, detail: `Uptime ${uptimeLabel}` },
+      {
+        id: 'database',
+        label: 'Base de données',
+        status: dbMs < 500 ? 'operational' as const : dbMs < 2000 ? 'degraded' as const : 'down' as const,
+        detail: `${dbMs} ms`,
+      },
+      { id: 'products', label: 'Catalogue produits', status: 'operational' as const, detail: `${productCount.toLocaleString('fr-FR')} réf.` },
+      { id: 'orders', label: 'Commandes en cours', status: 'operational' as const, detail: `${pendingOrderCount} actives` },
+    ];
   }
 
   /* ================================================================
@@ -404,28 +425,40 @@ export class AdminService {
         }),
       ]);
 
-    const rows = await Promise.all(
-      boutiques.map(async (b) => {
-        const agg = await this.prisma.order.aggregate({
-          where: { boutiqueId: b.id, status: { not: OrderStatus.CANCELLED } },
-          _count: true,
+    const boutiqueIds = boutiques.map((b) => b.id);
+    const orderAggregates = boutiqueIds.length > 0
+      ? await this.prisma.order.groupBy({
+          by: ['boutiqueId'],
+          where: { boutiqueId: { in: boutiqueIds }, status: { not: OrderStatus.CANCELLED } },
+          _count: { _all: true },
           _sum: { total: true },
-        });
-        return {
-          id: b.id,
-          name: b.name,
-          slug: b.slug,
-          merchantName: b.owner.name ?? b.owner.email,
-          status: STORE_STATUS_MAP[b.status],
-          verificationStatus: VERIFICATION_STATUS_MAP[b.verificationStatus],
-          plan: this.planName(b.plan),
-          ordersCount: agg._count,
-          gmvFcfa: Number(agg._sum.total ?? 0),
-          createdAt: b.createdAt.toISOString(),
-          lastActivityAt: b.updatedAt.toISOString(),
-        };
-      }),
-    );
+        })
+      : [];
+
+    const orderAggMap = new Map<string, { count: number; sum: number }>();
+    for (const agg of orderAggregates) {
+      orderAggMap.set(agg.boutiqueId, {
+        count: agg._count._all,
+        sum: Number(agg._sum.total ?? 0),
+      });
+    }
+
+    const rows = boutiques.map((b) => {
+      const agg = orderAggMap.get(b.id) ?? { count: 0, sum: 0 };
+      return {
+        id: b.id,
+        name: b.name,
+        slug: b.slug,
+        merchantName: b.owner.name ?? b.owner.email,
+        status: STORE_STATUS_MAP[b.status],
+        verificationStatus: VERIFICATION_STATUS_MAP[b.verificationStatus],
+        plan: this.planName(b.plan),
+        ordersCount: agg.count,
+        gmvFcfa: agg.sum,
+        createdAt: b.createdAt.toISOString(),
+        lastActivityAt: b.updatedAt.toISOString(),
+      };
+    });
 
     return {
       kpis: { total, active, pending, suspended, blocked, newStores },
@@ -949,34 +982,53 @@ export class AdminService {
       ]);
 
     const mrrValue = Number(mrr._sum.price ?? 0);
-    const planRows = await Promise.all(
-      plans.map(async (p) => {
-        const subs = await this.prisma.subscription.count({ where: { planId: p.id, status: SubscriptionStatus.ACTIVE } });
-        const previousMonthSubs = await this.prisma.subscription.count({
-          where: {
-            planId: p.id,
-            status: SubscriptionStatus.ACTIVE,
-            createdAt: { lt: this.range('30_days').start },
-          },
-        });
-        return {
-          id: p.id,
-          name: p.name,
-          description: p.description ?? '',
-          monthlyPriceFcfa: Number(p.price),
-          yearlyPriceFcfa: Number(p.price) * 12,
-          status: p.isActive ? 'ACTIVE' : 'DISABLED',
-          subscribersCount: subs,
-          mrrFcfa: Math.round(Number(p.price) * subs),
-          growthPercent: previousMonthSubs > 0
+    const planIds = plans.map((p) => p.id);
+    const [currentPlanCounts, previousPlanCounts] = await Promise.all([
+      planIds.length > 0
+        ? this.prisma.subscription.groupBy({
+            by: ['planId'],
+            where: { planId: { in: planIds }, status: SubscriptionStatus.ACTIVE },
+            _count: { _all: true },
+          })
+        : [],
+      planIds.length > 0
+        ? this.prisma.subscription.groupBy({
+            by: ['planId'],
+            where: {
+              planId: { in: planIds },
+              status: SubscriptionStatus.ACTIVE,
+              createdAt: { lt: this.range('30_days').start },
+            },
+            _count: { _all: true },
+          })
+        : [],
+    ]);
+
+    const currentMap = new Map(currentPlanCounts.map((c) => [c.planId, c._count._all]));
+    const previousMap = new Map(previousPlanCounts.map((c) => [c.planId, c._count._all]));
+
+    const planRows = plans.map((p) => {
+      const subs = currentMap.get(p.id) ?? 0;
+      const previousMonthSubs = previousMap.get(p.id) ?? 0;
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description ?? '',
+        monthlyPriceFcfa: Number(p.price),
+        yearlyPriceFcfa: Number(p.price) * 12,
+        status: p.isActive ? 'ACTIVE' : 'DISABLED',
+        subscribersCount: subs,
+        mrrFcfa: Math.round(Number(p.price) * subs),
+        growthPercent:
+          previousMonthSubs > 0
             ? Math.round(((subs - previousMonthSubs) / previousMonthSubs) * 1000) / 10
             : 100,
-          conversionPercent: 0,
-          churnPercent: 0,
-          shareOfMrrPercent: mrrValue > 0 ? Math.round((Number(p.price) * subs * 1000) / mrrValue) / 10 : 0,
-        };
-      }),
-    );
+        conversionPercent: 0,
+        churnPercent: 0,
+        shareOfMrrPercent:
+          mrrValue > 0 ? Math.round((Number(p.price) * subs * 1000) / mrrValue) / 10 : 0,
+      };
+    });
 
     const trialsExpiring = subscriptions
       .filter((s) => s.status === SubscriptionStatus.TRIAL && s.trialEndsAt)

@@ -10,6 +10,7 @@ import { PromotionsSection } from "./PromotionsSection";
 import { ProfileSection } from "./ProfileSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { FormuleSection } from "./FormuleSection";
+import { useSession } from "@/lib/useSession";
 
 export type SettingsSectionName =
   | "identite"
@@ -27,39 +28,42 @@ export type SettingsSectionName =
  * Les sections « profil » et « danger » n'ont pas besoin de la config : elles
  * s'affichent immédiatement (les hooks sont tous appelés avant tout retour).
  */
+import { Icon } from "@/components/dashboard/icons";
+
 export function SettingsSection({ section }: { section: SettingsSectionName }) {
   const { form, loading, saving, update, saveAll, savePatch, reset } = useSettingsForm();
-  const isStandalone = section === "profil" || section === "formule";
+  const session = useSession();
+  const boutiqueName = (session?.user as any)?.boutiqueName || session?.user?.boutiqueSlug;
+  const isStandalone = section === "profil" || section === "formule" || section === "notifications";
 
   if (isStandalone) {
     if (section === "profil") return <ProfileSection />;
+    if (section === "notifications") return <NotificationsSection />;
     return <FormuleSection />;
   }
 
   if (loading || !form) return <SettingsSkeleton />;
 
+  let content: React.ReactNode;
   switch (section) {
     case "identite":
-      return <IdentitySection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      content = <IdentitySection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      break;
     case "visuels":
-      return <VisualsSection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      content = <VisualsSection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      break;
     case "contacts":
-      return <ContactsSection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      content = <ContactsSection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      break;
     case "livraison":
-      return <DeliverySection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      content = <DeliverySection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      break;
     case "promotions":
-      return <PromotionsSection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
-    case "notifications":
-      return (
-        <NotificationsSection
-          form={form}
-          update={update}
-          saving={saving}
-          savePatch={savePatch}
-          reset={reset}
-        />
-      );
+      content = <PromotionsSection form={form} update={update} saving={saving} saveAll={saveAll} reset={reset} />;
+      break;
     default:
-      return null;
+      content = null;
   }
+
+  return <>{content}</>;
 }

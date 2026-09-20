@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
+import { useSession } from "@/lib/useSession";
+import { useCallback as _uc, useState } from "react";
 import { ShopSettings } from "@/types/dashboard";
 import { dashboardService } from "@/services/dashboardService";
 import { useAsyncResource } from "@/hooks/useAsyncResource";
 
 /** Paramètres boutique — prêts à être branchés sur l'API réelle sans toucher aux composants */
 export function useSettings() {
+  const boutiqueId = useSession()?.user?.boutiqueId;
   const { setData, ...resource } = useAsyncResource<ShopSettings>(
-    useCallback(() => dashboardService.getSettings(), []),
+    useCallback(() => dashboardService.getSettings(), [boutiqueId]),
     "Impossible de charger les paramètres."
   );
 

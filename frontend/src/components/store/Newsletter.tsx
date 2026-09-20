@@ -78,7 +78,7 @@ export function Newsletter() {
               {config.name}
             </h3>
             <p className="text-gray-400 leading-relaxed">
-              Inscrivez-vous pour recevoir nos nouveautés, promotions exclusives et conseils tech directement dans votre boîte mail.
+              Inscrivez-vous pour recevoir nos nouveautés, promotions exclusives et offres privilégiées directement dans votre boîte mail.
             </p>
           </div>
         </div>

@@ -63,27 +63,81 @@ export default function MesBoutiquesPage() {
     load();
   }, []);
 
+  const userPlan = boutiques.some((b) => b.plan === "enterprise")
+    ? "enterprise"
+    : boutiques.some((b) => b.plan === "business")
+    ? "business"
+    : "starter";
+
+  const maxBoutiques = userPlan === "enterprise" ? Infinity : userPlan === "business" ? 3 : 1;
+  const isLimitReached = boutiques.length >= maxBoutiques;
+
   return (
     <div className="flex flex-col gap-6">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink-950">Mes Boutiques</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-display text-2xl font-bold text-ink-950">Mes Boutiques</h1>
+            <span className={cn("rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase", PLAN_COLOR[userPlan])}>
+              {userPlan} · {boutiques.length}/{maxBoutiques === Infinity ? "∞" : maxBoutiques}
+            </span>
+          </div>
           <p className="mt-1 text-sm text-ink-500">
-            Gérez et switchez entre vos boutiques depuis cet espace centralisé.
+            {userPlan === "starter"
+              ? "Votre plan Starter inclut 1 boutique unique. Passez à Business pour gérer plusieurs enseignes."
+              : "Gérez et switchez entre vos boutiques depuis cet espace centralisé."}
           </p>
         </div>
-        <Link
-          href="/espace-vendeur/mes-boutiques/nouvelle"
-          className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-700/25 transition hover:bg-blue-800"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Nouvelle boutique
-        </Link>
+
+        {isLimitReached ? (
+          <Link
+            href="/espace-vendeur/parametres/formule"
+            className="flex items-center gap-2 rounded-xl border border-gold-soft bg-gold-wash px-4 py-2.5 text-sm font-semibold text-gold-strong shadow-xs transition hover:bg-gold-soft/30"
+            title="Votre forfait actuel a atteint sa limite de boutiques"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Passer à Business ({boutiques.length}/{maxBoutiques} boutique{maxBoutiques > 1 ? "s" : ""})</span>
+          </Link>
+        ) : (
+          <Link
+            href="/espace-vendeur/mes-boutiques/nouvelle"
+            className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-700/25 transition hover:bg-blue-800"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Nouvelle boutique
+          </Link>
+        )}
       </div>
+
+      {/* Alerte Plan Starter */}
+      {userPlan === "starter" && boutiques.length >= 1 && (
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-blue-200/80 bg-blue-50/60 p-4 text-xs text-blue-900">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 font-mono text-sm font-bold text-blue-700">
+              1/1
+            </span>
+            <div>
+              <p className="font-bold text-blue-950">Plan Starter — 1 boutique unique incluse</p>
+              <p className="text-blue-700/90">
+                La gestion de plusieurs boutiques indépendantes (jusqu&apos;à 3 enseignes simultanées) est réservée aux abonnés Business et Entreprise.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/espace-vendeur/parametres/formule"
+            className="shrink-0 rounded-xl bg-blue-700 px-3.5 py-2 font-semibold text-white shadow-sm transition hover:bg-blue-800"
+          >
+            Découvrir Business
+          </Link>
+        </div>
+      )}
 
       {/* Contenu */}
       {loading ? (
@@ -184,10 +238,19 @@ export default function MesBoutiquesPage() {
 
       {/* Infos plan */}
       <div className="rounded-2xl border border-gold-soft bg-gold-wash p-4">
-        <p className="text-sm font-medium text-ink-700">
-          💡 <strong>Plan actuel ({currentBoutiqueId ? boutiques.find(b => b.id === currentBoutiqueId)?.plan.toUpperCase() : "..."})</strong> : 
-          Le plan <strong>Starter</strong> autorise 1 boutique. Passez au plan <strong>Business</strong> pour aller jusqu'à 3, ou <strong>Enterprise</strong> pour l'illimité.
-        </p>
+        <div className="text-sm font-medium text-ink-700 flex flex-col gap-1">
+          {(() => {
+            const currentPlan = (currentBoutiqueId ? boutiques.find(b => b.id === currentBoutiqueId)?.plan : "starter")?.toLowerCase() || "starter";
+            return (
+              <>
+                <span>💡 <strong>Plan actuel : {currentPlan.toUpperCase()}</strong></span>
+                {currentPlan === 'starter' && <span>Le plan <strong>Starter</strong> autorise 1 boutique. Passez au plan <strong>Business</strong> pour en gérer jusqu'à 3 simultanément.</span>}
+                {currentPlan === 'business' && <span>Le plan <strong>Business</strong> vous permet de gérer jusqu'à 3 boutiques. Passez au plan <strong>Enterprise</strong> pour un nombre illimité.</span>}
+                {currentPlan === 'enterprise' && <span>Le plan <strong>Enterprise</strong> vous permet de gérer un nombre illimité de boutiques.</span>}
+              </>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/ui/PageHeader";
 import { DashboardCard } from "@/components/dashboard/ui/DashboardCard";
@@ -11,6 +11,9 @@ import { Field, TextInput, TextArea, SelectInput } from "@/components/dashboard/
 import { Icon } from "@/components/dashboard/icons";
 import { dashboardService } from "@/services/dashboardService";
 import { useProducts } from "@/hooks/useProducts";
+import { shopsApi } from "@/lib/api";
+import type { ApiShop } from "@/lib/api";
+import { useSession } from "@/lib/useSession";
 import type { BrandOption, CategoryOption, NewProductDraft } from "@/types/dashboard";
 
 interface VariantRow {
@@ -19,6 +22,7 @@ interface VariantRow {
   value: string;
   priceDelta: string;
   stock: string;
+  image: string; // base64 ou URL
 }
 
 const EMPTY_VARIANT: () => VariantRow = () => ({
@@ -27,7 +31,50 @@ const EMPTY_VARIANT: () => VariantRow = () => ({
   value: "",
   priceDelta: "",
   stock: "",
+  image: "",
 });
+
+/** Compression automatique côté navigateur pour éviter l'erreur 413 (Payload Too Large) */
+function compressImage(file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.82): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const src = e.target?.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(src);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl);
+      };
+      img.onerror = () => resolve(src);
+      img.src = src;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
 
 /** Bascule stylée (visibilité / mis en avant) */
 function Toggle({
@@ -70,13 +117,13 @@ function Toggle({
   );
 }
 
-/** En-tête de section de formulaire (icône + titre + description) */
+/** En-tête de section de formulaire */
 function SectionHeader({
   icon,
   title,
   description,
 }: {
-  icon: "package" | "wallet" | "basket" | "store" | "more" | "eye";
+  icon: "package" | "wallet" | "basket" | "store" | "more" | "eye" | "sparkle";
   title: string;
   description: string;
 }) {
@@ -93,9 +140,41 @@ function SectionHeader({
   );
 }
 
-export default function NouveauProduitPage() {
+function NouveauProduitForm() {
   const router = useRouter();
-  const { addProduct } = useProducts();
+  const searchParams = useSearchParams();
+  const queryBoutiqueId = searchParams.get("boutiqueId");
+  const { addProduct, data: allProducts } = useProducts("all");
+  const session = useSession();
+  const activeBoutiqueId = session?.user?.boutiqueId ?? null;
+
+  // Multi-boutique et gestion du plan
+  const [shops, setShops] = useState<ApiShop[]>([]);
+  const [selectedBoutiqueId, setSelectedBoutiqueId] = useState<string>("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    shopsApi.myShops().then((list) => {
+      setShops(list);
+      if (queryBoutiqueId && list.some((b) => b.id === queryBoutiqueId)) {
+        setSelectedBoutiqueId(queryBoutiqueId);
+      } else {
+        const active = list.find((s) => s.id === activeBoutiqueId) ?? list[0];
+        if (active) setSelectedBoutiqueId(active.id);
+      }
+    }).catch(() => {});
+  }, [activeBoutiqueId, queryBoutiqueId]);
+
+  // Contrôle des quotas selon le plan du vendeur
+  const userPlan = shops.some((s) => s.plan === "enterprise")
+    ? "enterprise"
+    : shops.some((s) => s.plan === "business")
+    ? "business"
+    : "starter";
+  const planLimit = userPlan === "enterprise" ? Infinity : userPlan === "business" ? 150 : 20;
+  const currentTotalProducts = allProducts?.length ?? 0;
+  const isAtLimit = planLimit !== Infinity && currentTotalProducts >= planLimit;
+  const remainingSlots = planLimit === Infinity ? Infinity : Math.max(0, planLimit - currentTotalProducts);
 
   const [form, setForm] = useState({
     name: "",
@@ -103,7 +182,7 @@ export default function NouveauProduitPage() {
     sku: "",
     price: "",
     oldPrice: "",
-    stock: "",
+    stock: "1",
     categoryId: "",
     newCategory: "",
     brandId: "",
@@ -112,7 +191,6 @@ export default function NouveauProduitPage() {
     isActive: true,
   });
   const [images, setImages] = useState<string[]>([]);
-  const [imageInput, setImageInput] = useState("");
   const [imageError, setImageError] = useState<string | null>(null);
   const [variants, setVariants] = useState<VariantRow[]>([]);
   const [categories, setCategories] = useState<CategoryOption[] | null>(null);
@@ -126,8 +204,6 @@ export default function NouveauProduitPage() {
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  // Chargement des catégories réelles de la boutique (aucun setState synchrone
-  // dans l'effet — les mises à jour arrivent uniquement via .then/.catch)
   const fetchCategories = useCallback(() => {
     dashboardService
       .getCategories()
@@ -138,7 +214,6 @@ export default function NouveauProduitPage() {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Marques de la boutique (même pattern que les catégories)
   const fetchBrands = useCallback(() => {
     dashboardService
       .getBrands()
@@ -159,25 +234,23 @@ export default function NouveauProduitPage() {
   const categoryCreating = form.categoryId === "__new__";
   const brandCreating = form.brandId === "__new__";
 
-  /** Valide la saisie et retourne le dictionnaire d'erreurs */
+  /** Validation */
   const validate = (): Record<string, string> => {
     const errs: Record<string, string> = {};
     if (form.name.trim().length < 2)
-      errs.name = "Le nom est requis (2 caractères minimum).";
-    // Validation sur la chaîne brute : Number() sur une saisie invalide donne
-    // NaN — jamais de prix silencieusement ramené à 0.
+      errs.name = "Le nom du produit est requis (2 caractères minimum).";
     if (
       form.price.trim() === "" ||
       Number.isNaN(Number(form.price)) ||
       Number(form.price) < 0
     )
-      errs.price = "Indiquez un prix valide (≥ 0).";
+      errs.price = "Indiquez un prix de vente valide (≥ 0 FCFA).";
     if (form.oldPrice.trim() !== "" && (Number.isNaN(oldPrice) || oldPrice <= 0))
       errs.oldPrice = "Prix barré invalide.";
     else if (oldPrice > 0 && oldPrice <= price)
       errs.oldPrice = "Le prix barré doit être supérieur au prix pour afficher une remise.";
     if (form.stock.trim() !== "" && (Number.isNaN(Number(form.stock)) || Number(form.stock) < 0))
-      errs.stock = "Stock invalide (≥ 0).";
+      errs.stock = "Quantité en stock invalide.";
     if (categoryCreating && form.newCategory.trim().length < 2)
       errs.newCategory = "Nommez la nouvelle catégorie (2 caractères minimum).";
     if (brandCreating && form.newBrand.trim().length < 2)
@@ -191,56 +264,29 @@ export default function NouveauProduitPage() {
     return errs;
   };
 
-  const addImage = () => {
-    const url = imageInput.trim();
-    if (!url) {
-      setImageError(null);
-      return;
-    }
-    if (!/^https?:\/\/|\//.test(url)) {
-      setImageError("URL invalide : collez une adresse http(s) ou un chemin /assets/…");
-      return;
-    }
-    setImageError(null);
-    setImages((prev) => (prev.includes(url) ? prev : [...prev, url]));
-    setImageInput("");
-  };
-
-  /** Ordre des champs en erreur → identifiants DOM (scroll vers le premier) */
-  const ERROR_FIELD_IDS: Array<[keyof typeof errors, string]> = [
-    ["name", "produit-name"],
-    ["price", "produit-price"],
-    ["oldPrice", "produit-oldprice"],
-    ["stock", "produit-stock"],
-    ["newCategory", "produit-categorie"],
-    ["newBrand", "produit-marque"],
-  ];
-
-  const scrollToFirstError = (errs: Record<string, string>) => {
-    const first = ERROR_FIELD_IDS.find(([key]) => errs[key]);
-    if (first) {
-      document
-        .getElementById(first[1])
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  };
-
   const removeImage = (url: string) =>
     setImages((prev) => prev.filter((i) => i !== url));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAtLimit) {
+      setSubmitError(
+        `Votre formule ${userPlan.toUpperCase()} est limitée à ${planLimit} produits. Passez à la formule supérieure pour ajouter ce produit.`
+      );
+      return;
+    }
+
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) {
-      // Laisse le temps aux messages d'erreur de s'afficher puis vise le premier
-      requestAnimationFrame(() => scrollToFirstError(errs));
+      const firstKey = Object.keys(errs)[0];
+      document.getElementById(`produit-${firstKey}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+
     setSaving(true);
     setSubmitError(null);
     try {
-      // Catégorie et marque créées à la volée si l'option « nouvelle » est choisie
       let categoryId = form.categoryId || undefined;
       if (categoryCreating) {
         const created = await dashboardService.createCategory(form.newCategory.trim());
@@ -262,6 +308,7 @@ export default function NouveauProduitPage() {
           ...(v.stock.trim() !== ""
             ? { stock: Math.max(0, Number(v.stock) || 0) }
             : {}),
+          ...(v.image.trim() ? { image: v.image.trim() } : {}),
         }));
 
       const draft: NewProductDraft = {
@@ -277,18 +324,17 @@ export default function NouveauProduitPage() {
         brandId,
         images: images.length ? images : undefined,
         variants: cleanVariants.length ? cleanVariants : undefined,
+        ...(selectedBoutiqueId ? { boutiqueId: selectedBoutiqueId } : {}),
       };
 
       const created = await addProduct(draft);
       try {
         sessionStorage.setItem("product-created", created.name);
-      } catch {
-        // Stockage indisponible : on redirige simplement
-      }
+      } catch {}
       router.push("/espace-vendeur/produits");
-    } catch (err) {
+    } catch (err: any) {
       setSubmitError(
-        err instanceof Error ? err.message : "Impossible de créer le produit."
+        err?.message || "Impossible de créer le produit. Vérifiez les champs ou votre formule."
       );
     } finally {
       setSaving(false);
@@ -296,13 +342,15 @@ export default function NouveauProduitPage() {
   };
 
   const cover = images[0];
+  const selectedShop = shops.find((s) => s.id === selectedBoutiqueId) || shops[0];
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+      {/* En-tête */}
       <PageHeader
         eyebrow="Catalogue · Nouveau produit"
         title="Ajouter un produit"
-        description="Complétez les informations ci-dessous : le produit apparaîtra dans votre vitrine dès la création."
+        description="Remplissez les informations essentielles : le produit sera immédiatement visible sur votre vitrine."
         actions={
           <Link
             href="/espace-vendeur/produits"
@@ -313,602 +361,642 @@ export default function NouveauProduitPage() {
         }
       />
 
-      {submitError && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-100/60 px-4 py-3 text-sm text-red-600">
-          <Icon name="alert" size={15} /> {submitError}
+      {/* Bannière de Quota & Restriction de Plan */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-display font-bold text-sm",
+              userPlan === "enterprise"
+                ? "bg-purple-100 text-purple-700 border border-purple-200"
+                : userPlan === "business"
+                ? "bg-gold-wash text-gold-strong border border-gold-soft"
+                : "bg-ink-100 text-ink-700"
+            )}
+          >
+            {userPlan === "enterprise" ? "ENT" : userPlan === "business" ? "PRO" : "STD"}
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-ink-950">
+                Formule {userPlan.toUpperCase()}
+              </span>
+              <span className="rounded-full bg-ink-100 px-2 py-0.5 font-mono text-[10px] font-bold text-ink-700">
+                {currentTotalProducts} / {planLimit === Infinity ? "Illimité" : `${planLimit} produits`}
+              </span>
+            </div>
+            <p className="text-xs text-ink-500 mt-0.5">
+              {planLimit === Infinity
+                ? "Formule Enterprise : ajout illimité de produits sur toutes vos enseignes."
+                : isAtLimit
+                ? "Limite de votre formule atteinte. Passez à la formule supérieure pour continuer."
+                : `Quota : il vous reste ${remainingSlots} place${remainingSlots > 1 ? "s" : ""} produit disponible${remainingSlots > 1 ? "s" : ""}.`}
+            </p>
+          </div>
+        </div>
+
+        {planLimit !== Infinity && (
+          <div className="w-full sm:w-44 flex flex-col gap-1.5">
+            <div className="flex justify-between text-[10px] font-mono text-ink-400">
+              <span>Utilisation</span>
+              <span>{Math.round((currentTotalProducts / planLimit) * 100)}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  isAtLimit ? "bg-red-500" : "bg-gold-strong"
+                )}
+                style={{
+                  width: `${Math.min(100, (currentTotalProducts / planLimit) * 100)}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Attribution Multi-Boutique */}
+      {shops.length > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-gold-soft bg-gold-wash/80 p-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-gold-strong shadow-xs">
+              <Icon name="store" size={18} strokeWidth={2.2} />
+            </span>
+            <div>
+              <label htmlFor="boutique-destinataire" className="block text-xs font-bold text-ink-950 uppercase tracking-wider">
+                Boutique d&apos;attribution
+              </label>
+              <p className="text-xs text-ink-500">
+                Choisissez sur quelle vitrine ce produit sera mis en vente.
+              </p>
+            </div>
+          </div>
+          <select
+            id="boutique-destinataire"
+            value={selectedBoutiqueId}
+            onChange={(e) => setSelectedBoutiqueId(e.target.value)}
+            className="w-full sm:w-64 rounded-xl border border-gold-mid/80 bg-white px-3.5 py-2.5 text-sm font-bold text-ink-950 shadow-xs focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer"
+          >
+            {shops.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        {/* ————— Colonne principale ————— */}
+      {submitError && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <Icon name="alert" size={16} className="shrink-0" />
+          <span>{submitError}</span>
+        </div>
+      )}
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* ————— Colonne Formulaire ————— */}
         <div className="flex flex-col gap-6">
-          {/* Infos générales */}
-          <DashboardCard className="flex flex-col gap-5 p-5">
+          {/* Étape 1 : L'Essentiel (Nom, Photos, Prix, Stock, Catégorie) */}
+          <DashboardCard className="flex flex-col gap-5 p-6 border-blue-100 shadow-sm">
             <SectionHeader
               icon="package"
-              title="Informations générales"
-              description="Le nom est obligatoire ; la description s'affiche sur la fiche produit de la vitrine."
+              title="1. L'Essentiel du produit"
+              description="Remplissez ces champs pour créer et mettre en vente votre produit en quelques secondes."
             />
-            <Field label="Nom du produit" hint="Affiché dans le catalogue et la fiche produit">
+
+            {/* Nom */}
+            <Field label="Nom de l'article *" hint="Nom accrocheur et descriptif">
               <TextInput
                 id="produit-name"
                 required
                 maxLength={120}
                 value={form.name}
                 onChange={(e) => set("name", e.target.value)}
-                placeholder="Ex. Tissu Wax Bazin Royal"
-                className={cn(errors.name && "border-red-300 focus:border-red-400 focus:ring-red-100")}
+                placeholder="Ex. Chargeur Rapide 65W ou Robe Wax Traditionnelle"
+                className={cn(
+                  "text-base py-3 font-medium",
+                  errors.name && "border-red-300 focus:border-red-400 focus:ring-red-100"
+                )}
               />
               {errors.name && (
-                <p className="mt-1 text-xs font-medium text-red-600">{errors.name}</p>
+                <p className="mt-1 text-xs font-semibold text-red-600">{errors.name}</p>
               )}
             </Field>
-            <Field label="Description" hint="Concis : 2 à 4 lignes donnent envie d'acheter">
-              <TextArea
-                maxLength={4000}
-                value={form.description}
-                onChange={(e) => set("description", e.target.value)}
-                placeholder="Matière, fabrication, conseils d'entretien…"
-                className="min-h-28"
-              />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Référence (SKU)" hint="Facultatif (pour votre gestion interne)">
-                <TextInput
-                  maxLength={80}
-                  value={form.sku}
-                  onChange={(e) => set("sku", e.target.value)}
-                  placeholder="Ex. WAX-ROYAL-001"
-                />
-              </Field>
-            </div>
-          </DashboardCard>
 
-          {/* Prix & promotion */}
-          <DashboardCard className="flex flex-col gap-5 p-5">
-            <SectionHeader
-              icon="wallet"
-              title="Prix & promotion"
-              description="Le prix barré affiche la remise automatiquement dans la vitrine (−X %)."
-            />
+            {/* Photos du produit — Placées en avant pour une UX fluide */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-ink-900">
+                Photos du produit <span className="text-ink-400 font-normal">(la 1ère sera la couverture)</span>
+              </label>
+
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-ink-200 bg-ink-50/50 p-6 text-center hover:bg-blue-50/40 hover:border-blue-400 transition-all">
+                <Icon name="upload" size={26} className="text-blue-600 mb-1.5" />
+                <span className="text-sm font-bold text-ink-900">
+                  Ajouter des photos (ordinateur ou smartphone)
+                </span>
+                <span className="text-xs text-ink-400 mt-0.5">
+                  Glissez vos images ici ou cliquez pour parcourir · PNG, JPG, WEBP (max 5 Mo)
+                </span>
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    if (imageError) setImageError(null);
+                    const files = Array.from(e.target.files || []);
+                    for (const file of files) {
+                      try {
+                        const compressed = await compressImage(file, 1200, 1200, 0.82);
+                        if (compressed) {
+                          setImages((prev) => [...prev, compressed]);
+                        }
+                      } catch {
+                        setImageError("Erreur lors de la lecture d'une des photos.");
+                      }
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+
+              {imageError && (
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-red-600 mt-1">
+                  <Icon name="alert" size={13} /> {imageError}
+                </p>
+              )}
+
+              {/* Galerie des vignettes ajoutées */}
+              {images.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 mt-2">
+                  {images.map((url, i) => (
+                    <div key={url} className="group relative aspect-square overflow-hidden rounded-xl border border-line bg-white shadow-xs">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" />
+                      {i === 0 && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-blue-700/90 py-0.5 text-center text-[9px] font-bold uppercase tracking-wider text-white">
+                          ★ Couverture
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(url)}
+                        className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-ink-950/80 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
+                        title="Supprimer la photo"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Prix & Stock en 2 colonnes simples */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Prix de vente (FCFA)">
+              <Field label="Prix de vente (FCFA) *">
                 <TextInput
                   id="produit-price"
                   required
                   type="number"
                   min={0}
-                  step="any"
                   value={form.price}
                   onChange={(e) => set("price", e.target.value)}
-                  placeholder="0"
-                  className={cn(errors.price && "border-red-300 focus:border-red-400 focus:ring-red-100")}
+                  placeholder="Ex. 15000"
+                  className={cn(
+                    "text-base font-bold",
+                    errors.price && "border-red-300 focus:border-red-400 focus:ring-red-100"
+                  )}
                 />
                 {errors.price && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.price}</p>
+                  <p className="mt-1 text-xs font-semibold text-red-600">{errors.price}</p>
                 )}
               </Field>
-              <Field label="Prix barré (FCFA)" hint="Ancien prix (sert de référence à la promotion)">
-                <div className="relative">
-                  <TextInput
-                    id="produit-oldprice"
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={form.oldPrice}
-                    onChange={(e) => set("oldPrice", e.target.value)}
-                    placeholder="0"
-                    className={cn(
-                      "pr-14",
-                      errors.oldPrice && "border-red-300 focus:border-red-400 focus:ring-red-100"
-                    )}
-                  />
-                  {discountPercent !== null && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-green-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-green-700">
-                      −{discountPercent}%
-                    </span>
-                  )}
-                </div>
-                {errors.oldPrice && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.oldPrice}</p>
-                )}
-              </Field>
-            </div>
 
-            {/* Aperçu prix en direct */}
-            {price > 0 && (
-              <div className="flex items-center gap-3 rounded-xl border border-line bg-ink-50 px-4 py-3">
-                <Icon name="sparkle" size={15} className="text-gold-strong" />
-                <div className="text-sm">
-                  {discountPercent !== null ? (
-                    <span className="flex items-baseline gap-2">
-                      <span className="text-ink-400 line-through">{formatCurrency(oldPrice)}</span>
-                      <span className="font-mono text-base font-bold text-ink-950">
-                        {formatCurrency(price)}
-                      </span>
-                      <span className="font-mono text-[10px] font-bold text-green-700">
-                        −{discountPercent}%
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="font-mono text-base font-bold text-ink-950">
-                      {formatCurrency(price)}
-                    </span>
-                  )}
-                  <span className="ml-2 text-xs text-ink-400">prix affiché dans la vitrine</span>
-                </div>
-              </div>
-            )}
-          </DashboardCard>
-
-          {/* Stock & visibilité */}
-          <DashboardCard className="flex flex-col gap-5 p-5">
-            <SectionHeader
-              icon="basket"
-              title="Stock & visibilité"
-              description="Le stock alimente le badge de disponibilité ; désactivez le produit pour le cacher de la vitrine."
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Quantité en stock">
+              <Field label="Quantité en stock *">
                 <TextInput
                   id="produit-stock"
                   type="number"
                   min={0}
                   value={form.stock}
                   onChange={(e) => set("stock", e.target.value)}
-                  placeholder="0"
+                  placeholder="1"
                   className={cn(errors.stock && "border-red-300 focus:border-red-400 focus:ring-red-100")}
                 />
                 {errors.stock && (
-                  <p className="mt-1 text-xs font-medium text-red-600">{errors.stock}</p>
+                  <p className="mt-1 text-xs font-semibold text-red-600">{errors.stock}</p>
                 )}
               </Field>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Toggle
-                checked={form.isActive}
-                onChange={(v) => set("isActive", v)}
-                label="Visible dans la vitrine"
-                description="Un produit inactif reste dans votre catalogue mais n'est pas affiché."
-              />
-              <Toggle
-                checked={form.isFeatured}
-                onChange={(v) => set("isFeatured", v)}
-                label="Mis en avant"
-                description="Apparaît en premier dans le catalogue et la page d'accueil."
-              />
-            </div>
-          </DashboardCard>
 
-          {/* Catégorie */}
-          <DashboardCard className="flex flex-col gap-5 p-5">
-            <SectionHeader
-              icon="store"
-              title="Catégorie"
-              description="Rattachez le produit à une catégorie existante ou créez-en une à la volée."
-            />
-            {categoriesError ? (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-                <span>Impossible de charger vos catégories.</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCategoriesError(false);
-                    fetchCategories();
-                  }}
-                  className="flex cursor-pointer items-center gap-1.5 font-semibold underline underline-offset-2"
-                >
-                  <Icon name="refresh" size={12} /> Réessayer
-                </button>
-              </div>
-            ) : !categories ? (
-              <Skeleton className="h-11 w-full" />
-            ) : (
-              <>
-                <Field label="Catégorie du produit">
+            {/* Catégorie */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-ink-900">Catégorie</label>
+              {categoriesError ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                  Impossible de charger vos catégories.
+                </div>
+              ) : !categories ? (
+                <Skeleton className="h-11 w-full" />
+              ) : (
+                <div className="flex flex-col gap-2">
                   <SelectInput
+                    id="produit-categoryId"
                     value={form.categoryId}
                     onChange={(e) => set("categoryId", e.target.value)}
+                    className="font-medium text-sm"
                   >
-                    <option value="">Sans catégorie</option>
+                    <option value="">Sélectionnez une catégorie (ou Sans catégorie)</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
                     ))}
-                    <option value="__new__">Créer une nouvelle catégorie…</option>
+                    <option value="__new__">+ Créer une nouvelle catégorie…</option>
                   </SelectInput>
-                </Field>
-                {categoryCreating && (
-                  <Field label="Nom de la nouvelle catégorie">
-                    <div className="relative">
+
+                  {categoryCreating && (
+                    <div className="mt-1 flex flex-col gap-1">
                       <TextInput
-                        id="produit-categorie"
+                        id="produit-newCategory"
                         autoFocus
-                        maxLength={60}
                         value={form.newCategory}
                         onChange={(e) => set("newCategory", e.target.value)}
-                        placeholder="Ex. Maison & Déco"
-                        className={cn(errors.newCategory && "border-red-300 focus:border-red-400 focus:ring-red-100")}
+                        placeholder="Nom de la nouvelle catégorie (ex: Accessoires Tech)"
                       />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-wider text-ink-300">
-                        Nouvelle
-                      </span>
-                    </div>
-                    {errors.newCategory && (
-                      <p className="mt-1 text-xs font-medium text-red-600">{errors.newCategory}</p>
-                    )}
-                  </Field>
-                )}
-                {categories.length === 0 && !categoryCreating && (
-                  <p className="text-xs text-ink-400">
-                    Vous n&apos;avez pas encore de catégorie : créez-en une ci-dessus.
-                  </p>
-                )}
-              </>
-            )}
-          </DashboardCard>
-
-          {/* Marque */}
-          <DashboardCard className="flex flex-col gap-5 p-5">
-            <SectionHeader
-              icon="store"
-              title="Marque"
-              description="Rattachez le produit à une marque (ex. Samsung, Vlisco…) : vos clients pourront filtrer la vitrine par marque."
-            />
-            {brandsError ? (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-                <span>Impossible de charger vos marques.</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBrandsError(false);
-                    fetchBrands();
-                  }}
-                  className="flex cursor-pointer items-center gap-1.5 font-semibold underline underline-offset-2"
-                >
-                  <Icon name="refresh" size={12} /> Réessayer
-                </button>
-              </div>
-            ) : !brands ? (
-              <Skeleton className="h-11 w-full" />
-            ) : (
-              <>
-                <Field label="Marque du produit">
-                  <SelectInput
-                    value={form.brandId}
-                    onChange={(e) => set("brandId", e.target.value)}
-                  >
-                    <option value="">Sans marque</option>
-                    {brands.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                    <option value="__new__">Créer une nouvelle marque…</option>
-                  </SelectInput>
-                </Field>
-                {brandCreating && (
-                  <Field label="Nom de la nouvelle marque">
-                    <div className="relative">
-                      <TextInput
-                        id="produit-marque"
-                        autoFocus
-                        maxLength={60}
-                        value={form.newBrand}
-                        onChange={(e) => set("newBrand", e.target.value)}
-                        placeholder="Ex. Samsung"
-                        className={cn(errors.newBrand && "border-red-300 focus:border-red-400 focus:ring-red-100")}
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-wider text-ink-300">
-                        Nouvelle
-                      </span>
-                    </div>
-                    {errors.newBrand && (
-                      <p className="mt-1 text-xs font-medium text-red-600">{errors.newBrand}</p>
-                    )}
-                  </Field>
-                )}
-                {brands.length === 0 && !brandCreating && (
-                  <p className="text-xs text-ink-400">
-                    Vous n&apos;avez pas encore de marque : créez-en une ci-dessus pour classer vos
-                    produits (ex. Samsung, Apple, Anker…).
-                  </p>
-                )}
-              </>
-            )}
-          </DashboardCard>
-
-          {/* Variantes */}
-          <DashboardCard className="flex flex-col gap-5 p-5">
-            <SectionHeader
-              icon="more"
-              title="Variantes"
-              description="Taille, couleur, modèle… Chaque variante a son stock propre et une éventuelle surcharge de prix."
-            />
-            {variants.length === 0 && (
-              <p className="text-xs text-ink-400">
-                Aucune variante : le produit sera vendu tel quel. Ajoutez-en une pour proposer des options.
-              </p>
-            )}
-            {variants.length > 0 && (
-              <div className="space-y-2.5">
-                {variants.map((v, i) => (
-                  <div
-                    key={v.key}
-                    className="grid grid-cols-2 gap-2 rounded-xl border border-line bg-ink-50 p-2.5 sm:grid-cols-[1fr_1fr_110px_90px_36px]"
-                  >
-                    <Field label={i === 0 ? "Type" : undefined}>
-                      <TextInput
-                        aria-label={i > 0 ? `Type de la variante ${i + 1}` : undefined}
-                        value={v.name}
-                        onChange={(e) =>
-                          setVariants((prev) =>
-                            prev.map((r) => (r.key === v.key ? { ...r, name: e.target.value } : r))
-                          )
-                        }
-                        placeholder="Couleur"
-                        className="bg-white"
-                      />
-                    </Field>
-                    <Field label={i === 0 ? "Valeur" : undefined}>
-                      <TextInput
-                        aria-label={i > 0 ? `Valeur de la variante ${i + 1}` : undefined}
-                        value={v.value}
-                        onChange={(e) =>
-                          setVariants((prev) =>
-                            prev.map((r) => (r.key === v.key ? { ...r, value: e.target.value } : r))
-                          )
-                        }
-                        placeholder="Noir"
-                        className="bg-white"
-                      />
-                    </Field>
-                    <Field label={i === 0 ? "Δ Prix" : undefined}>
-                      <TextInput
-                        aria-label={i > 0 ? `Surcharge de prix de la variante ${i + 1}` : undefined}
-                        type="number"
-                        min={0}
-                        value={v.priceDelta}
-                        onChange={(e) =>
-                          setVariants((prev) =>
-                            prev.map((r) => (r.key === v.key ? { ...r, priceDelta: e.target.value } : r))
-                          )
-                        }
-                        placeholder="+0"
-                        className="bg-white"
-                      />
-                    </Field>
-                    <Field label={i === 0 ? "Stock" : undefined}>
-                      <TextInput
-                        aria-label={i > 0 ? `Stock de la variante ${i + 1}` : undefined}
-                        type="number"
-                        min={0}
-                        value={v.stock}
-                        onChange={(e) =>
-                          setVariants((prev) =>
-                            prev.map((r) => (r.key === v.key ? { ...r, stock: e.target.value } : r))
-                          )
-                        }
-                        placeholder="0"
-                        className="bg-white"
-                      />
-                    </Field>
-                    <div className="flex items-end justify-end pb-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setVariants((prev) => prev.filter((r) => r.key !== v.key))}
-                        className="cursor-pointer rounded-lg p-2 text-ink-400 transition-colors hover:bg-red-100/70 hover:text-red-600"
-                        aria-label={`Supprimer la variante ${v.value || v.name || i + 1}`}
-                      >
-                        <Icon name="trash" size={15} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {errors.variants && (
-              <p className="flex items-center gap-1.5 text-xs font-medium text-red-600">
-                <Icon name="alert" size={12} /> {errors.variants}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => setVariants((prev) => [...prev, EMPTY_VARIANT()])}
-              className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-dashed border-ink-300 px-3.5 py-2 text-xs font-semibold text-ink-600 transition-colors hover:border-blue-600 hover:text-blue-700"
-            >
-              <Icon name="plus" size={13} strokeWidth={2.2} /> Ajouter une variante
-            </button>
-          </DashboardCard>
-
-          {/* Images */}
-          <DashboardCard className="flex flex-col gap-5 p-5">
-            <SectionHeader
-              icon="eye"
-              title="Images"
-              description="Collez les URLs de vos photos. La première image sert de couverture dans la vitrine."
-            />
-            <div className="flex gap-2">
-              <TextInput
-                value={imageInput}
-                onChange={(e) => {
-                  setImageInput(e.target.value);
-                  if (imageError) setImageError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addImage();
-                  }
-                }}
-                placeholder="https://… (ou /assets/…) puis Entrée"
-                className={cn("flex-1", imageError && "border-red-300 focus:border-red-400 focus:ring-red-100")}
-              />
-              <button
-                type="button"
-                onClick={addImage}
-                disabled={!imageInput.trim()}
-                className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-ink-950 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Icon name="plus" size={13} strokeWidth={2.2} /> Ajouter
-              </button>
-            </div>
-            {imageError && (
-              <p className="flex items-center gap-1.5 text-xs font-medium text-red-600">
-                <Icon name="alert" size={12} /> {imageError}
-              </p>
-            )}
-
-            {images.length > 0 ? (
-              <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-                {images.map((url, i) => (
-                  <li key={url} className="group relative">
-                    <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-ink-50">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt={`Image ${i + 1} du produit`}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src =
-                            "/assets/boutique/gadget-importe.jpg";
-                        }}
-                      />
-                      {i === 0 && (
-                        <span className="absolute left-1.5 top-1.5 rounded-md bg-ink-950/80 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-gold-300">
-                          Couverture
-                        </span>
+                      {errors.newCategory && (
+                        <p className="text-xs font-semibold text-red-600">{errors.newCategory}</p>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => removeImage(url)}
-                        className="absolute right-1.5 top-1.5 cursor-pointer rounded-md bg-ink-950/70 p-1 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
-                        aria-label="Retirer l'image"
-                      >
-                        <Icon name="x" size={11} strokeWidth={2.4} />
-                      </button>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-ink-400">
-                Aucune image pour l&apos;instant : un visuel par défaut sera affiché en attendant.
-              </p>
-            )}
-          </DashboardCard>
-        </div>
-
-        {/* ————— Colonne aperçu ————— */}
-        <aside className="sticky top-0 flex flex-col gap-4">
-          <DashboardCard className="overflow-hidden">
-            <div className="relative aspect-[4/3] bg-ink-50">
-              {cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={cover} alt="Aperçu du produit" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-300">
-                  <Icon name="package" size={28} strokeWidth={1.3} />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.25em]">
-                    Aperçu
-                  </span>
+                  )}
                 </div>
               )}
             </div>
-            <div className="p-4">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-gold-strong">
-                {categories?.find((c) => c.id === form.categoryId)?.name ??
-                  (categoryCreating ? form.newCategory.trim() || "Nouvelle catégorie" : "Sans catégorie")}
-                {brands?.find((b) => b.id === form.brandId) || brandCreating ? (
-                  <span className="ml-1.5 text-ink-400">·</span>
-                ) : null}{" "}
-                {brands?.find((b) => b.id === form.brandId)?.name ??
-                  (brandCreating ? form.newBrand.trim() || "Nouvelle marque" : "")}
-              </p>
-              <h3 className="mt-1 line-clamp-1 font-display text-base font-semibold text-ink-950">
-                {form.name.trim() || "Nom du produit"}
-              </h3>
-              <div className="mt-2 flex items-baseline gap-2">
-                {price > 0 &&
-                  (discountPercent !== null ? (
-                    <>
-                      <span className="text-sm text-ink-400 line-through">{formatCurrency(oldPrice)}</span>
-                      <span className="font-mono text-base font-bold text-ink-950">{formatCurrency(price)}</span>
-                      <span className="rounded bg-green-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-green-700">
-                        −{discountPercent}%
-                      </span>
-                    </>
-                  ) : (
-                    <span className="font-mono text-base font-bold text-ink-950">{formatCurrency(price)}</span>
-                  ))}
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-xs text-ink-500">
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 rounded-full",
-                      Number(form.stock) > 0 ? "bg-green-600" : "bg-red-400"
-                    )}
-                  />
-                  {form.stock.trim() === "" ? "Stock non renseigné" : `${form.stock} en stock`}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Icon
-                    name={form.isActive ? "eye" : "x"}
-                    size={12}
-                    className={form.isActive ? "text-green-700" : "text-ink-400"}
-                  />
-                  {form.isActive ? "Visible" : "Masqué"}
-                </span>
-              </div>
-              {variants.some((v) => v.name.trim() && v.value.trim()) && (
-                <p className="mt-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-gold-strong">
-                  <Icon name="more" size={12} />
-                  {variants.filter((v) => v.name.trim() && v.value.trim()).length} variante(s)
-                </p>
-              )}
-            </div>
           </DashboardCard>
 
-          <div className="rounded-2xl border border-line bg-surface p-4 text-xs leading-relaxed text-ink-500">
-            <p className="mb-2 flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-              <Icon name="sparkle" size={12} className="text-gold-strong" /> Bon à savoir
-            </p>
-            <ul className="space-y-1.5">
-              <li>• Le slug est généré automatiquement depuis le nom.</li>
-              <li>• Le stock des variantes est décrémenté à chaque commande.</li>
-              <li>• Une remise n&apos;est affichée que si le prix barré est supérieur au prix.</li>
-            </ul>
+          {/* Bouton dépliant pour les options avancées */}
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center justify-between rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-blue-400 shadow-xs"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-ink-100 text-ink-700">
+                <Icon name={showAdvanced ? "chevronUp" : "chevronDown"} size={16} />
+              </span>
+              <div>
+                <p className="text-sm font-bold text-ink-950">
+                  {showAdvanced ? "Masquer les options avancées" : "Personnaliser davantage (description, promotions, variantes...)"}
+                </p>
+                <p className="text-xs text-ink-500">
+                  Facultatif · Ajoutez une description détaillée, un prix barré, des variantes avec photo dédiée ou une marque.
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-semibold text-blue-700">
+              {showAdvanced ? "Replier" : "Déplier"}
+            </span>
+          </button>
+
+          {/* Étape 2 : Options avancées & Détails (dépliables pour garder l'UI épurée) */}
+          {showAdvanced && (
+            <div className="flex flex-col gap-6 animate-fadeIn">
+              {/* Description détaillée */}
+              <DashboardCard className="flex flex-col gap-4 p-5">
+                <SectionHeader
+                  icon="sparkle"
+                  title="Description détaillée"
+                  description="Donnez envie d'acheter en décrivant les atouts de votre produit."
+                />
+                <TextArea
+                  maxLength={4000}
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  placeholder="Caractéristiques, conseils d'utilisation, garantie…"
+                  className="min-h-24 text-sm"
+                />
+              </DashboardCard>
+
+              {/* Promotion & Prix barré */}
+              <DashboardCard className="flex flex-col gap-4 p-5">
+                <SectionHeader
+                  icon="wallet"
+                  title="Promotion (Prix barré)"
+                  description="Affichez une remise automatique en renseignant l'ancien prix plus élevé."
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Ancien prix barré (FCFA)" hint="Doit être supérieur au prix de vente">
+                    <TextInput
+                      id="produit-oldPrice"
+                      type="number"
+                      min={0}
+                      value={form.oldPrice}
+                      onChange={(e) => set("oldPrice", e.target.value)}
+                      placeholder="Ex. 20000"
+                    />
+                    {errors.oldPrice && (
+                      <p className="mt-1 text-xs font-semibold text-red-600">{errors.oldPrice}</p>
+                    )}
+                  </Field>
+
+                  {discountPercent !== null && (
+                    <div className="flex items-center">
+                      <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-xs text-green-800 font-semibold">
+                        🎉 Remise de {discountPercent}% affichée sur la vitrine.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </DashboardCard>
+
+              {/* Référence SKU & Marque */}
+              <DashboardCard className="flex flex-col gap-4 p-5">
+                <SectionHeader
+                  icon="store"
+                  title="Référence & Marque"
+                  description="Pour votre gestion de stock interne et le filtrage dans la vitrine."
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Référence (SKU)" hint="Optionnel">
+                    <TextInput
+                      maxLength={80}
+                      value={form.sku}
+                      onChange={(e) => set("sku", e.target.value)}
+                      placeholder="Ex. TECH-CH-65W"
+                    />
+                  </Field>
+
+                  <Field label="Marque">
+                    <SelectInput
+                      value={form.brandId}
+                      onChange={(e) => set("brandId", e.target.value)}
+                    >
+                      <option value="">Sans marque</option>
+                      {brands?.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                      <option value="__new__">+ Créer une nouvelle marque…</option>
+                    </SelectInput>
+                    {brandCreating && (
+                      <TextInput
+                        className="mt-2"
+                        autoFocus
+                        value={form.newBrand}
+                        onChange={(e) => set("newBrand", e.target.value)}
+                        placeholder="Nom de la marque (ex: Apple, Samsung)"
+                      />
+                    )}
+                  </Field>
+                </div>
+              </DashboardCard>
+
+              {/* Variantes (Tailles, Couleurs) */}
+              <DashboardCard className="flex flex-col gap-4 p-5">
+                <SectionHeader
+                  icon="more"
+                  title="Variantes du produit"
+                  description="Proposez plusieurs tailles, couleurs ou capacités, chacune avec sa propre photo et son stock."
+                />
+
+                {variants.length > 0 && (
+                  <div className="space-y-3">
+                    {variants.map((v, i) => (
+                      <div key={v.key} className="flex flex-col gap-3 rounded-xl border border-line bg-ink-50/60 p-3">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_100px_90px_36px]">
+                          <TextInput
+                            value={v.name}
+                            onChange={(e) =>
+                              setVariants((prev) =>
+                                prev.map((r) => (r.key === v.key ? { ...r, name: e.target.value } : r))
+                              )
+                            }
+                            placeholder="Type (ex: Couleur)"
+                            className="bg-white text-xs"
+                          />
+                          <TextInput
+                            value={v.value}
+                            onChange={(e) =>
+                              setVariants((prev) =>
+                                prev.map((r) => (r.key === v.key ? { ...r, value: e.target.value } : r))
+                              )
+                            }
+                            placeholder="Valeur (ex: Noir)"
+                            className="bg-white text-xs"
+                          />
+                          <TextInput
+                            type="number"
+                            min={0}
+                            value={v.priceDelta}
+                            onChange={(e) =>
+                              setVariants((prev) =>
+                                prev.map((r) => (r.key === v.key ? { ...r, priceDelta: e.target.value } : r))
+                              )
+                            }
+                            placeholder="+0 FCFA"
+                            className="bg-white text-xs"
+                          />
+                          <TextInput
+                            type="number"
+                            min={0}
+                            value={v.stock}
+                            onChange={(e) =>
+                              setVariants((prev) =>
+                                prev.map((r) => (r.key === v.key ? { ...r, stock: e.target.value } : r))
+                              )
+                            }
+                            placeholder="Stock"
+                            className="bg-white text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setVariants((prev) => prev.filter((r) => r.key !== v.key))}
+                            className="flex items-center justify-center rounded-lg text-ink-400 hover:bg-red-50 hover:text-red-600"
+                            title="Supprimer la variante"
+                          >
+                            <Icon name="trash" size={15} />
+                          </button>
+                        </div>
+
+                        {/* Photo spécifique de variante */}
+                        <div className="flex items-center gap-3">
+                          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-ink-300 bg-white px-3 py-1 text-xs font-semibold text-ink-600 hover:border-blue-600 hover:text-blue-700">
+                            <Icon name="upload" size={13} />
+                            {v.image ? "Changer la photo" : "Photo de cette variante"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const compressed = await compressImage(file, 800, 800, 0.8);
+                                setVariants((prev) =>
+                                  prev.map((r) => (r.key === v.key ? { ...r, image: compressed } : r))
+                                );
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                          {v.image && (
+                            <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-line">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={v.image} alt={v.value} className="h-full w-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setVariants((prev) => prev.map((r) => r.key === v.key ? { ...r, image: "" } : r))}
+                                className="absolute inset-0 flex items-center justify-center bg-black/60 text-white opacity-0 hover:opacity-100"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setVariants((prev) => [...prev, EMPTY_VARIANT()])}
+                  className="flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-dashed border-ink-300 px-3.5 py-2 text-xs font-semibold text-ink-700 hover:border-blue-600 hover:text-blue-700"
+                >
+                  <Icon name="plus" size={13} strokeWidth={2.2} /> Ajouter une option / variante
+                </button>
+              </DashboardCard>
+
+              {/* Visibilité */}
+              <DashboardCard className="flex flex-col gap-4 p-5">
+                <SectionHeader
+                  icon="eye"
+                  title="Visibilité"
+                  description="Contrôlez l'affichage immédiat du produit sur votre vitrine."
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Toggle
+                    checked={form.isActive}
+                    onChange={(v) => set("isActive", v)}
+                    label="Visible dans la vitrine"
+                    description="Si désactivé, le produit reste dans votre inventaire sans être vendu."
+                  />
+                  <Toggle
+                    checked={form.isFeatured}
+                    onChange={(v) => set("isFeatured", v)}
+                    label="Mettre en vedette"
+                    description="Affiché en tête de votre page d'accueil."
+                  />
+                </div>
+              </DashboardCard>
+            </div>
+          )}
+        </div>
+
+        {/* ————— Colonne Droite : Aperçu Vitrine en Direct ————— */}
+        <aside className="sticky top-20 flex flex-col gap-4">
+          <div className="rounded-2xl border border-line bg-surface p-4 shadow-sm">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-gold-strong block mb-3">
+              Aperçu en direct · Vitrine client
+            </span>
+
+            <div className="overflow-hidden rounded-xl border border-line bg-ink-50">
+              <div className="relative aspect-square w-full overflow-hidden bg-ink-100">
+                {cover ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={cover} alt="Aperçu" className="h-full w-full object-cover transition-all" />
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-300">
+                    <Icon name="package" size={32} strokeWidth={1.2} />
+                    <span className="text-xs">Aucune photo</span>
+                  </div>
+                )}
+                {discountPercent !== null && (
+                  <span className="absolute top-2.5 right-2.5 rounded-full bg-red-600 px-2 py-0.5 font-mono text-[10px] font-bold text-white shadow-xs">
+                    −{discountPercent}%
+                  </span>
+                )}
+              </div>
+
+              <div className="p-4 bg-white">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-ink-400 truncate">
+                  {categories?.find((c) => c.id === form.categoryId)?.name ?? (categoryCreating ? form.newCategory || "Catégorie" : "Sans catégorie")}
+                </p>
+                <h3 className="font-display text-sm font-bold text-ink-950 mt-1 truncate">
+                  {form.name.trim() || "Titre de votre produit"}
+                </h3>
+
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="font-mono text-base font-bold text-ink-950">
+                    {price > 0 ? formatCurrency(price) : "0 FCFA"}
+                  </span>
+                  {discountPercent !== null && (
+                    <span className="text-xs text-ink-400 line-through">
+                      {formatCurrency(oldPrice)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-line/60 pt-3 text-[11px] text-ink-500">
+                  <span className="flex items-center gap-1.5">
+                    <span className={cn("h-2 w-2 rounded-full", Number(form.stock) > 0 ? "bg-green-600" : "bg-red-400")} />
+                    {Number(form.stock) > 0 ? `${form.stock} en stock` : "Rupture"}
+                  </span>
+                  <span className="text-ink-400 font-mono text-[10px]">
+                    {selectedShop?.name || "Boutique"}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </aside>
       </div>
 
-      {/* Barre d'action collante */}
-      <div className="sticky bottom-0 z-10 -mx-4 flex items-center justify-end gap-2.5 border-t border-line bg-paper/90 px-4 py-3.5 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <Link
-          href="/espace-vendeur/produits"
-          className="rounded-xl border border-line bg-surface px-4 py-2.5 text-xs font-medium text-ink-600 transition-colors hover:border-ink-300 hover:text-ink-950"
-        >
-          Annuler
-        </Link>
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex cursor-pointer items-center gap-2 rounded-xl bg-ink-950 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-ink-950/15 transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-700/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? (
-            <>
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              Création…
-            </>
+      {/* Barre d'action fixe en bas */}
+      <div className="sticky bottom-0 z-10 -mx-4 flex items-center justify-between gap-4 border-t border-line bg-paper/95 px-4 py-3.5 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 shadow-md">
+        <div className="text-xs text-ink-500 hidden sm:block">
+          {isAtLimit ? (
+            <span className="text-red-600 font-semibold">⚠️ Limite de produits atteinte pour votre plan.</span>
           ) : (
-            <>
-              <Icon name="check" size={14} strokeWidth={2.2} /> Créer le produit
-            </>
+            <span>Prêt à publier ? Votre article sera disponible immédiatement.</span>
           )}
-        </button>
+        </div>
+
+        <div className="flex items-center gap-3 ml-auto">
+          <Link
+            href="/espace-vendeur/produits"
+            className="rounded-xl border border-line bg-surface px-4 py-2.5 text-xs font-semibold text-ink-600 hover:bg-ink-50 transition"
+          >
+            Annuler
+          </Link>
+
+          <button
+            type="submit"
+            disabled={saving || isAtLimit}
+            className="flex cursor-pointer items-center gap-2 rounded-xl bg-blue-700 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-700/25 transition-all hover:bg-blue-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? (
+              <>
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Publication en cours…
+              </>
+            ) : (
+              <>
+                <Icon name="check" size={14} strokeWidth={2.4} /> Publier le produit
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </form>
+  );
+}
+
+export default function NouveauProduitPage() {
+  return (
+    <Suspense fallback={<div className="h-64 w-full animate-pulse rounded-2xl bg-ink-100/70" />}>
+      <NouveauProduitForm />
+    </Suspense>
   );
 }

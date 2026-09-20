@@ -26,11 +26,79 @@ const PROFILE_FIELDS = {
 
 export function ProfileSection() {
   const router = useRouter();
-  // Profil (formulaire contrôlé — mock, à brancher sur le vrai endpoint plus tard)
-  const [profileForm, setProfileForm] = useState(PROFILE_FIELDS);
+  const [vendorData, setVendorData] = useState<any>(null);
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    city: "",
+  });
+  const [initialProfile, setInitialProfile] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    city: "",
+  });
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+
+  // ===== Chargement du profil réel du compte vendeur =====
+  useEffect(() => {
+    usersApi
+      .me()
+      .then((data) => {
+        setVendorData(data);
+        const formValues = {
+          name: data.name || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          city: data.defaultCity || data.city || "",
+        };
+        setProfileForm(formValues);
+        setInitialProfile(formValues);
+      })
+      .catch(() => {
+        // Fallback session si le backend est momentanément inaccessible
+        setProfileForm({
+          name: merchantProfile.name,
+          email: merchantProfile.email,
+          phone: merchantProfile.phone,
+          city: merchantProfile.city,
+        });
+      })
+      .finally(() => setLoadingProfile(false));
+  }, []);
+
+  const handleSaveProfile = async (): Promise<boolean> => {
+    setSavingProfile(true);
+    try {
+      const updated = await usersApi.update({
+        name: profileForm.name,
+        email: profileForm.email,
+        phone: profileForm.phone,
+        defaultCity: profileForm.city,
+      });
+      setVendorData(updated);
+      const newVals = {
+        name: updated.name || "",
+        email: updated.email || "",
+        phone: updated.phone || "",
+        city: updated.defaultCity || updated.city || "",
+      };
+      setProfileForm(newVals);
+      setInitialProfile(newVals);
+      setToast("Profil commerçant mis à jour avec succès.");
+      return true;
+    } catch (err: any) {
+      setToast(err?.message || "Erreur lors de la mise à jour.");
+      return false;
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   // ===== Vérification du compte (badge ✓ sur la vitrine et les produits) =====
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null);
@@ -56,7 +124,7 @@ export function ProfileSection() {
       .requestVerification(boutiqueId)
       .then((shop) => {
         setVerificationStatus((shop.verificationStatus ?? "PENDING") as VerificationStatus);
-        setToast("Demande envoyée. Notre équipe vérifie votre boutique.");
+        setToast("Demande envoyée. Votre identité commerçant sera vérifiée par notre équipe.");
       })
       .catch(() => setToast("Impossible d'envoyer la demande. Réessayez plus tard."))
       .finally(() => setVerifSending(false));
@@ -70,7 +138,7 @@ export function ProfileSection() {
   const [pwdNotice, setPwdNotice] = useState<string | null>(null);
 
   const requestPasswordOtp = async () => {
-    const email = profileForm.email || merchantProfile.email;
+    const email = profileForm.email || vendorData?.email || merchantProfile.email;
     if (!email) {
       setPwdError("Adresse e-mail introuvable.");
       return;
@@ -91,7 +159,7 @@ export function ProfileSection() {
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const email = profileForm.email || merchantProfile.email;
+    const email = profileForm.email || vendorData?.email || merchantProfile.email;
     if (!email) return;
     if (pwd.current.length !== 6) {
       setPwdError("Le code de vérification doit comporter 6 chiffres.");
@@ -117,7 +185,7 @@ export function ProfileSection() {
       });
       setPwd({ current: "", next: "", confirm: "" });
       setOtpSent(false);
-      setPwdNotice("Mot de passe modifié avec succès ! Vos autres sessions ont été sécurisées.");
+      setPwdNotice("Mot de passe modifié avec succès ! Vos sessions sont sécurisées.");
     } catch (err) {
       setPwdError(err instanceof Error ? err.message : "Code incorrect ou expiré.");
     } finally {
@@ -130,31 +198,69 @@ export function ProfileSection() {
     void closeShop().then(() => router.push("/connexion?closed=1"));
   };
 
+  if (loadingProfile) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="h-28 w-full animate-pulse rounded-2xl bg-ink-100/70" />
+        <div className="h-64 w-full animate-pulse rounded-2xl bg-ink-100/70" />
+      </div>
+    );
+  }
+
+  const displayName = profileForm.name || vendorData?.name || "Commerçant";
+  const displayEmail = profileForm.email || vendorData?.email || "";
+  const boutiquesCount = vendorData?.boutiquesCount ?? 1;
+  const userPlan = (vendorData?.plan || "business").toUpperCase();
+
   return (
     <div className="flex flex-col gap-6">
+      {/* Carte d'identité du vendeur propriétaire */}
       <DashboardCard className="p-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <Avatar name={profileForm.name || merchantProfile.name} size="lg" />
-          <div>
-            <p className="font-display text-lg font-semibold text-ink-950">{merchantProfile.name}</p>
-            <p className="text-sm text-ink-500">{merchantProfile.shopName}</p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Avatar name={displayName} size="lg" />
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-display text-lg font-bold text-ink-950">{displayName}</p>
+                <span className="rounded-full bg-gold-wash px-2.5 py-0.5 font-mono text-[10px] font-bold text-gold-strong border border-gold-soft/80">
+                  {userPlan}
+                </span>
+              </div>
+              <p className="text-sm text-ink-500">{displayEmail}</p>
+              <p className="mt-1 font-mono text-[11px] font-medium text-ink-400">
+                Compte propriétaire · {boutiquesCount} boutique{boutiquesCount > 1 ? "s" : ""} rattachée{boutiquesCount > 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-line bg-ink-50/60 px-4 py-2.5 text-right">
+            <span className="block font-mono text-[10px] font-bold uppercase tracking-wider text-ink-400">
+              Type de compte
+            </span>
+            <span className="text-xs font-bold text-ink-800">
+              {userPlan.toLowerCase() === "starter"
+                ? "Boutique Unique (Starter)"
+                : userPlan.toLowerCase() === "business"
+                ? "Vendeur Multi-Boutiques (Business)"
+                : "Vendeur Multi-Boutiques (Entreprise)"}
+            </span>
           </div>
         </div>
       </DashboardCard>
 
       <EditableCard
-        title="Informations personnelles"
-        subtitle="Vos coordonnées de contact"
+        title="Informations personnelles du commerçant"
+        subtitle="Coordonnées directes associées à votre compte utilisateur"
+        saving={savingProfile}
         view={
           <div className="grid gap-5 sm:grid-cols-2">
-            <ReadField label="Nom complet" value={profileForm.name} />
-            <ReadField label="Adresse e-mail" value={profileForm.email} />
-            <ReadField label="Téléphone" value={profileForm.phone} />
-            <ReadField label="Ville" value={profileForm.city} />
+            <ReadField label="Nom complet" value={profileForm.name || "Non renseigné"} />
+            <ReadField label="Adresse e-mail" value={profileForm.email || "Non renseignée"} />
+            <ReadField label="Téléphone personnel" value={profileForm.phone || "Non renseigné"} />
+            <ReadField label="Ville de résidence" value={profileForm.city || "Non renseignée"} />
           </div>
         }
-        onSave={() => setToast("Profil mis à jour avec succès.")}
-        onCancel={() => setProfileForm(PROFILE_FIELDS)}
+        onSave={handleSaveProfile}
+        onCancel={() => setProfileForm(initialProfile)}
       >
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Nom complet">
@@ -170,13 +276,13 @@ export function ProfileSection() {
               onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
             />
           </Field>
-          <Field label="Téléphone">
+          <Field label="Téléphone personnel">
             <TextInput
               value={profileForm.phone}
               onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
             />
           </Field>
-          <Field label="Ville">
+          <Field label="Ville de résidence">
             <TextInput
               value={profileForm.city}
               onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}

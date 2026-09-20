@@ -29,6 +29,7 @@ export function IdentitySection({
             <ReadField label="Description" value={form.description} className="sm:col-span-2" />
             <ReadField label="Ville" value={form.city} />
             <ReadField label="Pays" value={form.country} />
+            <ReadField label="Objectif Mensuel" value={form.monthlyGoalFcfa ? `${form.monthlyGoalFcfa.toLocaleString('fr-FR')} FCFA` : 'Non défini'} />
           </div>
         }
         onSave={saveAll}
@@ -52,6 +53,9 @@ export function IdentitySection({
           </Field>
           <Field label="Pays">
             <TextInput value={form.country} onChange={(e) => update({ country: e.target.value })} />
+          </Field>
+          <Field label="Objectif Mensuel (FCFA)">
+            <TextInput type="number" value={form.monthlyGoalFcfa?.toString() || ""} onChange={(e) => update({ monthlyGoalFcfa: e.target.value ? parseInt(e.target.value, 10) : 0 })} />
           </Field>
         </div>
       </EditableCard>

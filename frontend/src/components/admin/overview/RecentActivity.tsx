@@ -53,7 +53,7 @@ export function RecentActivity({ events }: RecentActivityProps) {
     <section className="rounded-2xl border border-line bg-surface p-4 sm:p-6 shadow-sm shadow-ink-950/[0.03]">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-display text-base font-semibold text-ink-950">Recent activity</h3>
+          <h3 className="font-display text-base font-semibold text-ink-950">Activité récente</h3>
           <p className="mt-0.5 text-xs text-ink-500">Événements importants de la plateforme</p>
         </div>
         <Link
@@ -66,7 +66,7 @@ export function RecentActivity({ events }: RecentActivityProps) {
 
       {events.length === 0 ? (
         <p className="mt-6 rounded-xl border border-dashed border-line bg-ink-50/60 px-4 py-8 text-center text-xs text-ink-400">
-          No recent activity.
+          Aucune activité récente.
         </p>
       ) : (
         <ol className="mt-4 space-y-1">

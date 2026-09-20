@@ -13,6 +13,7 @@ import { CancelOrderDto } from './dto/cancel-order.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { MessagingService } from '../messaging/messaging.service';
 
 @Injectable()
 export class OrdersService {
@@ -22,6 +23,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
     private readonly notificationsService: NotificationsService,
+    private readonly messagingService: MessagingService,
   ) {}
 
   /**
@@ -250,7 +252,29 @@ export class OrdersService {
   async findAllForAdmin(boutiqueId: string) {
     const orders = await this.prisma.order.findMany({
       where: { boutiqueId },
-      include: { items: true },
+      include: {
+        items: true,
+        boutique: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return orders.map((o) => this.toOrderView(o));
+  }
+
+  /** Liste de TOUTES les commandes de toutes les boutiques du vendeur (multi-boutiques) */
+  async findAllForOwner(ownerId: string) {
+    const ownerBoutiques = await this.prisma.boutique.findMany({
+      where: { ownerId },
+      select: { id: true },
+    });
+    const boutiqueIds = ownerBoutiques.map((b) => b.id);
+
+    const orders = await this.prisma.order.findMany({
+      where: { boutiqueId: { in: boutiqueIds } },
+      include: {
+        items: true,
+        boutique: { select: { id: true, name: true, slug: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return orders.map((o) => this.toOrderView(o));
@@ -260,27 +284,45 @@ export class OrdersService {
   async updateStatus(boutiqueId: string, id: string, dto: UpdateOrderStatusDto) {
     const order = await this.prisma.order.findFirst({
       where: { id, boutiqueId },
-      include: { boutique: { select: { name: true, email: true } } },
+      include: { 
+        boutique: { select: { name: true, email: true, ownerId: true } },
+        items: true
+      },
     });
     if (!order) throw new NotFoundException('Commande introuvable');
-    if (order.status === OrderStatus.CANCELLED && dto.status !== OrderStatus.CANCELLED) {
-      // Remettre en stock serait idéal — à ce stade, refus simple pour éviter
-      // toute incohérence d'inventaire.
+
+    if (order.status === dto.status) return this.toOrderView(order);
+
+    // 1. Machine à états irréversible
+    const validTransitions: Record<OrderStatus, OrderStatus[]> = {
+      PENDING: [OrderStatus.PAID, OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+      PAID: [OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+      WHATSAPP_CONFIRMED: [OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+      SHIPPING: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+      DELIVERED: [], // Aucun retour en arrière possible
+      CANCELLED: [], // Aucun retour en arrière possible
+    };
+
+    if (!validTransitions[order.status].includes(dto.status)) {
       throw new BadRequestException(
-        'Une commande annulée ne peut pas être réactivée',
+        `Impossible de passer de l'état ${order.status} à ${dto.status}. Le retour en arrière n'est pas autorisé.`
       );
     }
+
+    if (dto.status === OrderStatus.SHIPPING && !dto.deliveryContact) {
+      throw new BadRequestException("Le contact du livreur (nom et numéro) est requis pour valider l'expédition.");
+    }
+
     const updated = await this.prisma.order.update({
       where: { id },
-      data: { status: dto.status },
+      data: {
+        status: dto.status,
+        ...(dto.deliveryContact ? { deliveryContact: dto.deliveryContact } : {}),
+      },
       include: { items: true },
     });
 
-    // E-mail de confirmation au client quand le paiement est validé (PAID).
-    // Uniquement à la TRANSITION depuis PENDING (pas de doublon sur une
-    // re-affectation, ni de re-mail sur un downgrade depuis SHIPPING/
-    // DELIVERED), et seulement si un e-mail a été fourni à la commande.
-    // Fire-and-forget : un échec d'envoi ne casse jamais le statut.
+    // 2. Notifications email (existantes)
     if (
       dto.status === OrderStatus.PAID &&
       order.status === OrderStatus.PENDING &&
@@ -290,7 +332,48 @@ export class OrdersService {
       void this.processCashbackAndSellerBalance(updated);
     }
 
+    // 3. Messages automatiques dans la discussion client
+    const sellerActor = { role: 'VENDEUR' as const, id: order.boutique.ownerId };
+    
+    if (dto.status === OrderStatus.SHIPPING) {
+      void this.messagingService.startConversation(sellerActor, boutiqueId, {
+        orderId: order.id,
+        clientName: order.customerName,
+        clientPhone: order.customerPhone,
+        firstMessage: `Cher(e) client(e), bonne nouvelle ! Votre commande #${order.reference} est actuellement en route pour la livraison. Voici le contact de votre livreur : ${dto.deliveryContact}. Merci de rester joignable pour la réception.`,
+      }).catch(err => this.logger.error(`Erreur msg auto SHIPPING : ${err.message}`));
+    }
+    else if (dto.status === OrderStatus.DELIVERED) {
+      void this.messagingService.startConversation(sellerActor, boutiqueId, {
+        orderId: order.id,
+        clientName: order.customerName,
+        clientPhone: order.customerPhone,
+        firstMessage: `Votre colis #${order.reference} a été livré avec succès ! Confirmez-vous l'avoir bien reçu ? N'hésitez pas à laisser une note sur l'article. À très vite !`,
+      }).catch(err => this.logger.error(`Erreur msg auto DELIVERED : ${err.message}`));
+    }
+
     return this.toOrderView(updated);
+  }
+
+  async remindPayment(boutiqueId: string, id: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id, boutiqueId },
+      include: { boutique: { select: { ownerId: true } } },
+    });
+    if (!order) throw new NotFoundException('Commande introuvable');
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException('Le rappel de paiement n’est possible que pour les commandes "En attente".');
+    }
+
+    const sellerActor = { role: 'VENDEUR' as const, id: order.boutique.ownerId };
+    await this.messagingService.startConversation(sellerActor, boutiqueId, {
+      orderId: order.id,
+      clientName: order.customerName,
+      clientPhone: order.customerPhone,
+      firstMessage: `Bonjour ! Nous remarquons que votre commande #${order.reference} est toujours en attente de paiement. N'hésitez pas à finaliser votre règlement pour que nous puissions l'expédier rapidement. Nous restons à votre disposition si vous avez besoin d'aide.`,
+    });
+
+    return { success: true, message: "Rappel envoyé au client avec succès." };
   }
 
   /**
@@ -792,6 +875,7 @@ export class OrdersService {
       quantity: number;
       unitPrice: Prisma.Decimal;
     }[];
+    boutique?: { id?: string; name: string; slug?: string } | null;
   }) {
     const firstItem = order.items[0];
     return {
@@ -818,6 +902,7 @@ export class OrdersService {
       deliveryName: order.deliveryName ?? undefined,
       deliveryPrice: Number(order.deliveryPrice),
       createdAt: order.createdAt.toISOString(),
+      boutique: order.boutique ?? undefined,
     };
   }
 

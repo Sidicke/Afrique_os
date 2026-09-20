@@ -61,6 +61,7 @@ export class UsersService {
     let highestPlan = 'starter';
     if (boutiques.some(b => b.plan === 'enterprise')) highestPlan = 'enterprise';
     else if (boutiques.some(b => b.plan === 'business')) highestPlan = 'business';
+    else if (boutiques.some(b => b.plan === 'pro')) highestPlan = 'pro';
 
     const name = user.name ?? '';
     const initials = name

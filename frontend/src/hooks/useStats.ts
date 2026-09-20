@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
+import { useSession } from "@/lib/useSession";
+
 import { StatsData } from "@/types/dashboard";
 import { dashboardService } from "@/services/dashboardService";
 import { useAsyncResource } from "@/hooks/useAsyncResource";

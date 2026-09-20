@@ -47,7 +47,7 @@ export default function AnalyticsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Intelligence"
-        title="Analytics"
+        title="Analytiques"
         description="Comprendre comment la plateforme évolue, pourquoi et où elle va."
         actions={
           <>

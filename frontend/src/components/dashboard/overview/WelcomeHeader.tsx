@@ -35,7 +35,7 @@ export function WelcomeHeader({ data, greet, firstName, today }: WelcomeHeaderPr
     context = `Excellente journée en perspective ! Vous avez ${toDoOrders} nouvelle${toDoOrders > 1 ? "s" : ""} commande${toDoOrders > 1 ? "s" : ""} qui n'attend${toDoOrders > 1 ? "ent" : ""} que vous.`;
   } else if (attentionProducts > 0) {
     context = `Vos articles s'arrachent ! Pensez à réapprovisionner ${attentionProducts} produit${attentionProducts > 1 ? "s" : ""} qui approche${attentionProducts > 1 ? "nt" : ""} de la rupture de stock.`;
-  } else if (isGrowing) {
+  } else if (isGrowing && growth > 0) {
     context = `Félicitations pour cette belle dynamique ! Votre chiffre d'affaires est en croissance de ${growth.toLocaleString("fr-FR")}%. Continuez sur cette lancée.`;
   } else {
     context = `C'est le moment idéal pour chouchouter votre vitrine et séduire de nouveaux clients ! Prenez le temps de revoir vos offres du moment.`;
@@ -58,7 +58,7 @@ export function WelcomeHeader({ data, greet, firstName, today }: WelcomeHeaderPr
           </div>
           
           <h1 className="font-display text-3xl font-extrabold tracking-tight text-midnight-950 sm:text-4xl">
-            {greet}, <span className="text-terracotta">{firstName}</span>
+            <span suppressHydrationWarning>{greet}</span>, <span suppressHydrationWarning className="text-terracotta">{firstName}</span>
           </h1>
           
           <p className="mt-3 text-base leading-relaxed text-ink-600 sm:text-lg">

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,6 +22,7 @@ import { CreateBoutiqueDto } from './dto/create-boutique.dto';
 import { RequestWithdrawalDto } from './dto/request-withdrawal.dto';
 import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
+import { InviteTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
 import { ParseEnumPipe } from '@nestjs/common';
 
 @ApiTags('boutiques')
@@ -148,5 +150,52 @@ export class BoutiquesController {
   @ApiOperation({ summary: 'Détail d’une boutique (propriétaire)' })
   findOne(@Param('id') id: string) {
     return this.boutiquesService.findOneForOwner(id);
+  }
+
+  /** GET /boutiques/:id/team — liste des collaborateurs */
+  @Get(':id/team')
+  @UseGuards(BoutiqueOwnerGuard)
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiOperation({ summary: 'Liste des collaborateurs d’une boutique' })
+  getTeam(@Param('id') id: string) {
+    return this.boutiquesService.getTeamMembers(id);
+  }
+
+  /** POST /boutiques/:id/team — inviter un collaborateur */
+  @Post(':id/team')
+  @UseGuards(BoutiqueOwnerGuard)
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiOperation({ summary: 'Inviter un collaborateur sur la boutique' })
+  inviteTeam(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: InviteTeamMemberDto,
+  ) {
+    return this.boutiquesService.inviteTeamMember(id, user.id, dto);
+  }
+
+  /** PATCH /boutiques/:id/team/:memberId — modifier rôle ou statut */
+  @Patch(':id/team/:memberId')
+  @UseGuards(BoutiqueOwnerGuard)
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiOperation({ summary: 'Mettre à jour le rôle ou statut d’un membre' })
+  updateTeam(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @Body() dto: UpdateTeamMemberDto,
+  ) {
+    return this.boutiquesService.updateTeamMember(id, memberId, dto);
+  }
+
+  /** DELETE /boutiques/:id/team/:memberId — supprimer un collaborateur */
+  @Delete(':id/team/:memberId')
+  @UseGuards(BoutiqueOwnerGuard)
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiOperation({ summary: 'Supprimer un collaborateur de la boutique' })
+  removeTeam(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+  ) {
+    return this.boutiquesService.removeTeamMember(id, memberId);
   }
 }

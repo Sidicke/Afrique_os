@@ -18,13 +18,7 @@ const STORE_COLORS = [
   { bg: "bg-green-600", light: "bg-green-100", text: "text-green-600" },
 ];
 
-const DEMO_DATA: StoreRevenueStat[] = [
-  { storeId: "1", storeName: "Boutique Principale", revenue: 1850000, orders: 47, growth: 12.4, color: "blue" },
-  { storeId: "2", storeName: "Boutique Mode", revenue: 720000, orders: 23, growth: -3.2, color: "gold" },
-  { storeId: "3", storeName: "Boutique Tech", revenue: 430000, orders: 11, growth: 28.7, color: "green" },
-];
-
-export default function MultiStoreRevenueChart({ data = DEMO_DATA }: { data?: StoreRevenueStat[] }) {
+export default function MultiStoreRevenueChart({ data = [] }: { data?: StoreRevenueStat[] }) {
   const { formatPrice } = useTranslation();
   const maxRevenue = Math.max(...data.map((d) => d.revenue), 1);
   const totalRevenue = data.reduce((s, d) => s + d.revenue, 0);
@@ -70,8 +64,8 @@ export default function MultiStoreRevenueChart({ data = DEMO_DATA }: { data?: St
                 />
               </div>
               <div className="mt-1 flex justify-between">
-                <span className="text-[11px] text-ink-400">{store.orders} commandes</span>
-                <span className="text-[11px] text-ink-400">{((store.revenue / totalRevenue) * 100).toFixed(1)}% du total</span>
+                <span className="text-[11px] text-ink-400">{store.orders} {store.orders > 1 ? "commandes" : "commande"}</span>
+                <span className="text-[11px] text-ink-400">{totalRevenue > 0 ? ((store.revenue / totalRevenue) * 100).toFixed(1) : "0.0"}% du total</span>
               </div>
             </div>
           );

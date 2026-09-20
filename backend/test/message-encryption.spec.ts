@@ -1,6 +1,12 @@
 import { MessageCrypto } from '../src/common/crypto/message-crypto';
 
 describe('🔐 Tests Unitaires & Sécurité du Chiffrement AES-256-GCM de la Messagerie', () => {
+  beforeAll(() => {
+    process.env.MESSAGING_ENCRYPTION_KEY =
+      process.env.MESSAGING_ENCRYPTION_KEY ||
+      'test-encryption-key-for-jest-spec-suite-32-chars-ok';
+  });
+
   const samplePlainTexts = [
     'Bonjour, je souhaite commander 5 unités de ce produit.',
     'Prix négocié : 35 000 FCFA avec livraison incluse à Abidjan Cocody 🚚✨',

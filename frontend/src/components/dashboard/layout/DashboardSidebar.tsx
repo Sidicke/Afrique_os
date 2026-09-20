@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { logout } from "@/lib/accountStore";
 import {
   merchantProfile,
+  refreshProfile,
   PLAN_LABEL,
   PLAN_PRICE_LINE,
 } from "@/services/dashboardService";
@@ -94,7 +95,6 @@ const NAV_ITEMS = [
     group: "Pilotage",
     items: [
       { label: "Tableau de bord", href: "/espace-vendeur", icon: ICON_DASHBOARD },
-      { label: "Mes Boutiques", href: "/espace-vendeur/mes-boutiques", icon: ICON_STORES },
       { label: "Mon Équipe", href: "/espace-vendeur/equipe", icon: ICON_TEAM },
     ],
   },
@@ -121,27 +121,9 @@ const NAV_ITEMS = [
   },
 ];
 
-/** Sous-paramètres de l'arborescence « Paramètres Boutique » */
+/** Sous-paramètres de l'arborescence « Paramètres » */
 const PARAMETRES_TREE = [
-  {
-    label: "Ma boutique",
-    href: "/espace-vendeur/parametres/boutique",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l1.5-5h15L21 9" />
-        <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
-        <path d="M5 12v9h14v-9" />
-        <path d="M10 21v-5h4v5" />
-      </svg>
-    ),
-    children: [
-      { label: "Général", href: "/espace-vendeur/parametres/boutique", icon: "general" as const },
-      { label: "Couverture & logo", href: "/espace-vendeur/parametres/boutique/visuels", icon: "visuels" as const },
-      { label: "Contacts & réseaux", href: "/espace-vendeur/parametres/boutique/contacts", icon: "contacts" as const },
-      { label: "Livraison", href: "/espace-vendeur/parametres/boutique/livraison", icon: "livraison" as const },
-      { label: "Promotions", href: "/espace-vendeur/parametres/boutique/promotions", icon: "promotions" as const },
-    ],
-  },
+  { label: "Mes boutiques", href: "/espace-vendeur/parametres", icon: "boutiques" as const },
   { label: "Profil", href: "/espace-vendeur/parametres/profil", icon: "profil" as const },
   { label: "Notifications", href: "/espace-vendeur/parametres/notifications", icon: "notifications" as const },
   { label: "Formule", href: "/espace-vendeur/parametres/formule", icon: "formule" as const },
@@ -149,6 +131,12 @@ const PARAMETRES_TREE = [
 
 /** Icônes ligne des sous-paramètres (style fichier, petit trait vertical) */
 const LEAF_ICONS: Record<string, React.ReactNode> = {
+  boutiques: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  ),
   general: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -202,10 +190,19 @@ const LEAF_ICONS: Record<string, React.ReactNode> = {
 export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  
   // Badge « Commandes » : nombre réel de commandes à traiter (API réelle)
   const { data: orders } = useOrders();
   const ACTION_STATUSES: OrderStatus[] = ["pending", "paid", "shipping"];
   const ordersToHandle = orders?.filter((o) => ACTION_STATUSES.includes(o.status)).length ?? 0;
+
+  // Reactivité du plan pour cacher correctement les onglets
+  const [currentPlan, setCurrentPlan] = useState(merchantProfile.plan);
+  
+  // NOTE: useEffect is imported at the top now
+  useEffect(() => {
+    refreshProfile().then(p => setCurrentPlan(p.plan));
+  }, []);
 
   // Arborescence « Paramètres Boutique » ouverte quand on est dans /dashboard/parametres
   const inParametres = pathname.startsWith("/espace-vendeur/parametres");
@@ -222,7 +219,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
   const handleParametresToggle = () => {
     setParametresOpen((o) => {
       const next = !o;
-      if (!inParametres) router.push("/espace-vendeur/parametres/boutique");
+      if (!inParametres) router.push("/espace-vendeur/parametres");
       return next;
     });
     onCloseMobile?.();
@@ -267,7 +264,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
         {/* Navigation Section */}
         <div className="flex flex-col gap-6">
           {NAV_ITEMS.map(group => {
-            const isBusiness = merchantProfile.plan === 'business' || merchantProfile.plan === 'enterprise';
+            const isBusiness = currentPlan === 'business' || currentPlan === 'enterprise';
             const filteredItems = group.items.filter(item => {
               if (item.label === 'Mes Boutiques' || item.label === 'Mon Équipe' || item.label === 'Analytics Multi-boutique') {
                 return isBusiness;
@@ -350,7 +347,7 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
                       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
                   </span>
-                  <span>Paramètres Boutique</span>
+                  <span>Paramètres</span>
                 </div>
                 <span className={cn("transition-transform duration-200", parametresOpen && "rotate-180")}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -371,64 +368,18 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
                   >
                     <div className="mt-1 flex flex-col gap-0.5 border-l border-line/80 pl-3 ml-3">
                       {PARAMETRES_TREE.map((node) => {
-                        if ("children" in node && node.children) {
-                          // Le dossier ne doit pas être actif quand un enfant l'est
-                          // (« Général » partage le href du dossier → seul l'enfant
-                          // devient bleu, jamais les deux).
-                          const childActive = node.children.some(
-                            (c) => pathname === c.href
-                          );
-                          return (
-                            <div key={node.label} className="flex flex-col gap-0.5">
-                              {/* Nœud dossier « Ma boutique » */}
-                              <Link
-                                href={node.href}
-                                onClick={onCloseMobile}
-                                className={cn(
-                                  "flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors",
-                                  pathname === node.href && !childActive
-                                    ? "bg-blue-700 text-white"
-                                    : "text-ink-700 hover:bg-ink-50 hover:text-ink-950"
-                                )}
-                              >
-                                {node.icon}
-                                {node.label}
-                              </Link>
-                              {/* Enfants */}
-                              <div className="flex flex-col gap-0.5 border-l border-line/60 pl-3 ml-2.5">
-                                {node.children.map((child) => {
-                                  const active = pathname === child.href;
-                                  return (
-                                    <Link
-                                      key={child.href}
-                                      href={child.href}
-                                      onClick={onCloseMobile}
-                                      className={cn(
-                                        "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
-                                        active
-                                          ? "bg-blue-700 text-white shadow-sm"
-                                          : "text-ink-500 hover:bg-ink-50 hover:text-ink-950"
-                                      )}
-                                    >
-                                      <span className={cn("transition-colors", active ? "text-gold-soft" : "text-ink-400")}>
-                                        {LEAF_ICONS[child.icon]}
-                                      </span>
-                                      {child.label}
-                                    </Link>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        }
-                        const active = pathname === node.href;
+                        const active =
+                          node.href === "/espace-vendeur/parametres"
+                            ? pathname === "/espace-vendeur/parametres" ||
+                              pathname.startsWith("/espace-vendeur/parametres/boutique")
+                            : pathname === node.href;
                         return (
                           <Link
                             key={node.label}
                             href={node.href}
                             onClick={onCloseMobile}
                             className={cn(
-                              "flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] transition-colors",
+                              "flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
                               active
                                 ? "bg-blue-700 text-white shadow-sm"
                                 : "text-ink-600 hover:bg-ink-50 hover:text-ink-950"
@@ -462,17 +413,17 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
             </span>
             <div>
               <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-ink-600">
-                {PLAN_LABEL[merchantProfile.plan] ?? merchantProfile.plan}
+                {PLAN_LABEL[currentPlan] ?? currentPlan}
               </p>
               <div className="flex flex-col mt-0.5 text-[9px] text-ink-400">
                 <span>
-                  {merchantProfile.productsCount ?? 0} / {merchantProfile.plan === 'starter' ? '20' : merchantProfile.plan === 'business' ? '150' : '∞'} prod.
+                  {merchantProfile.productsCount ?? 0} / {currentPlan === 'starter' ? '20' : currentPlan === 'business' ? '150' : '∞'} prod.
                 </span>
                 <span>
-                  {merchantProfile.boutiquesCount ?? 1} / {merchantProfile.plan === 'starter' ? '1' : merchantProfile.plan === 'business' ? '3' : '∞'} bout.
+                  {merchantProfile.boutiquesCount ?? 1} / {currentPlan === 'starter' ? '1' : currentPlan === 'business' ? '3' : '∞'} bout.
                 </span>
                 <span>
-                  Comm. {merchantProfile.plan === 'starter' ? '5%' : merchantProfile.plan === 'business' ? '2%' : 'Nég.'}
+                  Comm. {currentPlan === 'starter' ? '5%' : currentPlan === 'business' ? '2%' : 'Nég.'}
                 </span>
               </div>
             </div>

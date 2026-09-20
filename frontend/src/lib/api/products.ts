@@ -29,6 +29,11 @@ export interface CreateProductInput {
 export type UpdateProductInput = Partial<CreateProductInput>;
 
 export const productsApi = {
+  /** Tous les produits de toutes les boutiques du vendeur */
+  allOwner() {
+    return apiFetch<ApiProduct[]>("/products/owner");
+  },
+
   /** Produits d'une boutique (admin) */
   list(boutiqueId: string) {
     return apiFetch<ApiProduct[]>(

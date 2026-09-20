@@ -22,10 +22,10 @@ export {
   type ApiPointTransaction,
 } from "./users";
 export { adminApi } from "./admin";
-export { shopsApi } from "./shops";
+export { shopsApi, type ApiTeamMember } from "./shops";
 export { catalogueApi } from "./catalogue";
 export { ordersApi } from "./orders";
-export { dashboardApi } from "./dashboard";
+export { dashboardApi, type ApiMultiStoreAnalytics } from "./dashboard";
 export { productsApi } from "./products";
 export { categoriesApi } from "./categories";
 export { brandsApi } from "./brands";

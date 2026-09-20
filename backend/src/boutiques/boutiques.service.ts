@@ -9,6 +9,7 @@ import { BoutiqueStatus, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBoutiqueDto } from './dto/create-boutique.dto';
 import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
+import { InviteTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
 
 /** Projection publique d'une boutique (vitrine) */
 const publicSelect = {
@@ -35,6 +36,7 @@ const publicSelect = {
   deliveryPacks: true,
   promotions: true,
   notifications: true,
+  monthlyGoalFcfa: true,
 } as const;
 
 @Injectable()
@@ -100,7 +102,7 @@ export class BoutiquesService {
     // 1. Vérifier la limite de création selon le plan le plus élevé de l'utilisateur
     const userBoutiques = await this.prisma.boutique.findMany({
       where: { ownerId },
-      select: { plan: true },
+      select: { plan: true, verificationStatus: true },
     });
     
     const count = userBoutiques.length;
@@ -114,6 +116,10 @@ export class BoutiquesService {
     if (userPlan === 'business' && count >= 3) {
       throw new ForbiddenException("Vous avez atteint la limite de 3 boutiques de votre plan Business. Contactez-nous pour l'offre Enterprise.");
     }
+
+    // Si le propriétaire a déjà une boutique vérifiée KYC, la nouvelle boutique hérite de la vérification
+    const isOwnerKycVerified = userBoutiques.some((b) => b.verificationStatus === VerificationStatus.VERIFIED);
+    const initialVerificationStatus = isOwnerKycVerified ? VerificationStatus.VERIFIED : VerificationStatus.NONE;
 
     const existingName = await this.prisma.boutique.findFirst({
       where: { name: { equals: dto.name.trim(), mode: 'insensitive' } },
@@ -132,8 +138,10 @@ export class BoutiquesService {
         promotions: dto.promotions ? dto.promotions.map((p) => ({ ...p })) : undefined,
         notifications: dto.notifications ? dto.notifications.map((n) => ({ ...n })) : undefined,
         ownerId,
+        plan: userPlan,
         slug: await this.uniqueSlug(slugBase),
-        status: BoutiqueStatus.PENDING,
+        status: BoutiqueStatus.ACTIVE,
+        verificationStatus: initialVerificationStatus,
       },
       select: publicSelect,
     });
@@ -217,6 +225,15 @@ export class BoutiquesService {
     }
     const boutique = await this.prisma.boutique.findUnique({ where: { id } });
     if (!boutique) throw new NotFoundException('Boutique introuvable');
+
+    // Si approuvé, toutes les enseignes de ce même propriétaire bénéficient de la vérification KYC
+    if (status === VerificationStatus.VERIFIED) {
+      await this.prisma.boutique.updateMany({
+        where: { ownerId: boutique.ownerId },
+        data: { verificationStatus: VerificationStatus.VERIFIED },
+      });
+    }
+
     return this.prisma.boutique.update({
       where: { id },
       data: { verificationStatus: status },
@@ -396,5 +413,86 @@ export class BoutiquesService {
       n += 1;
       slug = `${base}-${n}`;
     }
+  }
+
+  /**
+   * Gestion de l'équipe collaboratrice
+   */
+  async getTeamMembers(boutiqueId: string) {
+    return this.prisma.teamMember.findMany({
+      where: { boutiqueId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        boutiqueId: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        invitedAt: true,
+        acceptedAt: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async inviteTeamMember(boutiqueId: string, inviterId: string, dto: InviteTeamMemberDto) {
+    const email = dto.email.toLowerCase().trim();
+    if (!email) throw new BadRequestException("L'e-mail est obligatoire");
+
+    const existing = await this.prisma.teamMember.findUnique({
+      where: { boutiqueId_email: { boutiqueId, email } },
+    });
+
+    if (existing) {
+      if (existing.status === 'REVOKED') {
+        return this.prisma.teamMember.update({
+          where: { id: existing.id },
+          data: {
+            status: 'PENDING',
+            role: dto.role || existing.role,
+            invitedAt: new Date(),
+          },
+        });
+      }
+      throw new ConflictException('Ce collaborateur est déjà membre ou invité sur cette boutique');
+    }
+
+    const matchedUser = await this.prisma.user.findUnique({ where: { email } });
+
+    return this.prisma.teamMember.create({
+      data: {
+        boutiqueId,
+        invitedById: inviterId,
+        email,
+        name: dto.name?.trim() || matchedUser?.name || null,
+        role: dto.role || 'EDITOR',
+        status: 'PENDING',
+        userId: matchedUser?.id || null,
+      },
+    });
+  }
+
+  async updateTeamMember(boutiqueId: string, memberId: string, dto: UpdateTeamMemberDto) {
+    const member = await this.prisma.teamMember.findUnique({ where: { id: memberId } });
+    if (!member || member.boutiqueId !== boutiqueId) {
+      throw new NotFoundException('Membre introuvable');
+    }
+    return this.prisma.teamMember.update({
+      where: { id: memberId },
+      data: {
+        ...(dto.role ? { role: dto.role } : {}),
+        ...(dto.status ? { status: dto.status } : {}),
+      },
+    });
+  }
+
+  async removeTeamMember(boutiqueId: string, memberId: string) {
+    const member = await this.prisma.teamMember.findUnique({ where: { id: memberId } });
+    if (!member || member.boutiqueId !== boutiqueId) {
+      throw new NotFoundException('Membre introuvable');
+    }
+    await this.prisma.teamMember.delete({ where: { id: memberId } });
+    return { success: true };
   }
 }

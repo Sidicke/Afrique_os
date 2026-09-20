@@ -1,5 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { BoutiqueOwnerGuard } from '../boutiques/guards/boutique-owner.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { DashboardService, StatsPeriod } from './dashboard.service';
@@ -9,6 +11,16 @@ import { DashboardService, StatsPeriod } from './dashboard.service';
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
+
+  @Get('analytics/multi')
+  @Roles('VENDEUR', 'ADMIN')
+  @ApiOperation({ summary: 'Analytics multi-boutiques consolidés du propriétaire' })
+  getMultiStoreAnalytics(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('period') period: StatsPeriod = '30_days',
+  ) {
+    return this.dashboardService.getMultiStoreAnalytics(user.id, period);
+  }
 
   @Get('boutique/:boutiqueId/overview')
   @UseGuards(BoutiqueOwnerGuard)

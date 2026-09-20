@@ -73,6 +73,7 @@ const PAYMENT_UPPER: Record<PaymentMethod, string> = {
   CASH_ON_DELIVERY: "CASH_ON_DELIVERY",
   CARD: "CARD",
   WHATSAPP_DIRECT: "WHATSAPP_DIRECT",
+  FEDAPAY: "FEDAPAY",
 };
 
 export function toApiPaymentMethod(
@@ -104,23 +105,20 @@ const IMAGE_FALLBACK_BY_CATEGORY: Record<string, string> = {
   Autre: "/assets/boutique/gadget-importe.jpg",
 };
 
-/** Image du backend utilisée telle quelle SI elle existe localement, sinon repli */
+/** Image du backend utilisée telle quelle si fournie, sinon repli sûr */
 function resolveImage(
   images: string[] | undefined,
   category: string,
 ): string {
   const candidate = images?.[0];
-  const base = candidate?.split("/").pop() ?? "";
-  if (candidate && EXISTING_BOUTIQUE_ASSETS.has(base)) return candidate;
+  if (candidate && candidate.trim().length > 0) return candidate;
   return IMAGE_FALLBACK_BY_CATEGORY[category] ?? "/assets/boutique/ecouteurs.jpg";
 }
 
-const KNOWN_CATEGORIES = ["Téléphone", "Audio", "Accessoires", "Autre"] as const;
-
 /**
  * Image sûre d'un produit du catalogue GLOBAL (accueil client) — même règle
- * que la vitrine : image backend utilisée telle quelle si elle existe
- * localement, sinon repli par catégorie.
+ * que la vitrine : image backend utilisée telle quelle si elle existe,
+ * sinon repli par catégorie.
  */
 export function publicProductImage(api: ApiPublicProduct): string {
   return resolveImage(api.images, api.category?.name ?? "");
@@ -128,13 +126,11 @@ export function publicProductImage(api: ApiPublicProduct): string {
 
 /** Produit backend → `Product` de la vitrine (constants/store.ts) */
 export function toPublicProduct(api: ApiPublicProduct): Product {
-  const category = api.category?.name ?? "";
+  const category = api.category?.name?.trim() || "Général";
   return {
     id: api.id,
     name: api.name,
-    category: (KNOWN_CATEGORIES as readonly string[]).includes(category)
-      ? (category as Product["category"])
-      : "Autre",
+    category,
     price: Number(api.price),
     description: api.description ?? "",
     image: resolveImage(api.images, category),
@@ -146,6 +142,9 @@ export function toPublicProduct(api: ApiPublicProduct): Product {
       label: v.value || v.name,
     })),
     reviews: toPublicReviews(api),
+    isFeatured: Boolean(api.isFeatured),
+    createdAt: (api as any).createdAt,
+    salesCount: (api as any)._count?.orderItems ?? 0,
     // Marque du produit (ex. Samsung, Vlisco…) — filtres de la vitrine
     brand: api.brand?.name ?? undefined,
     // Boutique d'origine (catalogue global) — la vitrine mono-boutique l'ignore
@@ -186,6 +185,7 @@ export function toShopConfig(shop: ApiShop): ShopConfig {
     description: shop.description ?? "",
     city: shop.city ?? "",
     country: shop.country ?? "",
+    monthlyGoalFcfa: (shop as any).monthlyGoalFcfa ?? 0,
     email: shop.email ?? "",
     whatsappNumber: shop.whatsappNumber ?? "",
     social: shop.socialLinks ?? EMPTY_SOCIAL,
@@ -226,6 +226,7 @@ export function toShopConfigPatch(
       : {}),
     ...(partial.city !== undefined ? { city: partial.city } : {}),
     ...(partial.country !== undefined ? { country: partial.country } : {}),
+    ...(partial.monthlyGoalFcfa !== undefined ? { monthlyGoalFcfa: partial.monthlyGoalFcfa } : {}),
     ...(partial.email !== undefined ? { email: partial.email } : {}),
     ...(partial.whatsappNumber !== undefined
       ? { whatsappNumber: partial.whatsappNumber }
@@ -286,6 +287,14 @@ export function toDashboardProduct(api: ApiProduct): ProductItem {
     image: api.images?.[0] ?? "",
     status:
       api.stock <= 0 ? "out_of_stock" : api.stock <= 5 ? "low_stock" : "in_stock",
+    isActive: api.isActive,
+    boutique: (api as any).boutique
+      ? {
+          id: (api as any).boutique.id,
+          name: (api as any).boutique.name,
+          slug: (api as any).boutique.slug,
+        }
+      : undefined,
   };
 }
 
@@ -305,6 +314,7 @@ export function toOrder(api: ApiOrder): Order {
     paymentMethod: api.paymentMethod as PaymentMethod,
     cancellationReason: api.cancellationReason,
     createdAt: api.createdAt,
+    boutique: api.boutique ? { id: api.boutique.id, name: api.boutique.name, slug: api.boutique.slug } : undefined,
   };
 }
 
@@ -431,6 +441,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   CASH_ON_DELIVERY: "Paiement à la livraison",
   CARD: "Carte bancaire",
   WHATSAPP_DIRECT: "WhatsApp",
+  FEDAPAY: "FedaPay",
 };
 
 /** Libellé français d'un moyen de paiement (checkout + confirmation) */

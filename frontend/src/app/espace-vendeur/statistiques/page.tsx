@@ -72,51 +72,66 @@ export default function StatistiquesPage() {
             kpis={[data.kpis.revenue, data.kpis.orders, data.kpis.avgBasket || { title: 'Panier moyen', value: '-', type: 'metric' }, data.kpis.conversion || { title: 'Conversion', value: '-', type: 'metric' }]}
           />
 
-          {data.requiresBusiness ? (
-            <div className="relative mt-12 overflow-hidden rounded-[2.5rem] bg-midnight-950 p-8 sm:p-12 shadow-2xl">
-              <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gold-500/20 blur-[80px] pointer-events-none" />
-              <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-blue-500/20 blur-[80px] pointer-events-none" />
-              
-              <div className="relative flex flex-col items-center text-center max-w-2xl mx-auto">
-                <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-gold-400 to-gold-600 text-white shadow-lg shadow-gold-500/30">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          {/* Évolution des Ventes (Disponible pour tous les plans) */}
+          <div className="grid gap-6 lg:grid-cols-3 mt-6">
+            <div className="lg:col-span-2">
+              <RevenueChart dataPoints={data.revenueChart} />
+            </div>
+            
+            {data.requiresBusiness ? (
+              <div className="relative overflow-hidden rounded-[2rem] bg-midnight-950 p-6 sm:p-8 shadow-xl flex flex-col items-center justify-center text-center">
+                <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gold-500/20 blur-[50px] pointer-events-none" />
+                <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-blue-500/20 blur-[50px] pointer-events-none" />
+                
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 text-white shadow-lg shadow-gold-500/30 z-10">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 </div>
-                <h3 className="mb-4 font-display text-3xl font-extrabold text-white tracking-tight">
-                  Passez à la vitesse supérieure
+                <h3 className="mb-2 font-display text-xl font-extrabold text-white tracking-tight z-10">
+                  Analyses Avancées
                 </h3>
-                <p className="mb-8 text-lg text-ivory-50/70 leading-relaxed">
-                  Débloquez la <strong className="text-gold-300 font-semibold">segmentation client</strong>, les rapports de fidélisation et l'analyse de vos <strong className="text-gold-300 font-semibold">meilleures ventes</strong> en passant au plan supérieur. Prenez des décisions basées sur des données précises.
+                <p className="mb-6 text-sm text-ivory-50/70 leading-relaxed max-w-[250px] z-10">
+                  Débloquez la <strong className="text-gold-300 font-semibold">fidélisation</strong>, la <strong className="text-gold-300 font-semibold">segmentation client</strong> et l'analyse complète de votre catalogue avec le plan Business.
                 </p>
                 <a
                   href="/espace-vendeur/parametres/formule"
-                  className="group inline-flex items-center gap-2 rounded-full bg-gold-500 px-8 py-4 text-sm font-bold text-midnight-950 transition-all hover:bg-gold-400 hover:shadow-lg hover:shadow-gold-500/25 hover:-translate-y-0.5 active:scale-95"
+                  className="group inline-flex items-center gap-2 rounded-full bg-gold-500 px-6 py-2.5 text-xs font-bold text-midnight-950 transition-all hover:bg-gold-400 hover:shadow-lg hover:shadow-gold-500/25 hover:-translate-y-0.5 active:scale-95 z-10"
                 >
-                  Découvrir nos offres
-                  <svg className="transition-transform group-hover:translate-x-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                  Découvrir
+                  <svg className="transition-transform group-hover:translate-x-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                 </a>
               </div>
-            </div>
-          ) : (
-            <>
-              {/* Chiffre d'affaires + fidélisation */}
-              <div className="grid gap-6 lg:grid-cols-3 mt-6">
-                <div className="lg:col-span-2">
-                  <RevenueChart dataPoints={data.revenueChart} />
-                </div>
-                <RepeatCustomerGauge rate={data.repeatCustomerRate} />
-              </div>
+            ) : (
+              <RepeatCustomerGauge rate={data.repeatCustomerRate} />
+            )}
+          </div>
 
-              {/* Activité hebdo + typologie clients */}
-              <div className="grid gap-6 lg:grid-cols-3">
+          {!data.requiresBusiness ? (
+            <>
+              {/* Activité hebdo + typologie clients (Business Uniquement) */}
+              <div className="grid gap-6 lg:grid-cols-3 mt-6">
                 <div className="lg:col-span-2">
                   <ActiveDaysChart days={data.activeDays} />
                 </div>
                 <CustomerSegments segments={data.customerSegments} />
               </div>
 
-              {/* Meilleures ventes */}
-              <BestSellersTable products={data.bestSellers} />
+              {/* Meilleures ventes Complètes */}
+              <div className="mt-6">
+                <BestSellersTable products={data.bestSellers} />
+              </div>
             </>
+          ) : (
+            <div className="mt-6 flex flex-col gap-4">
+              <h3 className="font-display text-lg font-bold text-ink-950 px-1">Aperçu de vos Meilleures Ventes</h3>
+              <div className="relative">
+                <BestSellersTable products={data.bestSellers.slice(0, 3)} />
+                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-surface to-transparent flex items-end justify-center pb-2">
+                  <p className="text-sm font-medium text-ink-500 bg-surface/80 px-4 py-1 rounded-full backdrop-blur-sm border border-line">
+                    Passez au plan Business pour voir la liste complète
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
         </>
       )}

@@ -222,24 +222,41 @@ export class MessagingService {
 
     // Réutilise une conversation existante du même client avec la boutique
     // ET le même contexte (produit ou commande) — jamais de doublon de fil.
-    const existing = actor.role === 'CLIENT'
-      ? await this.prisma.conversation.findFirst({
-          where: {
-            boutiqueId,
-            userId: actor.id,
-            ...(dto.orderId
-              ? { orderId: dto.orderId }
-              : dto.productId
-                ? { productId: dto.productId }
-                : {}),
-          },
-        })
-      : null;
-    if (existing) return existing;
+    let existing = null;
+    if (dto.orderId) {
+      existing = await this.prisma.conversation.findFirst({
+        where: { boutiqueId, orderId: dto.orderId },
+      });
+    } 
+    
+    if (!existing && actor.role === 'CLIENT') {
+      existing = await this.prisma.conversation.findFirst({
+        where: {
+          boutiqueId,
+          userId: actor.id,
+          ...(dto.productId ? { productId: dto.productId } : {}),
+        },
+      });
+    }
+
+    // FALLBACK: If no conversation by order/product context, find the latest conversation for this client
+    if (!existing && (dto.clientPhone || actor.role === 'CLIENT')) {
+      const orConditions: any[] = [];
+      if (actor.role === 'CLIENT') orConditions.push({ userId: actor.id });
+      if (dto.clientPhone) orConditions.push({ clientPhone: dto.clientPhone });
+      
+      if (orConditions.length > 0) {
+        existing = await this.prisma.conversation.findFirst({
+          where: { boutiqueId, OR: orConditions },
+          orderBy: { lastMessageAt: 'desc' }
+        });
+      }
+    }
 
     // Sécurisation du contexte commercial : extraction exclusive depuis les données réelles en base
     let productName = null;
     let productPrice = null;
+    let productNumericPrice = 0;
     let productDescription = null;
     let productImage = null;
 
@@ -249,6 +266,7 @@ export class MessagingService {
       });
       if (product) {
         productName = product.name;
+        productNumericPrice = Number(product.price) || 0;
         productPrice = `${product.price} ${product.currency}`;
         productDescription = product.description ?? null;
         productImage =
@@ -258,7 +276,63 @@ export class MessagingService {
       }
     }
 
+    if (existing) {
+      // If we found an existing thread but we have a new order context, link it
+      if (dto.orderId && !existing.orderId) {
+        await this.prisma.conversation.update({
+          where: { id: existing.id },
+          data: { orderId: dto.orderId }
+        });
+      } else if (!existing.orderId && dto.productId && productName && productPrice !== null) {
+        // Auto-create a pending order if they discuss a product and don't have an order yet
+        const time = Date.now().toString(36).toUpperCase();
+        const rand = Math.random().toString(16).slice(2, 6).toUpperCase();
+        const newRef = `AC-${time}-${rand}`;
+        
+        const newOrder = await this.prisma.order.create({
+          data: {
+            reference: newRef,
+            boutiqueId,
+            userId: actor.role === 'CLIENT' ? actor.id : null,
+            customerName: dto.clientName || 'Client (Discussion)',
+            customerPhone: dto.clientPhone || 'N/A',
+            status: 'PENDING',
+            paymentMethod: 'WHATSAPP_DIRECT',
+            total: productNumericPrice,
+            items: {
+              create: {
+                productId: dto.productId,
+                productName: productName,
+                quantity: 1,
+                unitPrice: productNumericPrice,
+              }
+            }
+          }
+        });
+        
+        await this.prisma.conversation.update({
+          where: { id: existing.id },
+          data: { 
+            orderId: newOrder.id,
+            orderReference: `#${newRef}`,
+            productId: dto.productId,
+            productName,
+            productPrice,
+            productDescription,
+            productImage
+          }
+        });
+      }
+      
+      if (dto.firstMessage) {
+        await this.addMessage(actor, existing.id, dto.firstMessage);
+      }
+      return existing;
+    }
+
     let orderReference = null;
+    let actualOrderId = dto.orderId ?? null;
+
     if (dto.orderId) {
       const order = await this.prisma.order.findFirst({
         where: {
@@ -271,6 +345,34 @@ export class MessagingService {
       if (order) {
         orderReference = `#${order.reference}`;
       }
+    } else if (dto.productId && productName && productPrice !== null) {
+      // Auto-create a pending order when a discussion is started for a product
+      const time = Date.now().toString(36).toUpperCase();
+      const rand = Math.random().toString(16).slice(2, 6).toUpperCase();
+      const newRef = `AC-${time}-${rand}`;
+      
+      const newOrder = await this.prisma.order.create({
+        data: {
+          reference: newRef,
+          boutiqueId,
+          userId: actor.role === 'CLIENT' ? actor.id : null,
+          customerName: dto.clientName || 'Client (Discussion)',
+          customerPhone: dto.clientPhone || 'N/A',
+          status: 'PENDING',
+          paymentMethod: 'WHATSAPP_DIRECT',
+          total: productNumericPrice,
+          items: {
+            create: {
+              productId: dto.productId,
+              productName: productName,
+              quantity: 1,
+              unitPrice: productNumericPrice,
+            }
+          }
+        }
+      });
+      actualOrderId = newOrder.id;
+      orderReference = `#${newRef}`;
     }
 
     const conversation = await this.prisma.conversation.create({
@@ -286,7 +388,7 @@ export class MessagingService {
         productPrice,
         productDescription,
         productImage,
-        orderId: dto.orderId ?? null,
+        orderId: actualOrderId,
         orderReference,
       },
       include: {

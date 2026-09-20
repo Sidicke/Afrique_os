@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback } from "react";
+import { useSession } from "@/lib/useSession";
+
 import { DashboardOverviewData, NewProductDraft, OrderStatus } from "@/types/dashboard";
 import { dashboardService } from "@/services/dashboardService";
 import { useAsyncResource } from "@/hooks/useAsyncResource";
 
 export function useDashboard() {
+  const boutiqueId = useSession()?.user?.boutiqueId;
   const { data, setData, loading, error, refresh } = useAsyncResource<DashboardOverviewData>(
-    useCallback(() => dashboardService.getOverview(), []),
+    useCallback(() => dashboardService.getOverview(), [boutiqueId]),
     "Impossible de charger les données du tableau de bord."
   );
 

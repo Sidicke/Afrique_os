@@ -25,7 +25,7 @@ export default function SettingsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Configuration"
-        title="Settings"
+        title="Paramètres"
         description="Règles globales de la plateforme : boutiques, vérification, commandes, sécurité."
         actions={
           <button

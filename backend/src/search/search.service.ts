@@ -55,7 +55,7 @@ export class SearchService {
    * `q` tronqué à 100 caractères ; résultats plafonnés pour rester rapide.
    */
   async search(q: string) {
-    const query = q.trim().slice(0, 100);
+    const query = q.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, 100);
     if (!query) return { boutiques: [], produits: [], categories: [] };
 
     const [boutiques, produits, categories] = await Promise.all([
@@ -69,7 +69,7 @@ export class SearchService {
 
   /** Boutiques ACTIVE dont nom / description / ville / pays / tagline matchent */
   private async searchBoutiques(query: string): Promise<SearchBoutiqueHit[]> {
-    const tokens = query.split(/\s+/).filter((t) => t.length > 0);
+    const tokens = query.split(/\s+/).filter((t) => t.length >= 3).slice(0, 5);
     const orConditions: any[] = [
       { name: { contains: query, mode: 'insensitive' } },
       { description: { contains: query, mode: 'insensitive' } },
@@ -159,7 +159,7 @@ export class SearchService {
 
   /** Produits actifs (boutique ACTIVE) dont nom / description matchent */
   private async searchProduits(query: string): Promise<SearchProductHit[]> {
-    const tokens = query.split(/\s+/).filter((t) => t.length > 0);
+    const tokens = query.split(/\s+/).filter((t) => t.length >= 3).slice(0, 5);
     const orConditions: any[] = [
       { name: { contains: query, mode: 'insensitive' } },
       { description: { contains: query, mode: 'insensitive' } },

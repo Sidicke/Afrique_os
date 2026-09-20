@@ -47,6 +47,7 @@ export class CreateBoutiqueDto {
   @IsOptional() @IsString() @MaxLength(2000) description?: string;
   @IsOptional() @IsString() @MaxLength(80) city?: string;
   @IsOptional() @IsString() @MaxLength(80) country?: string;
+  @IsOptional() monthlyGoalFcfa?: number;
   @IsOptional() @IsEmail() @MaxLength(160) email?: string;
   @IsOptional() @IsString() @MaxLength(30) phone?: string;
   @IsOptional() @IsString() @MaxLength(30) whatsappNumber?: string;

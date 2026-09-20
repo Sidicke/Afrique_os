@@ -63,6 +63,7 @@ export interface ShopConfig {
   description: string;
   city: string;
   country: string;
+  monthlyGoalFcfa?: number;
   /* Compte vérifié (badge de confiance affiché sur la vitrine et les produits) */
   isVerified: boolean;
   /* Contacts */
@@ -210,9 +211,22 @@ export function mailtoLink(email: string, subject: string, body: string): string
 
 /* ————————————————————————————————————————————————
  * Store localStorage (lecture/écriture + abonnés)
+ * Chaque boutique a sa propre clé pour une isolation totale.
  * ———————————————————————————————————————————————— */
 
-const CONFIG_KEY = "zennshop:shop-config";
+const CONFIG_KEY_PREFIX = "zennshop:shop-config:";
+
+/** Clé de stockage dynamique selon la boutique active */
+function getConfigKey(): string {
+  if (typeof window === "undefined") return `${CONFIG_KEY_PREFIX}default`;
+  try {
+    const session = JSON.parse(window.localStorage.getItem("zennshop:session") || "{}");
+    const boutiqueId = session?.user?.boutiqueId;
+    return boutiqueId ? `${CONFIG_KEY_PREFIX}${boutiqueId}` : `${CONFIG_KEY_PREFIX}default`;
+  } catch {
+    return `${CONFIG_KEY_PREFIX}default`;
+  }
+}
 
 /** Fusionne un objet parsé avec les défauts (tolérant aux champs manquants) */
 function normalize(raw: unknown): ShopConfig {
@@ -231,7 +245,7 @@ function normalize(raw: unknown): ShopConfig {
 function loadFromStorage(): ShopConfig {
   if (typeof window === "undefined") return DEFAULT_CONFIG;
   try {
-    const raw = window.localStorage.getItem(CONFIG_KEY);
+    const raw = window.localStorage.getItem(getConfigKey());
     if (!raw) return DEFAULT_CONFIG;
     return normalize(JSON.parse(raw));
   } catch {
@@ -261,7 +275,8 @@ export function subscribeShopConfig(listener: () => void): () => void {
 
 /** Synchronisation multi-onglets (événement `storage`) — appelé par le hook */
 export function handleShopConfigStorageEvent(e: StorageEvent): void {
-  if (e.key !== CONFIG_KEY) return;
+  const key = getConfigKey();
+  if (e.key !== key) return;
   if (e.newValue) {
     current = normalize(JSON.parse(e.newValue));
   } else {
@@ -275,11 +290,21 @@ export function updateShopConfig(patch: Partial<ShopConfig>): ShopConfig {
   current = { ...current, ...patch };
   try {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(CONFIG_KEY, JSON.stringify(current));
+      window.localStorage.setItem(getConfigKey(), JSON.stringify(current));
     }
   } catch {
     // Stockage indisponible : la config reste en mémoire
   }
+  notify();
+  return current;
+}
+
+/**
+ * Charge la config de la boutique active depuis le localStorage.
+ * À appeler après un switchActiveBoutique() pour isoler les données.
+ */
+export function reloadShopConfig(): ShopConfig {
+  current = loadFromStorage();
   notify();
   return current;
 }
@@ -289,7 +314,7 @@ export function resetShopConfig(): ShopConfig {
   current = DEFAULT_CONFIG;
   try {
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(CONFIG_KEY);
+      window.localStorage.removeItem(getConfigKey());
     }
   } catch {
     // ignore
@@ -297,3 +322,4 @@ export function resetShopConfig(): ShopConfig {
   notify();
   return current;
 }
+

@@ -124,7 +124,7 @@ async function main() {
   // ===== Produits =====
   const products = [
     {
-      slug: 'smartphone-pro',
+      slug: 'smartphone-pro-z7v88u',
       name: 'Smartphone Pro',
       description:
         'Un smartphone performant au design soigné : grand écran, double caméra et batterie qui tient toute la journée.',
@@ -145,7 +145,7 @@ async function main() {
       ],
     },
     {
-      slug: 'ecouteurs-sans-fil',
+      slug: 'ecouteurs-sans-fil-ktnbmq',
       name: 'Écouteurs Sans Fil',
       description: 'Écouteurs Bluetooth avec réduction de bruit et étui de charge.',
       price: 45000,
@@ -158,7 +158,7 @@ async function main() {
       reviews: [{ author: 'Fatou C.', rating: 5, comment: 'Son impeccable.' }],
     },
     {
-      slug: 'chargeur-rapide',
+      slug: 'chargeur-rapide-nf4u8h',
       name: 'Chargeur Rapide 65W',
       description: 'Chargeur USB-C 65W compatible téléphones et ordinateurs portables.',
       price: 18000,
@@ -201,8 +201,8 @@ async function main() {
         data: { stock: v.stock, priceDelta: v.priceDelta ?? null },
       });
     }
-    // Promotion liée au slug réel du produit (le seed référence "ecouteurs-sans-fil")
-    if (p.slug === 'ecouteurs-sans-fil') {
+    // Promotion liée au slug réel du produit (le seed référence "ecouteurs-sans-fil-ktnbmq")
+    if (p.slug === 'ecouteurs-sans-fil-ktnbmq') {
       await prisma.boutique.update({
         where: { id: boutique.id },
         data: { promotions: [{ productId: product.id, discountPercent: 20 }] },
@@ -212,9 +212,9 @@ async function main() {
 
   // Marques de démo (classement des produits par marque dans la vitrine)
   const brandsAziz = [
-    { slug: 'samsung', name: 'Samsung', products: ['smartphone-pro'] },
-    { slug: 'apple', name: 'Apple', products: ['ecouteurs-sans-fil'] },
-    { slug: 'anker', name: 'Anker', products: ['chargeur-rapide'] },
+    { slug: 'samsung', name: 'Samsung', products: ['smartphone-pro-z7v88u'] },
+    { slug: 'apple', name: 'Apple', products: ['ecouteurs-sans-fil-ktnbmq'] },
+    { slug: 'anker', name: 'Anker', products: ['chargeur-rapide-nf4u8h'] },
   ] as const;
   for (const b of brandsAziz) {
     const brand = await prisma.brand.upsert({
@@ -341,7 +341,7 @@ async function main() {
 
   const waxProducts = [
     {
-      slug: 'tissu-wax-premium',
+      slug: 'tissu-wax-premium-4gr5ed',
       name: 'Tissu Wax Premium (6 yards)',
       description: 'Véritable wax hollandais, motifs éclatants et couleurs qui ne fanent pas.',
       price: 25000,
@@ -355,7 +355,7 @@ async function main() {
       reviews: [{ author: 'Nadège K.', rating: 5, comment: 'Couleurs magnifiques, tissu épais et de qualité.' }],
     },
     {
-      slug: 'tissu-bazin-riche',
+      slug: 'tissu-bazin-riche-cdavhs',
       name: 'Bazin Riche brodé',
       description: 'Bazin riche de grande qualité, idéal pour les grandes occasions.',
       price: 18000,
@@ -367,7 +367,7 @@ async function main() {
       reviews: [],
     },
     {
-      slug: 'robe-sur-mesure',
+      slug: 'robe-sur-mesure-6vnh6w',
       name: 'Robe sur mesure',
       description: 'Robe coupée sur mesure par nos couturiers, à partir de votre tissu.',
       price: 35000,
@@ -380,7 +380,7 @@ async function main() {
       reviews: [{ author: 'Mariam B.', rating: 5, comment: 'Coupe parfaite, finitions impeccables.' }],
     },
     {
-      slug: 'ensemble-chemisier-pagne',
+      slug: 'ensemble-chemisier-pagne-5y9642',
       name: 'Ensemble chemisier & jupe',
       description: 'Ensemble coordonné en pagne, confectionné à la main.',
       price: 45000,
@@ -422,8 +422,8 @@ async function main() {
 
   // Marques de démo (wax & bazin)
   const brandsWax = [
-    { slug: 'vlisco', name: 'Vlisco', products: ['tissu-wax-premium'] },
-    { slug: 'uniwax', name: 'Uniwax', products: ['tissu-bazin-riche'] },
+    { slug: 'vlisco', name: 'Vlisco', products: ['tissu-wax-premium-4gr5ed'] },
+    { slug: 'uniwax', name: 'Uniwax', products: ['tissu-bazin-riche-cdavhs'] },
   ] as const;
   for (const b of brandsWax) {
     const brand = await prisma.brand.upsert({
@@ -515,7 +515,7 @@ async function main() {
 
   const beauteProducts = [
     {
-      slug: 'beurre-de-karite-pur',
+      slug: 'beurre-de-karite-pur-vz4jkr',
       name: 'Beurre de Karité pur (200g)',
       description: 'Karité brut artisanal, non raffiné, nourrit et répare la peau et les cheveux.',
       price: 5000,
@@ -529,7 +529,7 @@ async function main() {
       reviews: [{ author: 'Aminata D.', rating: 5, comment: 'Pureté incroyable, ma peau n’a jamais été aussi douce.' }],
     },
     {
-      slug: 'gel-daloe-vera',
+      slug: 'gel-daloe-vera-qn34xk',
       name: 'Gel d’Aloe Vera naturel',
       description: 'Hydrate, apaise et répare — parfait après le soleil.',
       price: 4500,
@@ -541,7 +541,7 @@ async function main() {
       reviews: [],
     },
     {
-      slug: 'collier-perles-africaines',
+      slug: 'collier-perles-africaines-5sgqse',
       name: 'Collier de perles africaines',
       description: 'Collier artisanal en perles, fait main — un bijou qui raconte une histoire.',
       price: 12000,
@@ -554,7 +554,7 @@ async function main() {
       reviews: [{ author: 'Fatou C.', rating: 4, comment: 'Très beau travail artisanal.' }],
     },
     {
-      slug: 'boucles-oreilles-bois',
+      slug: 'boucles-oreilles-bois-hungb2',
       name: 'Boucles d’oreilles en bois',
       description: 'Boucles légères et élégantes en bois sculpté, faites main.',
       price: 7000,

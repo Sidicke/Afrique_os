@@ -38,11 +38,24 @@ export const ordersApi = {
     return apiFetch<ApiOrder[]>(`/orders/boutique/${encodeURIComponent(boutiqueId)}`);
   },
 
+  /** Toutes les commandes de toutes les boutiques du vendeur */
+  allOwner() {
+    return apiFetch<ApiOrder[]>("/orders/owner");
+  },
+
   /** Changement de statut par le vendeur */
-  updateStatus(boutiqueId: string, orderId: string, status: ApiOrderStatus) {
+  updateStatus(boutiqueId: string, orderId: string, status: ApiOrderStatus, deliveryContact?: string) {
     return apiFetch<ApiOrder>(
       `/orders/boutique/${encodeURIComponent(boutiqueId)}/${encodeURIComponent(orderId)}/status`,
-      { method: "PATCH", body: JSON.stringify({ status }) },
+      { method: "PATCH", body: JSON.stringify({ status, deliveryContact }) },
+    );
+  },
+
+  /** Rappel de paiement (PENDING) */
+  remindPayment(boutiqueId: string, orderId: string) {
+    return apiFetch<{ success: boolean; message: string }>(
+      `/orders/boutique/${encodeURIComponent(boutiqueId)}/${encodeURIComponent(orderId)}/remind`,
+      { method: "POST" },
     );
   },
 

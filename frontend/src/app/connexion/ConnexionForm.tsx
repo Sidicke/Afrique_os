@@ -107,7 +107,7 @@ export default function ConnexionForm() {
           <AuthError
             title={error.title}
             message={error.message}
-            variant={error.title === "Identifiants incorrects" ? "info" : "error"}
+            variant="error"
           />
         )}
 

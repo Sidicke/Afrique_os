@@ -8,29 +8,31 @@ import {
   IconCheck,
 } from "@/components/client/icons";
 
-const DEMO_FUNNEL = [
-  { label: "Visiteurs uniques", count: 4820, icon: IconUser },
-  { label: "Pages produit vues", count: 2140, icon: IconPackage },
-  { label: "Ajouts au panier", count: 643, icon: IconBag },
-  { label: "Commandes initiées", count: 201, icon: IconCreditCard },
-  { label: "Commandes confirmées", count: 147, icon: IconCheck },
-];
+export interface FunnelStep {
+  label: string;
+  count: number;
+  icon: any;
+}
 
-export default function ConversionFunnel({ data = DEMO_FUNNEL }: { data?: typeof DEMO_FUNNEL }) {
-  const maxCount = data[0]?.count ?? 1;
+export default function ConversionFunnel({ data = [] }: { data?: FunnelStep[] }) {
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const firstCount = data[0]?.count ?? 0;
+  const lastCount = data.length > 0 ? data[data.length - 1].count : 0;
+  const conversionRate = firstCount > 0 ? ((lastCount / firstCount) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="rounded-2xl border border-line bg-surface p-6">
       <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-gold-strong">Entonnoir de conversion</span>
       <p className="mt-1 font-display text-2xl font-bold text-ink-950">
-        {data.length >= 2 ? `${((data[data.length - 1].count / data[0].count) * 100).toFixed(1)}%` : "—"}
-        <span className="ml-2 font-sans text-sm font-normal text-ink-400">taux de conversion global</span>
+        {conversionRate}%
+        <span className="ml-2 font-sans text-sm font-normal text-ink-400">taux d&apos;aboutissement des commandes</span>
       </p>
       <div className="mt-6 flex flex-col gap-2">
         {data.map((step, i) => {
           const IconComp = step.icon;
-          const pct = (step.count / maxCount) * 100;
-          const dropFromPrev = i > 0 ? ((data[i - 1].count - step.count) / data[i - 1].count) * 100 : 0;
+          const pct = maxCount > 0 && step.count > 0 ? (step.count / maxCount) * 100 : 0;
+          const prevCount = i > 0 ? data[i - 1].count : 0;
+          const dropFromPrev = prevCount > 0 ? Math.max(0, ((prevCount - step.count) / prevCount) * 100) : 0;
           return (
             <div key={step.label}>
               <div className="flex items-center justify-between mb-1">

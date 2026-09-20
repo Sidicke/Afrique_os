@@ -126,15 +126,21 @@ export const dashboardService = {
     );
   },
 
-  /** Commandes de la boutique */
-  async getOrders(): Promise<Order[]> {
-    const boutiqueId = requireBoutique();
+  /** Commandes de la boutique (ou de toutes les boutiques si boutiqueId === 'all') */
+  async getOrders(targetBoutiqueId?: string): Promise<Order[]> {
+    if (targetBoutiqueId === "all") {
+      return (await ordersApi.allOwner()).map(toOrder);
+    }
+    const boutiqueId = targetBoutiqueId || requireBoutique();
     return (await ordersApi.seller(boutiqueId)).map(toOrder);
   },
 
-  /** Catalogue produits (admin) */
-  async getProducts(): Promise<ProductItem[]> {
-    const boutiqueId = requireBoutique();
+  /** Catalogue produits (admin ou toutes boutiques) */
+  async getProducts(targetBoutiqueId?: string): Promise<ProductItem[]> {
+    if (targetBoutiqueId === "all") {
+      return (await productsApi.allOwner()).map(toDashboardProduct);
+    }
+    const boutiqueId = targetBoutiqueId || requireBoutique();
     return (await productsApi.list(boutiqueId)).map(toDashboardProduct);
   },
 
@@ -184,13 +190,22 @@ export const dashboardService = {
   async updateOrderStatus(
     orderId: string,
     status: OrderStatus,
+    deliveryContact?: string,
   ): Promise<boolean> {
     const boutiqueId = requireBoutique();
     await ordersApi.updateStatus(
       boutiqueId,
       orderId,
       toApiOrderStatus(status),
+      deliveryContact,
     );
+    return true;
+  },
+
+  /** Rappel de paiement */
+  async remindPayment(orderId: string): Promise<boolean> {
+    const boutiqueId = requireBoutique();
+    await ordersApi.remindPayment(boutiqueId, orderId);
     return true;
   },
 
@@ -198,8 +213,8 @@ export const dashboardService = {
    * Ajout d'un produit au catalogue — formulaire complet : description,
    * prix promo (oldPrice), catégorie, SKU, visibilité, images et variantes.
    */
-  async addProduct(draft: NewProductDraft): Promise<ProductItem> {
-    const boutiqueId = requireBoutique();
+  async addProduct(draft: NewProductDraft & { boutiqueId?: string }): Promise<ProductItem> {
+    const boutiqueId = draft.boutiqueId || requireBoutique();
     const created = await productsApi.create(boutiqueId, {
       name: draft.name,
       description: draft.description || undefined,
@@ -215,6 +230,28 @@ export const dashboardService = {
       variants: draft.variants?.length ? draft.variants : undefined,
     });
     return toDashboardProduct(created);
+  },
+
+  /** Mise à jour d'un produit (stock, prix, visibilité isActive, etc.) */
+  async updateProduct(
+    id: string,
+    input: Partial<ProductItem> & { isActive?: boolean; stock?: number; boutiqueId?: string }
+  ): Promise<ProductItem> {
+    const boutiqueId = input.boutiqueId || requireBoutique();
+    const updated = await productsApi.update(boutiqueId, id, {
+      name: input.name,
+      price: input.priceFcfa,
+      stock: input.stock,
+      isActive: input.isActive,
+    });
+    return toDashboardProduct(updated);
+  },
+
+  /** Suppression d'un produit du catalogue */
+  async deleteProduct(id: string, targetBoutiqueId?: string): Promise<boolean> {
+    const boutiqueId = targetBoutiqueId || requireBoutique();
+    await productsApi.remove(boutiqueId, id);
+    return true;
   },
 
   /** Marques de la boutique (sélecteurs du formulaire produit) */

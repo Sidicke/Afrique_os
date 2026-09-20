@@ -1,8 +1,3 @@
-// Prisma schema — Plateforme e-commerce multi-vendeur
-// Architecture (docs/architecture) : User (1..N) Boutique, Boutique (1..N)
-// Product / Order / Conversation. Messagerie temps réel sans Redis (mono-instance).
-// Les statuts/paiements/paramètres suivent les contrats du frontend `plateforme/`.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,32 +7,532 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===== Énumérations =====
+model User {
+  id                   String             @id @default(cuid())
+  email                String             @unique
+  password             String?
+  googleId             String?            @unique
+  facebookId           String?            @unique
+  authProvider         String?            @default("LOCAL")
+  name                 String?
+  phone                String?
+  avatarUrl            String?
+  role                 Role               @default(CLIENT)
+  status               UserStatus         @default(ACTIVE)
+  refreshTokenHash     String?
+  defaultAddress       String?
+  defaultCity          String?
+  defaultPaymentMethod PaymentMethod?
+  pointsBalance        Int                @default(0)
+  referralCode         String?            @unique
+  referredById         String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  adminLogs            AdminLog[]         @relation("AdminLogAuthor")
+  adminNotes           AdminNote[]        @relation("AdminNoteAuthor")
+  boutiques            Boutique[]
+  conversations        Conversation[]     @relation("ConversationClient")
+  messages             Message[]
+  reportsSubmitted     ModerationReport[] @relation("ReportReporter")
+  reportsResolved      ModerationReport[] @relation("ReportResolver")
+  orders               Order[]
+  settingsUpdates      PlatformSettings[] @relation("SettingsUpdater")
+  pointTransactions    PointTransaction[]
+  teamInvitations      TeamMember[]       @relation("TeamInviter")
+  teamMemberships      TeamMember[]
+  referredBy           User?              @relation("Referrals", fields: [referredById], references: [id])
+  referees             User[]             @relation("Referrals")
+
+  @@index([role])
+}
+
+model Boutique {
+  id                    String                 @id @default(cuid())
+  name                  String                 @unique
+  slug                  String                 @unique
+  tagline               String?
+  description           String?
+  status                BoutiqueStatus         @default(PENDING)
+  verificationStatus    VerificationStatus     @default(NONE)
+  plan                  String                 @default("starter")
+  email                 String?
+  phone                 String?
+  city                  String?
+  country               String?
+  whatsappNumber        String?
+  coverImage            String?
+  logoImage             String?
+  deliveryShortLabel    String?
+  deliveryNote          String?
+  warrantyNote          String?
+  paymentNote           String?
+  socialLinks           Json?
+  deliveryPacks         Json?
+  promotions            Json?
+  notifications         Json?
+  ownerId               String
+  balance               Decimal                @default(0) @db.Decimal(14, 2)
+  monthlyGoalFcfa       Decimal                @default(0) @db.Decimal(14, 2)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  owner                 User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  brands                Brand[]
+  categories            Category[]
+  conversations         Conversation[]
+  sellerNotifications   Notification[]
+  orders                Order[]
+  products              Product[]
+  subscribers           Subscriber[]
+  subscription          Subscription?
+  teamMembers           TeamMember[]
+  verificationDocuments VerificationDocument[]
+  withdrawals           WithdrawalRequest[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Brand {
+  id         String    @id @default(cuid())
+  name       String
+  slug       String
+  boutiqueId String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  boutique   Boutique  @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  products   Product[]
+
+  @@unique([boutiqueId, slug])
+  @@index([boutiqueId])
+}
+
+model Category {
+  id         String     @id @default(cuid())
+  name       String
+  slug       String
+  boutiqueId String
+  parentId   String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  boutique   Boutique   @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  parent     Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children   Category[] @relation("CategoryTree")
+  products   Product[]
+
+  @@unique([boutiqueId, slug])
+  @@index([boutiqueId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  price       Decimal     @db.Decimal(12, 2)
+  oldPrice    Decimal?    @db.Decimal(12, 2)
+  currency    String      @default("XOF")
+  stock       Int         @default(0)
+  sku         String?
+  isFeatured  Boolean     @default(false)
+  isActive    Boolean     @default(true)
+  images      String[]
+  boutiqueId  String
+  categoryId  String?
+  brandId     String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+  boutique    Boutique    @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  brand       Brand?      @relation(fields: [brandId], references: [id])
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  reviews     Review[]
+  variants    Variant[]
+
+  @@unique([boutiqueId, slug])
+  @@index([boutiqueId, isActive])
+  @@index([boutiqueId, categoryId])
+  @@index([boutiqueId, price])
+  @@index([isFeatured])
+}
+
+model Variant {
+  id         String      @id @default(cuid())
+  productId  String
+  name       String
+  value      String
+  priceDelta Decimal?    @db.Decimal(12, 2)
+  stock      Int         @default(0)
+  orderItems OrderItem[]
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, name, value])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  author    String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Order {
+  id                 String        @id @default(cuid())
+  reference          String        @unique
+  boutiqueId         String
+  userId             String?
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  address            String?
+  city               String?
+  country            String?
+  status             OrderStatus   @default(PENDING)
+  paymentMethod      PaymentMethod @default(MOBILE_MONEY)
+  pointsUsed         Int           @default(0)
+  paymentRef         String?
+  paidAt             DateTime?
+  cancellationReason String?
+  deliveryName       String?
+  deliveryPrice      Decimal       @default(0) @db.Decimal(12, 2)
+  total              Decimal       @db.Decimal(12, 2)
+  notes              String?
+  commissionRate     Decimal?      @db.Decimal(5, 2)
+  commissionAmount   Decimal?      @db.Decimal(12, 2)
+  netAmount          Decimal?      @db.Decimal(12, 2)
+  planAtPurchase     String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deliveryContact    String?
+  boutique           Boutique      @relation(fields: [boutiqueId], references: [id])
+  user               User?         @relation(fields: [userId], references: [id])
+  items              OrderItem[]
+
+  @@index([boutiqueId, status])
+  @@index([boutiqueId, createdAt])
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  productId    String?
+  variantId    String?
+  productName  String
+  variantLabel String?
+  quantity     Int
+  unitPrice    Decimal  @db.Decimal(12, 2)
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product? @relation(fields: [productId], references: [id])
+  variant      Variant? @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+}
+
+model Conversation {
+  id                 String    @id @default(cuid())
+  boutiqueId         String
+  userId             String?
+  clientName         String
+  clientPhone        String?
+  lastMessageAt      DateTime  @default(now())
+  productId          String?
+  productName        String?
+  productPrice       String?
+  productDescription String?
+  productImage       String?
+  agreedPrice        Decimal?  @db.Decimal(14, 2)
+  orderId            String?
+  orderReference     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  boutique           Boutique  @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  user               User?     @relation("ConversationClient", fields: [userId], references: [id])
+  messages           Message[]
+
+  @@index([boutiqueId])
+  @@index([userId])
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  senderRole     MessageSender
+  senderId       String?
+  content        String
+  readAt         DateTime?
+  createdAt      DateTime      @default(now())
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User?         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+model Subscriber {
+  id         String   @id @default(cuid())
+  email      String
+  boutiqueId String
+  createdAt  DateTime @default(now())
+  boutique   Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  @@unique([boutiqueId, email])
+  @@index([boutiqueId])
+}
+
+/// *
+///  * Notification affichée au VENDEUR dans son dashboard (cloche) : créée côté
+///  * serveur sur des événements métier (ex. annulation de commande par un client).
+model Notification {
+  id             String    @id @default(cuid())
+  boutiqueId     String
+  type           String
+  title          String
+  message        String?
+  orderReference String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+  boutique       Boutique  @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  @@index([boutiqueId, readAt])
+  @@index([boutiqueId, createdAt])
+}
+
+/// *
+///  * Catalogue des formules d'abonnement (géré depuis le dashboard admin —
+///  * PlansManager). Le champ `boutique.plan` reste la formule active du vendeur
+///  * (cohérence : Subscription.plan.slug === boutique.plan).
+model Plan {
+  id            String         @id @default(cuid())
+  slug          String         @unique
+  name          String
+  description   String?
+  price         Decimal        @default(0) @db.Decimal(12, 2)
+  interval      String         @default("month")
+  features      Json?
+  limits        Json?
+  isActive      Boolean        @default(true)
+  isDefault     Boolean        @default(false)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+}
+
+/// *
+///  * Abonnement réel d'une boutique (billing). Le statut TRIAL couvre l'essai
+///  * gratuit ; le passage en ACTIVE se fait au premier paiement.
+model Subscription {
+  id                 String             @id @default(cuid())
+  boutiqueId         String             @unique
+  planId             String
+  status             SubscriptionStatus @default(TRIAL)
+  price              Decimal            @default(0) @db.Decimal(12, 2)
+  startsAt           DateTime           @default(now())
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  boutique           Boutique           @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  plan               Plan               @relation(fields: [planId], references: [id])
+
+  @@index([status])
+  @@index([planId])
+}
+
+/// *
+///  * Signalement de modération : une cible (boutique, produit, utilisateur,
+///  * commande, avis) signalée par un utilisateur ou détectée par la plateforme.
+model ModerationReport {
+  id             String               @id @default(cuid())
+  targetType     ModerationTargetType
+  targetId       String
+  targetLabel    String?
+  reason         String
+  details        String?
+  severity       String               @default("medium")
+  status         ModerationStatus     @default(NEW)
+  reporterId     String?
+  resolutionNote String?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  reporter       User?                @relation("ReportReporter", fields: [reporterId], references: [id])
+  resolvedBy     User?                @relation("ReportResolver", fields: [resolvedById], references: [id])
+
+  @@index([status])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+/// *
+///  * Journal d'audit administratif (doc 20 : qui → quoi → quand → sur quoi →
+///  * résultat). Chaque action importante du dashboard admin est tracée ici.
+model AdminLog {
+  id          String   @id @default(cuid())
+  adminId     String
+  action      String
+  targetType  String?
+  targetId    String?
+  targetLabel String?
+  details     Json?
+  createdAt   DateTime @default(now())
+  admin       User     @relation("AdminLogAuthor", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([createdAt])
+}
+
+/// * Notes internes des administrateurs (liées à une cible)
+model AdminNote {
+  id         String   @id @default(cuid())
+  targetType String
+  targetId   String
+  content    String
+  adminId    String
+  createdAt  DateTime @default(now())
+  admin      User     @relation("AdminNoteAuthor", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+}
+
+/// * Documents fournis par un vendeur pour la vérification KYC
+model VerificationDocument {
+  id         String                   @id @default(cuid())
+  boutiqueId String
+  type       VerificationDocumentType
+  label      String
+  url        String
+  status     String                   @default("pending")
+  createdAt  DateTime                 @default(now())
+  boutique   Boutique                 @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  @@index([boutiqueId])
+}
+
+/// *
+///  * Code de vérification OTP (ex. validation de l'e-mail à l'inscription).
+///  * Le code est stocké HASHÉ (SHA-256) avec une date d'expiration et un compteur
+///  * de tentatives — jamais en clair.
+model OtpCode {
+  id         String    @id @default(cuid())
+  identifier String
+  purpose    String    @default("REGISTER")
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([identifier, purpose])
+}
+
+/// *
+///  * Paramètres globaux de la plateforme (doc 11) — une seule ligne, le JSON
+///  * suit la structure du dashboard admin (10 sections).
+model PlatformSettings {
+  id          String   @id @default("global")
+  data        Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   User?    @relation("SettingsUpdater", fields: [updatedById], references: [id])
+}
+
+model PointTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  reason    String
+  orderId   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WithdrawalRequest {
+  id          String           @id @default(cuid())
+  boutiqueId  String
+  amount      Decimal          @db.Decimal(14, 2)
+  status      WithdrawalStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  processedAt DateTime?
+  paymentInfo String?
+  boutique    Boutique         @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  @@index([boutiqueId])
+}
+
+/// *
+///   * Clés d'idempotence pour sécuriser les transactions financières (1er pilier de sécurité).
+///   * Empêche les réexécutions accidentelles ou les Webhooks répétés.
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  path         String
+  statusCode   Int
+  responseBody Json
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([key])
+  @@index([expiresAt])
+}
+
+/// *
+///  * Membres d'équipe d'une boutique — invités par le propriétaire (Business+)
+///  * Un collaborateur peut avoir accès à une ou plusieurs boutiques du même owner.
+model TeamMember {
+  id          String           @id @default(cuid())
+  boutiqueId  String
+  email       String
+  name        String?
+  role        TeamMemberRole   @default(EDITOR)
+  status      TeamMemberStatus @default(PENDING)
+  userId      String?
+  invitedById String?
+  invitedAt   DateTime         @default(now())
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  boutique    Boutique         @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  invitedBy   User?            @relation("TeamInviter", fields: [invitedById], references: [id])
+  user        User?            @relation(fields: [userId], references: [id])
+
+  @@unique([boutiqueId, email])
+  @@index([boutiqueId])
+  @@index([email])
+}
 
 enum Role {
-  ADMIN // Super administrateur de la plateforme
-  VENDEUR // Propriétaire d'une ou plusieurs boutiques
-  CLIENT // Acheteur public
+  ADMIN
+  VENDEUR
+  CLIENT
 }
 
 enum BoutiqueStatus {
-  PENDING // En attente de vérification (KYC, documents)
-  ACTIVE // Visible sur la plateforme, produits achetables
-  SUSPENDED // Blocage administratif temporaire
-  CLOSED // Suppression logique
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CLOSED
 }
 
 enum VerificationStatus {
-  NONE // Pas de demande de vérification
-  PENDING // Demande envoyée — en attente de validation par la plateforme
-  VERIFIED // Compte vérifié — badge de confiance affiché (vitrine + produits)
-  REJECTED // Demande refusée — le vendeur peut soumettre à nouveau
+  NONE
+  PENDING
+  VERIFIED
+  REJECTED
 }
 
 enum OrderStatus {
-  PENDING // Commandée — en attente de paiement
-  PAID // Payée — le paiement a été validé
-  WHATSAPP_CONFIRMED // Rétrocompatibilité données existantes
+  PENDING
+  PAID
+  WHATSAPP_CONFIRMED
   SHIPPING
   DELIVERED
   CANCELLED
@@ -56,25 +551,23 @@ enum MessageSender {
   VENDEUR
 }
 
-// ===== Statuts du module admin plateforme =====
-
 enum UserStatus {
-  ACTIVE // Compte en règle
-  BLOCKED // Compte bloqué par la plateforme (modération)
+  ACTIVE
+  BLOCKED
 }
 
 enum SubscriptionStatus {
-  TRIAL // Période d'essai gratuite en cours
-  ACTIVE // Abonnement payant actif
-  PAST_DUE // Paiement en retard (tolérance)
-  CANCELLED // Abonnement résilié
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
 }
 
 enum ModerationStatus {
-  NEW // Signalement reçu, pas encore traité
-  IN_PROGRESS // Pris en charge par un administrateur
-  RESOLVED // Traité (sanction ou rien à signaler)
-  REJECTED // Rejeté (signalement infondé)
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
 }
 
 enum ModerationTargetType {
@@ -86,540 +579,11 @@ enum ModerationTargetType {
 }
 
 enum VerificationDocumentType {
-  IDENTITY // Pièce d'identité du vendeur
-  REGISTRE // Registre de commerce
-  LICENCE // Licence / autorisation
-  PHOTO_BOUTIQUE // Photo de la boutique
-  ADDRESS // Justificatif d'adresse
-}
-
-// ===== Modèles =====
-
-model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  password    String? // Hash bcrypt (optionnel pour les comptes créés via OAuth Google / Facebook)
-  googleId    String?  @unique
-  facebookId  String?  @unique
-  authProvider String? @default("LOCAL") // LOCAL, GOOGLE, FACEBOOK
-  name        String?
-  phone       String? // Identifiant de connexion alternatif (vérifié en unicité applicative)
-  avatarUrl   String? // Photo de profil utilisateur (URL ou base64 data-url)
-  role        Role     @default(CLIENT)
-  status      UserStatus @default(ACTIVE) // Blocage admin (modération)
-  // Refresh token courant (hash) — rotation à chaque renouvellement
-  refreshTokenHash String?
-
-  defaultAddress       String?
-  defaultCity          String?
-  defaultPaymentMethod PaymentMethod?
-
-  // Cashback & Parrainage
-  pointsBalance Int @default(0)
-  referralCode  String? @unique
-  referredById  String?
-  referredBy    User?  @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referees      User[] @relation("Referrals")
-  pointTransactions PointTransaction[]
-
-  boutiques    Boutique[]
-  teamMemberships TeamMember[]
-  teamInvitations TeamMember[] @relation("TeamInviter")
-  conversations Conversation[] @relation("ConversationClient")
-  orders       Order[]
-  messages     Message[]
-
-  // Relations du module admin plateforme
-  reportsSubmitted  ModerationReport[] @relation("ReportReporter")
-  reportsResolved   ModerationReport[] @relation("ReportResolver")
-  adminLogs         AdminLog[]         @relation("AdminLogAuthor")
-  adminNotes        AdminNote[]        @relation("AdminNoteAuthor")
-  settingsUpdates   PlatformSettings[] @relation("SettingsUpdater")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([role])
-}
-
-model Boutique {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  slug           String   @unique // URL publique : /boutique/[slug]
-  tagline        String?
-  description    String?
-  status         BoutiqueStatus @default(PENDING)
-  // Vérification du compte vendeur — badge « vérifié » sur la vitrine et les produits
-  verificationStatus VerificationStatus @default(NONE)
-  plan           String   @default("starter") // Formule d'abonnement (frontend Paramètres)
-
-  // Identité & contacts (ShopConfig)
-  email          String?
-  phone          String?
-  city           String?
-  country        String?
-  whatsappNumber String?
-
-  // Visuels
-  coverImage     String?
-  logoImage      String?
-
-  // Notes de confiance affichées sur les fiches produit
-  deliveryShortLabel String?
-  deliveryNote       String?
-  warrantyNote       String?
-  paymentNote        String?
-
-  // Paramètres structurés (ShopConfig) — JSON côté DB
-  socialLinks    Json? // { instagram, facebook, twitter, linkedin, tiktok }
-  deliveryPacks  Json? // [{ id, name, price, description, badge? }]
-  promotions     Json? // [{ productId, discountPercent }]
-  notifications  Json? // [{ id, label, description, enabled }]
-
-  ownerId String
-  owner   User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  categories    Category[]
-  brands        Brand[]
-  products      Product[]
-  orders        Order[]
-  balance       Decimal @default(0) @db.Decimal(14, 2)
-  withdrawals   WithdrawalRequest[]
-  conversations Conversation[]
-  subscribers   Subscriber[]
-  sellerNotifications Notification[]
-
-  // Module admin plateforme
-  subscription          Subscription?
-  verificationDocuments VerificationDocument[]
-  teamMembers   TeamMember[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([ownerId])
-  @@index([status])
-}
-
-model Brand {
-  id         String   @id @default(cuid())
-  name       String
-  slug       String
-  boutiqueId String
-  boutique   Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-
-  products Product[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([boutiqueId, slug])
-  @@index([boutiqueId])
-}
-
-model Category {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String
-  boutiqueId String
-  boutique  Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  parentId  String?
-  parent    Category? @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children  Category[] @relation("CategoryTree")
-
-  products Product[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([boutiqueId, slug])
-  @@index([boutiqueId])
-}
-
-model Product {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String
-  description String?
-  price       Decimal  @db.Decimal(12, 2)
-  oldPrice    Decimal? @db.Decimal(12, 2)
-  currency    String   @default("XOF") // FCFA
-  stock       Int      @default(0)
-  sku         String?
-  isFeatured  Boolean  @default(false)
-  isActive    Boolean  @default(true)
-  images      String[] // URLs (max 5)
-
-  boutiqueId  String
-  boutique    Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  brandId     String?
-  brand       Brand?    @relation(fields: [brandId], references: [id], onDelete: SetNull)
-
-  variants    Variant[]
-  reviews     Review[]
-  orderItems  OrderItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([boutiqueId, slug])
-  @@index([boutiqueId, isActive])
-  @@index([boutiqueId, categoryId])
-  @@index([boutiqueId, price])
-  @@index([isFeatured])
-}
-
-model Variant {
-  id         String   @id @default(cuid())
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name       String // ex: "Taille"
-  value      String // ex: "L"
-  priceDelta Decimal? @db.Decimal(12, 2) // Surcharge (+/-) sur le prix de base
-  stock      Int      @default(0)
-
-  orderItems OrderItem[]
-
-  @@unique([productId, name, value])
-}
-
-model Review {
-  id        String   @id @default(cuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  author    String
-  rating    Int // 1 à 5
-  comment   String?
-  createdAt DateTime @default(now())
-
-  @@index([productId])
-}
-
-model Order {
-  id             String      @id @default(cuid())
-  reference      String      @unique // ex: AC-8902
-  boutiqueId     String
-  boutique       Boutique    @relation(fields: [boutiqueId], references: [id], onDelete: Restrict)
-  userId         String?     // Client connecté (optionnel)
-  user           User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  customerName   String
-  customerPhone  String
-  customerEmail  String?
-  address        String?
-  city           String?
-  country        String?
-
-  status         OrderStatus @default(PENDING)
-  paymentMethod  PaymentMethod @default(MOBILE_MONEY)
-  pointsUsed     Int @default(0)
-
-  // Paiement : référence de transaction fournisseur + date de confirmation
-  // (renseignées quand le client valide son paiement → statut PAID)
-  paymentRef     String?
-  paidAt         DateTime?
-
-  // Motif d'annulation fourni par le client (optionnel) — visible au vendeur
-  cancellationReason String?
-
-  deliveryName   String?
-  deliveryPrice  Decimal     @default(0) @db.Decimal(12, 2)
-  total          Decimal     @db.Decimal(12, 2) // items + livraison, recalculé serveur
-  notes          String?
-
-  // --- Modèle Économique (Traçabilité des commissions) ---
-  commissionRate   Decimal? @db.Decimal(5, 2)
-  commissionAmount Decimal? @db.Decimal(12, 2)
-  netAmount        Decimal? @db.Decimal(12, 2)
-  planAtPurchase   String?  // Snapshot du plan vendeur (starter, business...)
-  // ------------------------------------------------------
-
-  items     OrderItem[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-
-  @@index([boutiqueId, status])
-  @@index([boutiqueId, createdAt])
-}
-
-model OrderItem {
-  id           String  @id @default(cuid())
-  orderId      String
-  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId    String?
-  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  variantId    String?
-  variant      Variant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
-
-  productName  String // Snapshot au moment de la commande
-  variantLabel String?
-  quantity     Int
-  unitPrice    Decimal @db.Decimal(12, 2) // Snapshot du prix unitaire
-
-  @@index([orderId])
-}
-
-model Conversation {
-  id           String   @id @default(cuid())
-  boutiqueId   String
-  boutique     Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  // Client : user connecté (optionnel) ou simple visiteur identifié par téléphone
-  userId       String?
-  user         User?    @relation("ConversationClient", fields: [userId], references: [id], onDelete: SetNull)
-  clientName   String
-  clientPhone  String?
-  lastMessageAt DateTime @default(now())
-
-  // Contexte commercial (optionnel) : la conversation peut être liée à un
-  // produit et/ou une commande — la messagerie comprend le commerce.
-  productId   String? // Produit concerné (ex. poser une question sur un article)
-  productName String? // Snapshot du nom au moment de l'ouverture
-  productPrice String? // Snapshot du prix affiché (FCFA)
-  productDescription String? // Snapshot de la description (carte produit de la discussion)
-  productImage String? // Snapshot de l'image (carte produit de la discussion)
-  agreedPrice Decimal? @db.Decimal(14, 2) // Prix réduit convenu lors de la négociation
-  orderId      String? // Commande concernée (ex. question sur une commande)
-  orderReference String? // Snapshot de la référence (ex. #AC-8901)
-
-  messages Message[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([boutiqueId])
-  @@index([userId])
-}
-
-model Message {
-  id             String        @id @default(cuid())
-  conversationId String
-  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderRole     MessageSender
-  senderId       String? // User.id de l'expéditeur (si connecté)
-  sender         User?         @relation(fields: [senderId], references: [id], onDelete: SetNull)
-  content        String
-  readAt         DateTime?
-
-  createdAt DateTime @default(now())
-
-  @@index([conversationId, createdAt])
-}
-
-model Subscriber {
-  id         String   @id @default(cuid())
-  email      String
-  boutiqueId String
-  boutique   Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-
-  @@unique([boutiqueId, email])
-  @@index([boutiqueId])
-}
-
-/**
- * Notification affichée au VENDEUR dans son dashboard (cloche) : créée côté
- * serveur sur des événements métier (ex. annulation de commande par un client).
- */
-model Notification {
-  id             String   @id @default(cuid())
-  boutiqueId     String
-  boutique       Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  type           String // ex: "order_cancelled"
-  title          String
-  message        String?
-  orderReference String? // ex: "#AC-8901" — lien vers l'onglet Commandes
-  readAt         DateTime? // null = non lue
-  createdAt      DateTime @default(now())
-
-  @@index([boutiqueId, readAt])
-  @@index([boutiqueId, createdAt])
-}
-
-// ============================================================
-// Module admin plateforme (docs Ecommerce/administration)
-// ============================================================
-
-/**
- * Catalogue des formules d'abonnement (géré depuis le dashboard admin —
- * PlansManager). Le champ `boutique.plan` reste la formule active du vendeur
- * (cohérence : Subscription.plan.slug === boutique.plan).
- */
-model Plan {
-  id          String   @id @default(cuid())
-  slug        String   @unique // ex: starter | pro | business
-  name        String
-  description String?
-  price       Decimal  @default(0) @db.Decimal(12, 2) // Montant par période
-  interval    String   @default("month") // month | year
-  features    Json? // [{ label, included }]
-  limits      Json? // { products, orders, storage }
-  isActive    Boolean  @default(true)
-  isDefault   Boolean  @default(false)
-  sortOrder   Int      @default(0)
-
-  subscriptions Subscription[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-/**
- * Abonnement réel d'une boutique (billing). Le statut TRIAL couvre l'essai
- * gratuit ; le passage en ACTIVE se fait au premier paiement.
- */
-model Subscription {
-  id         String   @id @default(cuid())
-  boutiqueId String   @unique
-  boutique   Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  planId     String
-  plan       Plan     @relation(fields: [planId], references: [id])
-  status     SubscriptionStatus @default(TRIAL)
-  price      Decimal  @default(0) @db.Decimal(12, 2) // Montant facturé (snapshot)
-  startsAt   DateTime @default(now())
-  trialEndsAt DateTime?
-  currentPeriodStart DateTime @default(now())
-  currentPeriodEnd   DateTime?
-  cancelledAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status])
-  @@index([planId])
-}
-
-/**
- * Signalement de modération : une cible (boutique, produit, utilisateur,
- * commande, avis) signalée par un utilisateur ou détectée par la plateforme.
- */
-model ModerationReport {
-  id         String   @id @default(cuid())
-  targetType ModerationTargetType
-  targetId   String
-  targetLabel String? // Snapshot du libellé (nom de boutique, produit…)
-  reason     String // Motif court
-  details    String? // Explications complémentaires
-  severity   String   @default("medium") // low | medium | high | critical
-  status     ModerationStatus @default(NEW)
-
-  reporterId String?
-  reporter   User? @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
-
-  resolutionNote String?
-  resolvedById   String?
-  resolvedBy     User? @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
-  resolvedAt     DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status])
-  @@index([targetType, targetId])
-  @@index([createdAt])
-}
-
-/**
- * Journal d'audit administratif (doc 20 : qui → quoi → quand → sur quoi →
- * résultat). Chaque action importante du dashboard admin est tracée ici.
- */
-model AdminLog {
-  id          String   @id @default(cuid())
-  adminId     String
-  admin       User     @relation("AdminLogAuthor", fields: [adminId], references: [id], onDelete: Cascade)
-  action      String // ex: verification.approved | store.suspended | user.blocked
-  targetType  String? // ex: boutique | user | order | subscription | settings
-  targetId    String?
-  targetLabel String? // Snapshot du libellé au moment de l'action
-  details     Json?
-  createdAt   DateTime @default(now())
-
-  @@index([adminId])
-  @@index([createdAt])
-}
-
-/** Notes internes des administrateurs (liées à une cible) */
-model AdminNote {
-  id         String  @id @default(cuid())
-  targetType String // boutique | user | order | report
-  targetId   String
-  content    String
-  adminId    String
-  admin      User    @relation("AdminNoteAuthor", fields: [adminId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-
-  @@index([targetType, targetId])
-}
-
-/** Documents fournis par un vendeur pour la vérification KYC */
-model VerificationDocument {
-  id         String   @id @default(cuid())
-  boutiqueId String
-  boutique   Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  type       VerificationDocumentType
-  label      String
-  url        String
-  status     String   @default("pending") // pending | approved | rejected
-  createdAt  DateTime @default(now())
-
-  @@index([boutiqueId])
-}
-
-/**
- * Code de vérification OTP (ex. validation de l'e-mail à l'inscription).
- * Le code est stocké HASHÉ (SHA-256) avec une date d'expiration et un compteur
- * de tentatives — jamais en clair.
- */
-model OtpCode {
-  id         String    @id @default(cuid())
-  identifier String // Email normalisé (ou téléphone plus tard)
-  purpose    String    @default("REGISTER") // REGISTER | ... (extensible)
-  codeHash   String // SHA-256 du code à 6 chiffres
-  attempts   Int       @default(0) // Tentatives de saisie épuisées → code invalidé
-  expiresAt  DateTime
-  consumedAt DateTime? // Rempli quand le code a été utilisé avec succès
-  createdAt  DateTime  @default(now())
-
-  @@index([identifier, purpose])
-}
-
-/**
- * Paramètres globaux de la plateforme (doc 11) — une seule ligne, le JSON
- * suit la structure du dashboard admin (10 sections).
- */
-model PlatformSettings {
-  id          String   @id @default("global")
-  data        Json
-  updatedById String?
-  updatedBy   User?    @relation("SettingsUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-  updatedAt   DateTime @updatedAt
-}
-
-
-model PointTransaction {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount    Int      // Positif (gain) ou négatif (dépense)
-  reason    String   // "CASHBACK_PURCHASE", "CASHBACK_REFERRAL", "SPENT_ON_ORDER"
-  orderId   String?
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-model WithdrawalRequest {
-  id          String   @id @default(cuid())
-  boutiqueId  String
-  boutique    Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  amount      Decimal  @db.Decimal(14, 2)
-  status      WithdrawalStatus @default(PENDING)
-  createdAt   DateTime @default(now())
-  processedAt DateTime?
-  paymentInfo String?
-
-  @@index([boutiqueId])
+  IDENTITY
+  REGISTRE
+  LICENCE
+  PHOTO_BOUTIQUE
+  ADDRESS
 }
 
 enum WithdrawalStatus {
@@ -628,63 +592,14 @@ enum WithdrawalStatus {
   REJECTED
 }
 
-/**
-  * Clés d'idempotence pour sécuriser les transactions financières (1er pilier de sécurité).
-  * Empêche les réexécutions accidentelles ou les Webhooks répétés.
-  */
-model IdempotencyKey {
-  id           String   @id @default(cuid())
-  key          String   @unique
-  path         String
-  statusCode   Int
-  responseBody Json
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime
-
-  @@index([key])
-  @@index([expiresAt])
-}
-
-/**
- * Membres d'équipe d'une boutique — invités par le propriétaire (Business+)
- * Un collaborateur peut avoir accès à une ou plusieurs boutiques du même owner.
- */
-model TeamMember {
-  id         String   @id @default(cuid())
-  boutiqueId String
-  boutique   Boutique @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
-  
-  // L'email de l'invité (peut ne pas encore avoir de compte ZennShop)
-  email      String
-  name       String?
-  role       TeamMemberRole @default(EDITOR)
-  status     TeamMemberStatus @default(PENDING)
-  
-  // Lien vers le compte utilisateur s'il existe
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  invitedById String?
-  invitedBy   User?    @relation("TeamInviter", fields: [invitedById], references: [id], onDelete: SetNull)
-  
-  invitedAt  DateTime @default(now())
-  acceptedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
-  @@unique([boutiqueId, email])
-  @@index([boutiqueId])
-  @@index([email])
-}
-
 enum TeamMemberRole {
-  ADMIN    // Peut tout faire sauf supprimer la boutique
-  EDITOR   // Peut gérer produits, commandes
-  VIEWER   // Lecture seule
+  ADMIN
+  EDITOR
+  VIEWER
 }
 
 enum TeamMemberStatus {
-  PENDING  // Invitation envoyée, pas encore acceptée
-  ACTIVE   // Invitation acceptée
-  REVOKED  // Accès révoqué
+  PENDING
+  ACTIVE
+  REVOKED
 }

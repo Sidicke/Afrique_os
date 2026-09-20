@@ -44,7 +44,12 @@ async function openModal(user: ReturnType<typeof userEvent.setup>) {
 
 // Les avis des visiteurs sont persistés : on isole chaque test
 afterEach(() => {
-  localStorage.clear();
+  cleanup();
+  try {
+    window.localStorage?.clear();
+  } catch {
+    // ignore
+  }
 });
 
 /** Remplit et publie un avis complet via le formulaire */
@@ -193,7 +198,7 @@ describe("ProductDetail (modal produit)", () => {
     renderDetail();
     await openModal(user2);
 
-    expect(screen.getByText("Kouassi B.")).toBeInTheDocument();
+    expect(await screen.findByText("Kouassi B.")).toBeInTheDocument();
     expect(screen.getByText("Super produit, je recommande !")).toBeInTheDocument();
     // Le compteur intègre l'avis persisté (4 du catalogue + 1 visiteur)
     expect(screen.getByText("Avis clients (5)")).toBeInTheDocument();

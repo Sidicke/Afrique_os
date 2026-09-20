@@ -25,8 +25,12 @@ export const CURRENCY_SYMBOLS: Record<SupportedCurrency, string> = {
 /** Formate un montant dynamiquement selon la devise sélectionnée avec taux de conversion */
 export function formatCurrency(amount: number, forceCurrency?: string): string {
   let currency = (forceCurrency as SupportedCurrency);
-  if (!currency && typeof window !== "undefined") {
-    currency = (localStorage.getItem("zennshop_curr") as SupportedCurrency) || "XOF";
+  if (!currency && typeof window !== "undefined" && typeof localStorage !== "undefined" && localStorage?.getItem) {
+    try {
+      currency = (localStorage.getItem("zennshop_curr") as SupportedCurrency) || "XOF";
+    } catch {
+      currency = "XOF";
+    }
   }
   currency = currency || "XOF";
 
@@ -86,7 +90,7 @@ export function safeRedirectPath(
 export function publicShopHref(
   boutiqueSlug: string | null | undefined,
 ): string {
-  return boutiqueSlug ? `/boutique/${boutiqueSlug}` : "/boutique";
+  return boutiqueSlug ? `/b/${boutiqueSlug}` : "/b";
 }
 
 /**
