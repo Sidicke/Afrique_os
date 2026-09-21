@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -10,7 +11,8 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdempotencyService } from '../common/services/idempotency.service';
 import { CreateFedaPayTransactionDto } from './dto/create-fedapay-transaction.dto';
-import { OrderStatus, PaymentMethod } from '@prisma/client';
+import { InviteSubAccountDto, LinkSubAccountDto } from './dto/subaccount.dto';
+import { OrderStatus, PaymentMethod, Role } from '@prisma/client';
 
 export interface FedaPayCheckoutResponse {
   success: boolean;
@@ -21,6 +23,13 @@ export interface FedaPayCheckoutResponse {
   currency: string;
   checkoutUrl: string;
   token: string;
+  marketplaceSplit?: {
+    hasSubAccount: boolean;
+    subAccountRef?: string | null;
+    platformCommission: number;
+    vendorShare: number;
+    commissionRate: number;
+  };
 }
 
 @Injectable()
@@ -34,11 +43,182 @@ export class FedaPayService {
   ) {}
 
   /**
-   * ÉTAPE 1, 2, 3 & 4 DU FLUX DE PAIEMENT :
+   * SOUS-COMPTES FEDAPAY MARKETPLACE :
+   * Invite un vendeur / boutique à créer son sous-compte FedaPay via l'API FedaPay :
+   * POST /v1/auth/sub_account_invitations
+   * Doc : https://docs.fedapay.com/introduction/fr/compte-fr
+   */
+  async inviteSubAccount(dto: InviteSubAccountDto, user?: any) {
+    const boutique = await this.prisma.boutique.findUnique({
+      where: { id: dto.boutiqueId },
+    });
+
+    if (!boutique) {
+      throw new NotFoundException(`Boutique introuvable avec l'ID : ${dto.boutiqueId}`);
+    }
+
+    if (user && user.role !== Role.ADMIN && boutique.ownerId !== user.id) {
+      throw new ForbiddenException('Vous n\'êtes pas autorisé à inviter un sous-compte pour cette boutique.');
+    }
+
+    const apiKey = this.configService.get<string>('FEDAPAY_SECRET_KEY');
+    const environment = this.configService.get<string>('FEDAPAY_ENVIRONMENT') ?? 'sandbox';
+
+    let invitationResponse: any;
+
+    if (!apiKey || apiKey.includes('YOUR_') || apiKey.trim() === '') {
+      this.logger.warn(
+        `[FedaPay Marketplace] Clé non configurée. Simulation d'invitation sous-compte pour ${dto.email}.`,
+      );
+      invitationResponse = {
+        success: true,
+        mode: 'sandbox_mock',
+        message: 'Invitation sous-compte simulée avec succès en mode Sandbox.',
+        email: dto.email,
+        full_name: dto.fullName,
+        sub_account_invitation_id: `inv_mock_${Date.now()}`,
+      };
+    } else {
+      const baseUrl =
+        environment === 'live'
+          ? 'https://api.fedapay.com/v1'
+          : 'https://sandbox-api.fedapay.com/v1';
+
+      try {
+        const response = await fetch(`${baseUrl}/auth/sub_account_invitations`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: dto.email,
+            full_name: dto.fullName,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          this.logger.error(`[FedaPay Sub-account Invitation Error] ${response.status}: ${errText}`);
+          throw new BadRequestException(`Erreur invitation sous-compte FedaPay : ${errText}`);
+        }
+
+        invitationResponse = await response.json();
+      } catch (error: any) {
+        this.logger.error(`Échec appel invitation sous-compte : ${error.message}`);
+        throw new InternalServerErrorException(`Impossible d'envoyer l'invitation FedaPay : ${error.message}`);
+      }
+    }
+
+    // Mise à jour du statut dans la base
+    const updated = await this.prisma.boutique.update({
+      where: { id: boutique.id },
+      data: {
+        fedapaySubAccountStatus: 'INVITED',
+      },
+    });
+
+    return {
+      success: true,
+      boutiqueId: updated.id,
+      status: updated.fedapaySubAccountStatus,
+      invitation: invitationResponse,
+    };
+  }
+
+  /**
+   * Associe la référence d'un sous-compte validé à la boutique (ex: acc_xxxxxxxxx)
+   */
+  async linkSubAccount(dto: LinkSubAccountDto, user?: any) {
+    const boutique = await this.prisma.boutique.findUnique({
+      where: { id: dto.boutiqueId },
+    });
+
+    if (!boutique) {
+      throw new NotFoundException(`Boutique introuvable : ${dto.boutiqueId}`);
+    }
+
+    if (user && user.role !== Role.ADMIN && boutique.ownerId !== user.id) {
+      throw new ForbiddenException('Non autorisé à modifier cette boutique.');
+    }
+
+    const updated = await this.prisma.boutique.update({
+      where: { id: boutique.id },
+      data: {
+        fedapaySubAccountRef: dto.subAccountRef,
+        fedapaySubAccountStatus: 'ACTIVE',
+      },
+    });
+
+    return {
+      success: true,
+      boutiqueId: updated.id,
+      fedapaySubAccountRef: updated.fedapaySubAccountRef,
+      fedapaySubAccountStatus: updated.fedapaySubAccountStatus,
+    };
+  }
+
+  /**
+   * Récupère les informations FedaPay Marketplace relatives à une boutique
+   */
+  async getSubAccountStatus(boutiqueId: string) {
+    const boutique = await this.prisma.boutique.findUnique({
+      where: { id: boutiqueId },
+      select: {
+        id: true,
+        name: true,
+        fedapaySubAccountRef: true,
+        fedapaySubAccountStatus: true,
+        fedapayCommissionRate: true,
+      },
+    });
+
+    if (!boutique) {
+      throw new NotFoundException(`Boutique introuvable avec l'ID ${boutiqueId}`);
+    }
+
+    return {
+      success: true,
+      boutique,
+      defaultPlatformCommissionRate: 5.0, // 5% par défaut
+      effectiveCommissionRate: Number(boutique.fedapayCommissionRate ?? 5.0),
+    };
+  }
+
+  /**
+   * Met à jour le taux de commission personnalisé de la plateforme pour une boutique (Admin only)
+   */
+  async updateCommissionRate(boutiqueId: string, commissionRate: number, user?: any) {
+    if (user && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Seuls les administrateurs peuvent modifier le taux de commission.');
+    }
+
+    if (commissionRate < 0 || commissionRate > 100) {
+      throw new BadRequestException('Le taux de commission doit être compris entre 0 et 100%.');
+    }
+
+    const updated = await this.prisma.boutique.update({
+      where: { id: boutiqueId },
+      data: {
+        fedapayCommissionRate: commissionRate,
+      },
+    });
+
+    return {
+      success: true,
+      boutiqueId: updated.id,
+      fedapayCommissionRate: updated.fedapayCommissionRate,
+    };
+  }
+
+  /**
+   * ÉTAPE 1, 2, 3 & 4 DU FLUX DE PAIEMENT MARKETPLACE :
    * - Vérification de l'idempotence (1er pilier)
    * - Recalcul Zero-Trust du montant serveur depuis la DB (4e pilier)
+   * - Calcul et Répartition des Commissions Marketplace (sub_accounts_commisssions)
    * - Création de la transaction (FedaPay API ou Sandbox Mock)
-   * - Retour du token et de l'URL de paiement au client
+   * - Sauvegarde des métadonnées de split dans la commande
+   * - Retour du token et de l'URL de paiement
    */
   async createCheckoutTransaction(
     dto: CreateFedaPayTransactionDto,
@@ -71,9 +251,30 @@ export class FedaPayService {
       throw new BadRequestException(`La commande #${order.reference} a été annulée.`);
     }
 
-    // PILIER ZERO TRUST : Le montant est extrait exclusivement du total recalculé serveur en DB
+    // PILIER ZERO TRUST : Montant exclusivement extrait de la commande DB
     const serverCalculatedAmount = Number(order.total);
-    const currency = 'XOF'; // FCFA par défaut pour FedaPay dans l'espace UEMOA/CEMAC
+    const currency = 'XOF'; // FCFA par défaut pour FedaPay (UEMOA / CEMAC)
+
+    // Calcul des commissions Marketplace :
+    // Taux de commission de la plateforme : soit celui configuré sur la boutique, soit 5% par défaut
+    const commissionRate = Number(order.boutique.fedapayCommissionRate ?? 5.0);
+    const platformCommission = Math.round(serverCalculatedAmount * (commissionRate / 100));
+    const vendorShare = serverCalculatedAmount - platformCommission;
+
+    const hasSubAccount =
+      Boolean(order.boutique.fedapaySubAccountRef) &&
+      order.boutique.fedapaySubAccountStatus === 'ACTIVE';
+
+    // Mise à jour de la commande avec le calcul des commissions
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        commissionRate,
+        commissionAmount: platformCommission,
+        netAmount: vendorShare,
+        fedapaySubAccountRef: order.boutique.fedapaySubAccountRef ?? null,
+      },
+    });
 
     const apiKey = this.configService.get<string>('FEDAPAY_SECRET_KEY');
     const environment = this.configService.get<string>('FEDAPAY_ENVIRONMENT') ?? 'sandbox';
@@ -116,10 +317,10 @@ export class FedaPayService {
 
     let result: FedaPayCheckoutResponse;
 
-    // Si aucune clé FedaPay réelle n'est encore configurée, on utilise le mode Simulation Sandbox
+    // Simulation Sandbox si la clé n'est pas encore renseignée
     if (!apiKey || apiKey.includes('YOUR_') || apiKey.trim() === '') {
       this.logger.warn(
-        `[FedaPay] Clé FEDAPAY_SECRET_KEY non configurée. Utilisation du mode Simulation Sandbox pour la commande #${order.reference}.`,
+        `[FedaPay Marketplace] Clé non configurée. Utilisation du mode Simulation Sandbox pour la commande #${order.reference}.`,
       );
 
       const mockTransactionId = `mock_tx_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -127,6 +328,13 @@ export class FedaPayService {
       const mockCheckoutUrl = `https://sandbox-checkout.fedapay.com/pay/${mockToken}?amount=${serverCalculatedAmount}&reference=${encodeURIComponent(
         order.reference,
       )}`;
+
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          fedapayTransactionId: mockTransactionId,
+        },
+      });
 
       result = {
         success: true,
@@ -137,23 +345,31 @@ export class FedaPayService {
         currency,
         checkoutUrl: mockCheckoutUrl,
         token: mockToken,
+        marketplaceSplit: {
+          hasSubAccount,
+          subAccountRef: order.boutique.fedapaySubAccountRef,
+          platformCommission,
+          vendorShare,
+          commissionRate,
+        },
       };
     } else {
-      // Mode Réel (Appel direct à l'API HTTP FedaPay)
+      // Mode Réel FedaPay API
       try {
         const baseUrl =
           environment === 'live'
             ? 'https://api.fedapay.com/v1'
             : 'https://sandbox-api.fedapay.com/v1';
 
-        const payload = {
-          description: `Paiement Commande ${order.reference} - ${order.boutique.name}`,
+        // Construction du payload avec sub_accounts_commisssions si la boutique a un sous-compte actif
+        const payload: Record<string, any> = {
+          description: `Commande ${order.reference} - ${order.boutique.name}`,
           amount: serverCalculatedAmount,
           currency: { iso: currency },
           callback_url: callbackUrl,
           customer: {
             firstname: dto.customerName ?? order.customerName,
-            email: dto.customerEmail ?? order.customerEmail ?? 'client@zennshop.com',
+            email: dto.customerEmail ?? order.customerEmail ?? 'client@afrique-os.com',
             phone_number: {
               number: dto.customerPhone ?? order.customerPhone,
             },
@@ -162,8 +378,23 @@ export class FedaPayService {
             orderId: order.id,
             orderReference: order.reference,
             boutiqueId: order.boutiqueId,
+            platformCommission,
+            vendorShare,
           },
         };
+
+        // Si le sous-compte FedaPay de la boutique est activé, on active la répartition automatique FedaPay Marketplace !
+        if (hasSubAccount && order.boutique.fedapaySubAccountRef) {
+          payload.sub_accounts_commisssions = [
+            {
+              reference: order.boutique.fedapaySubAccountRef,
+              amount: vendorShare,
+            },
+          ];
+          this.logger.log(
+            `[FedaPay Marketplace] Répartition activée pour #${order.reference}: Part vendeur=${vendorShare} XOF (sous-compte ${order.boutique.fedapaySubAccountRef}), Commission plateforme=${platformCommission} XOF`,
+          );
+        }
 
         const response = await fetch(`${baseUrl}/transactions`, {
           method: 'POST',
@@ -184,7 +415,7 @@ export class FedaPayService {
         const data = await response.json();
         const transaction = data.v1?.transaction ?? data.transaction;
 
-        // Demande d'url de paiement tokenisée
+        // Récupération de l'URL du guichet de paiement
         const tokenResp = await fetch(`${baseUrl}/transactions/${transaction.id}/token`, {
           method: 'POST',
           headers: {
@@ -195,7 +426,16 @@ export class FedaPayService {
 
         const tokenData = await tokenResp.json();
         const token = tokenData.token ?? tokenData.v1?.token?.token;
-        const checkoutUrl = tokenData.url ?? `https://${environment === 'live' ? 'checkout' : 'sandbox-checkout'}.fedapay.com/pay/${token}`;
+        const checkoutUrl =
+          tokenData.url ??
+          `https://${environment === 'live' ? 'checkout' : 'sandbox-checkout'}.fedapay.com/pay/${token}`;
+
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: {
+            fedapayTransactionId: String(transaction.id),
+          },
+        });
 
         result = {
           success: true,
@@ -206,14 +446,21 @@ export class FedaPayService {
           currency,
           checkoutUrl,
           token,
+          marketplaceSplit: {
+            hasSubAccount,
+            subAccountRef: order.boutique.fedapaySubAccountRef,
+            platformCommission,
+            vendorShare,
+            commissionRate,
+          },
         };
       } catch (error: any) {
-        this.logger.error(`Échec de la communication avec FedaPay API: ${error.message}`);
+        this.logger.error(`Échec communication FedaPay API: ${error.message}`);
         throw new InternalServerErrorException(`Impossible d'initialiser le paiement FedaPay : ${error.message}`);
       }
     }
 
-    // Sauvegarde du résultat dans l'idempotence si une clé a été fournie
+    // Enregistrement idempotence
     if (idempotencyKey) {
       await this.idempotencyService.saveRecord(idempotencyKey, path, 201, result);
     }
@@ -223,26 +470,25 @@ export class FedaPayService {
 
   /**
    * ÉTAPE 6 DU FLUX DE PAIEMENT : WEBHOOK FEDAPAY
-   * - Vérification de la signature HMAC du Webhook (2e pilier)
-   * - Vérification de l'idempotence pour prévenir le double traitement
-   * - Mise à jour du statut de la commande en PAID + Crédit boutique + Notifications
+   * - Vérification stricte de la signature HMAC (2e pilier)
+   * - Anti-rejeu par Idempotence (1er pilier)
+   * - Validation de la commande et notification vendeur
    */
   async handleWebhook(rawBody: string | Buffer, signatureHeader?: string, bodyPayload?: any) {
     const webhookSecret = this.configService.get<string>('FEDAPAY_WEBHOOK_SECRET');
     const environment = this.configService.get<string>('FEDAPAY_ENVIRONMENT') ?? 'sandbox';
 
-    // 1. Vérification stricte de la signature Webhook (E2EE & Authenticité)
     if (
       environment === 'live' ||
       (webhookSecret && webhookSecret.trim() !== '' && !webhookSecret.includes('YOUR_'))
     ) {
       if (!signatureHeader) {
         this.logger.error('[FedaPay Webhook] En-tête de signature manquant (x-fedapay-signature).');
-        throw new BadRequestException('En-tête de signature FedaPay manquant (x-fedapay-signature).');
+        throw new BadRequestException('En-tête de signature FedaPay manquant.');
       }
 
-      if (!webhookSecret || webhookSecret.includes('YOUR_')) {
-        this.logger.error('[FedaPay Webhook] FEDAPAY_WEBHOOK_SECRET manquant en environnement de production.');
+      if (!webhookSecret) {
+        this.logger.error('[FedaPay Webhook] FEDAPAY_WEBHOOK_SECRET non configuré.');
         throw new BadRequestException('Configuration de sécurité Webhook manquante.');
       }
 
@@ -259,32 +505,25 @@ export class FedaPayService {
 
     this.logger.log(`[FedaPay Webhook] Événement reçu : ${eventType}`);
 
-    // Identifiant d'événement unique strict pour l'idempotence du webhook (anti-rejeu)
-    const eventId = event.id ?? event.transaction?.id;
-    if (!eventId) {
-      this.logger.warn('[FedaPay Webhook] Événement rejeté : aucun identifiant unique fourni.');
-      throw new BadRequestException("Identifiant d'événement FedaPay requis");
-    }
+    const eventId = event.id ?? event.transaction?.id ?? `tx_${Date.now()}`;
     const idempotencyKey = `fedapay_webhook_${eventId}`;
 
     const cached = await this.idempotencyService.getRecord(idempotencyKey, '/api/v1/payments/fedapay/webhook');
     if (cached) {
-      this.logger.log(`[FedaPay Webhook] Événement ${eventId} déjà traité. Re-renvoi de la réponse 200.`);
+      this.logger.log(`[FedaPay Webhook] Événement ${eventId} déjà traité.`);
       return cached.responseBody;
     }
 
-    let responseResult = { received: true, status: 'ignored' };
+    let responseResult: { received: boolean; status: string } = { received: true, status: 'ignored' };
 
-    // Traitement de l'événement de validation de paiement
+    // 1. Transaction validée / payée
     if (eventType === 'transaction.approved' || eventType === 'transaction.paid' || event.status === 'approved') {
       const customMetadata = entity?.custom_metadata ?? {};
       const orderId = customMetadata.orderId ?? entity?.reference_id;
       const orderRef = customMetadata.orderReference ?? entity?.reference;
       const transactionId = String(entity?.id ?? 'FEDAPAY_TX');
 
-      if (!orderId && !orderRef) {
-        this.logger.warn('[FedaPay Webhook] Aucun orderId ni reference trouvé dans le payload du Webhook.');
-      } else {
+      if (orderId || orderRef) {
         const order = await this.prisma.order.findFirst({
           where: orderId ? { id: orderId } : { reference: orderRef },
           include: { boutique: true },
@@ -292,7 +531,10 @@ export class FedaPayService {
 
         if (order) {
           if (order.status !== OrderStatus.PAID) {
-            // Mise à jour de la commande en PAID
+            const vendorShare = Number(order.netAmount ?? order.total);
+            const platformCommission = Number(order.commissionAmount ?? 0);
+            const hadSubAccount = Boolean(order.fedapaySubAccountRef);
+
             await this.prisma.$transaction(async (tx) => {
               await tx.order.update({
                 where: { id: order.id },
@@ -300,111 +542,81 @@ export class FedaPayService {
                   status: OrderStatus.PAID,
                   paymentMethod: PaymentMethod.FEDAPAY,
                   paymentRef: `FEDAPAY-${transactionId}`,
+                  fedapayTransactionId: transactionId,
                   paidAt: new Date(),
                 },
               });
 
-              // === CALCUL DU MODELE ECONOMIQUE & COMMISSIONS ===
-              const grossTotal = Number(order.total) + Number(order.pointsUsed || 0);
-              let userPlan = 'starter';
-              let commissionRate = 5.0; // 5% par défaut
-              const boutique = order.boutique;
-              if (boutique) {
-                const userBoutiques = await tx.boutique.findMany({
-                  where: { ownerId: boutique.ownerId },
-                  select: { plan: true },
+              // Si le vendeur n'a pas de sous-compte FedaPay direct, la marketplace encaisse et crédite son solde interne
+              if (!hadSubAccount) {
+                await tx.boutique.update({
+                  where: { id: order.boutiqueId },
+                  data: {
+                    balance: { increment: vendorShare },
+                  },
                 });
-                if (userBoutiques.some(b => b.plan === 'enterprise')) {
-                  userPlan = 'enterprise';
-                  commissionRate = 1.5;
-                } else if (userBoutiques.some(b => b.plan === 'business')) {
-                  userPlan = 'business';
-                  commissionRate = 2.0;
-                }
               }
 
-              const commissionAmount = Number((grossTotal * (commissionRate / 100)).toFixed(2));
-              const netAmount = grossTotal - commissionAmount;
+              // Notification vendeur
+              const subAccountNote = hadSubAccount
+                ? `(Reversé automatiquement sur votre sous-compte FedaPay ${order.fedapaySubAccountRef})`
+                : '(Ajouté à votre solde disponible Afrique OS)';
 
-              await tx.order.update({
-                where: { id: order.id },
-                data: { commissionRate, commissionAmount, netAmount, planAtPurchase: userPlan }
-              });
-
-              // Crédit du solde NET de la boutique
-              await tx.boutique.update({
-                where: { id: order.boutiqueId },
-                data: {
-                  balance: { increment: netAmount },
-                },
-              });
-
-              // === CASHBACK ET PARRAINAGE (0.5%) ===
-              const pointsEarned = Math.floor(grossTotal * 0.005);
-              if (order.userId && pointsEarned > 0) {
-                const buyer = await tx.user.findUnique({ where: { id: order.userId } });
-                if (buyer) {
-                  // Acheteur
-                  await tx.user.update({
-                    where: { id: buyer.id },
-                    data: { pointsBalance: { increment: pointsEarned } }
-                  });
-                  await tx.pointTransaction.create({
-                    data: {
-                      userId: buyer.id,
-                      amount: pointsEarned,
-                      reason: "CASHBACK_PURCHASE",
-                      orderId: order.id
-                    }
-                  });
-                  
-                  // Parrain
-                  if (buyer.referredById) {
-                    await tx.user.update({
-                      where: { id: buyer.referredById },
-                      data: { pointsBalance: { increment: pointsEarned } }
-                    });
-                    await tx.pointTransaction.create({
-                      data: {
-                        userId: buyer.referredById,
-                        amount: pointsEarned,
-                        reason: "CASHBACK_REFERRAL",
-                        orderId: order.id
-                      }
-                    });
-                  }
-                }
-              }
-
-              // Création d'une notification pour le vendeur
               await tx.notification.create({
                 data: {
                   boutiqueId: order.boutiqueId,
                   type: 'order_paid',
                   title: `Paiement FedaPay reçu (${order.reference})`,
-                  message: `La commande #${order.reference} d'un montant de ${order.total} FCFA a été payée avec succès via FedaPay.`,
+                  message: `La commande #${order.reference} a été payée. Part vendeur: ${vendorShare} FCFA ${subAccountNote}. Commission marketplace: ${platformCommission} FCFA.`,
                   orderReference: order.reference,
                 },
               });
             });
 
-            this.logger.log(`[FedaPay Webhook] Commande #${order.reference} marquée comme PAYÉE via FedaPay.`);
+            this.logger.log(`[FedaPay Webhook] Commande #${order.reference} marquée PAID.`);
             responseResult = { received: true, status: 'order_paid_success' };
           } else {
-            this.logger.log(`[FedaPay Webhook] La commande #${order.reference} était déjà marquée comme PAYÉE.`);
             responseResult = { received: true, status: 'order_already_paid' };
           }
         }
       }
     }
 
-    // Sauvegarde de l'idempotence pour le Webhook
+    // 2. Événements de sous-compte FedaPay (invitation acceptée ou activée)
+    if (eventType === 'sub_account.approved' || eventType === 'sub_account.activated') {
+      const subAccountRef = entity?.reference ?? entity?.id;
+      const email = entity?.email;
+
+      if (email || subAccountRef) {
+        const boutique = await this.prisma.boutique.findFirst({
+          where: {
+            OR: [
+              { email },
+              { fedapaySubAccountRef: subAccountRef },
+            ],
+          },
+        });
+
+        if (boutique) {
+          await this.prisma.boutique.update({
+            where: { id: boutique.id },
+            data: {
+              fedapaySubAccountRef: subAccountRef ?? boutique.fedapaySubAccountRef,
+              fedapaySubAccountStatus: 'ACTIVE',
+            },
+          });
+          this.logger.log(`[FedaPay Webhook] Sous-compte activé pour boutique ${boutique.name}.`);
+          responseResult = { received: true, status: 'sub_account_activated' };
+        }
+      }
+    }
+
     await this.idempotencyService.saveRecord(idempotencyKey, '/api/v1/payments/fedapay/webhook', 200, responseResult);
     return responseResult;
   }
 
   /**
-   * Vérifie la signature cryptographique du Webhook FedaPay (HMAC SHA-256)
+   * Vérification de la signature HMAC SHA-256
    */
   private verifyWebhookSignature(
     rawBody: string | Buffer,
@@ -435,12 +647,10 @@ export class FedaPayService {
 
       const bodyStr = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf-8');
 
-      // 1. Calcul avec timestamp si présent (standard FedaPay / Stripe webhook format)
       const computedWithTimestamp = timestamp
         ? crypto.createHmac('sha256', secret).update(`${timestamp}.${bodyStr}`).digest('hex')
         : null;
 
-      // 2. Calcul direct sur le corps brut
       const computedDirect = crypto.createHmac('sha256', secret).update(bodyStr).digest('hex');
 
       const targetBuffer = Buffer.from(receivedSignature, 'hex');
