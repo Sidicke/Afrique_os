@@ -13,6 +13,7 @@ import { IdempotencyService } from '../common/services/idempotency.service';
 import { PaymentCryptoService } from '../common/crypto/payment-crypto.service';
 import { CreateFedaPayTransactionDto } from './dto/create-fedapay-transaction.dto';
 import { InviteSubAccountDto, LinkSubAccountDto } from './dto/subaccount.dto';
+import { calculateFedaPayTransferFee } from './utils/transfer-fee.util';
 import { OrderStatus, PaymentMethod, Role } from '@prisma/client';
 
 export interface FedaPayCheckoutResponse {
@@ -291,22 +292,18 @@ export class FedaPayService {
     const buyerFee = Math.round(orderAmount * (buyerFeeRate / 100));
     const totalChargedToBuyer = orderAmount + buyerFee;
 
-    // Calcul de la commission Marketplace Plateforme (par ex. 5% sur le montant de la commande)
-    const commissionRate = Number(order.boutique.fedapayCommissionRate ?? 5.0);
-    const platformCommission = Math.round(orderAmount * (commissionRate / 100));
+    // Pas de commission marketplace appliquée au vendeur (0 XOF)
+    const commissionRate = 0;
+    const platformCommission = 0;
 
-    // Frais fixes appliqués au vendeur lors du transfert d'acompte (par ex. 150 FCFA par défaut)
-    const defaultFixedFee = Number(
-      this.configService.get<string>('FEDAPAY_VENDOR_TRANSFER_FEE_FIXED') ?? 150,
-    );
-    const vendorFixedTransferFee = Number(
-      order.boutique.fedapayVendorFixedFee ?? defaultFixedFee,
-    );
+    // Frais fixes de transfert FedaPay appliqués au vendeur selon le montant à transférer (barème officiel) :
+    // 0 - 10 000 : 150 XOF | 10 001 - 50 000 : 300 XOF | 50 001 - 150 000 : 800 XOF | 150 001 - 500 000 : 2 000 XOF | 500 001+ : 2 500 XOF
+    const vendorFixedTransferFee = calculateFedaPayTransferFee(orderAmount);
 
-    // Part nette finale du vendeur
+    // Part nette finale du vendeur (Montant vente - Frais fixes de transfert)
     const vendorNetShare = Math.max(
       0,
-      orderAmount - platformCommission - vendorFixedTransferFee,
+      orderAmount - vendorFixedTransferFee,
     );
 
     const hasSubAccount =
@@ -625,7 +622,7 @@ export class FedaPayService {
                   boutiqueId: order.boutiqueId,
                   type: 'order_paid',
                   title: `Paiement FedaPay reçu (${order.reference})`,
-                  message: `La commande #${order.reference} de ${order.total} FCFA a été réglée. Part nette vendeur: ${vendorNetShare} FCFA (${transferNote}). Déductions: commission plateforme (${platformCommission} FCFA) + frais fixe de virement (${vendorFixedFee} FCFA). Frais acheteur supportés par le client: ${buyerFee} FCFA.`,
+                  message: `La commande #${order.reference} de ${order.total} FCFA a été réglée. Part nette vendeur: ${vendorNetShare} FCFA (${transferNote}). Frais fixes de transfert FedaPay déduits: ${vendorFixedFee} FCFA (aucune commission marketplace). Frais acheteur supportés par le client: ${buyerFee} FCFA.`,
                   orderReference: order.reference,
                 },
               });

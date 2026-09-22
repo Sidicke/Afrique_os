@@ -8,6 +8,7 @@ import {
 import { BoutiqueStatus, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentCryptoService } from '../common/crypto/payment-crypto.service';
+import { calculateFedaPayTransferFee } from '../fedapay/utils/transfer-fee.util';
 import { CreateBoutiqueDto } from './dto/create-boutique.dto';
 import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
 import { InviteTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
@@ -81,8 +82,8 @@ export class BoutiquesService {
         throw new BadRequestException('Solde insuffisant pour ce retrait');
       }
 
-      // Application des frais fixes de transfert vendeur
-      const fixedFee = Number(boutique.fedapayVendorFixedFee ?? 150);
+      // Application des frais fixes de transfert selon le barème officiel FedaPay
+      const fixedFee = calculateFedaPayTransferFee(amount);
       if (amount <= fixedFee) {
         throw new BadRequestException(
           `Le montant du retrait doit être supérieur aux frais fixes de transfert (${fixedFee} FCFA)`,
