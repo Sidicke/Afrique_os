@@ -76,6 +76,7 @@ model Boutique {
   fedapaySubAccountRef    String?
   fedapaySubAccountStatus String?                @default("NONE")
   fedapayCommissionRate   Decimal?               @db.Decimal(5, 2)
+  fedapayVendorFixedFee   Decimal?               @db.Decimal(12, 2)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   owner                 User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -209,6 +210,11 @@ model Order {
   netAmount          Decimal?      @db.Decimal(12, 2)
   fedapayTransactionId String?
   fedapaySubAccountRef String?
+  buyerPaymentChannel  String?       @default("MOBILE_MONEY")
+  buyerFeeRate         Decimal?      @db.Decimal(5, 2)
+  buyerFeeAmount       Decimal?      @default(0) @db.Decimal(12, 2)
+  totalCharged         Decimal?      @db.Decimal(12, 2)
+  vendorFixedFee       Decimal?      @default(0) @db.Decimal(12, 2)
   planAtPurchase     String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -464,6 +470,8 @@ model WithdrawalRequest {
   id          String           @id @default(cuid())
   boutiqueId  String
   amount      Decimal          @db.Decimal(14, 2)
+  fee         Decimal          @default(0) @db.Decimal(12, 2)
+  netAmount   Decimal?         @db.Decimal(14, 2)
   status      WithdrawalStatus @default(PENDING)
   createdAt   DateTime         @default(now())
   processedAt DateTime?

@@ -119,6 +119,7 @@ export class FedaPayController {
     return this.fedapayService.updateCommissionRate(
       boutiqueId,
       dto.commissionRate,
+      dto.vendorFixedFee,
       user,
     );
   }

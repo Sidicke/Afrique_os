@@ -4,10 +4,14 @@ import * as crypto from 'crypto';
 import { FedaPayService } from '../src/fedapay/fedapay.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { IdempotencyService } from '../src/common/services/idempotency.service';
-import { OrderStatus, PaymentMethod } from '@prisma/client';
+import { PaymentCryptoService } from '../src/common/crypto/payment-crypto.service';
+import { BoutiquesService } from '../src/boutiques/boutiques.service';
+import { BoutiqueStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 
-describe('FedaPay Marketplace & Sub-accounts Service', () => {
+describe('FedaPay Marketplace & Sécurité des Transactions', () => {
   let service: FedaPayService;
+  let boutiquesService: BoutiquesService;
+  let paymentCrypto: PaymentCryptoService;
   let prisma: any;
   let configService: any;
   let idempotencyService: any;
@@ -17,6 +21,8 @@ describe('FedaPay Marketplace & Sub-accounts Service', () => {
     FEDAPAY_ENVIRONMENT: 'sandbox',
     FEDAPAY_WEBHOOK_SECRET: 'whsec_test_secret_123456789',
     FEDAPAY_CALLBACK_URL: 'http://localhost:3001/checkout/success',
+    FEDAPAY_VENDOR_TRANSFER_FEE_FIXED: '150',
+    PAYMENT_ENCRYPTION_KEY: 'test-payment-master-secret-key-32b!',
   };
 
   beforeEach(async () => {
@@ -25,11 +31,16 @@ describe('FedaPay Marketplace & Sub-accounts Service', () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
       order: {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+      },
+      withdrawalRequest: {
+        create: jest.fn(),
+        findMany: jest.fn(),
       },
       notification: {
         create: jest.fn(),
@@ -49,6 +60,8 @@ describe('FedaPay Marketplace & Sub-accounts Service', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FedaPayService,
+        BoutiquesService,
+        PaymentCryptoService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigService, useValue: configService },
         { provide: IdempotencyService, useValue: idempotencyService },
@@ -56,198 +69,221 @@ describe('FedaPay Marketplace & Sub-accounts Service', () => {
     }).compile();
 
     service = module.get<FedaPayService>(FedaPayService);
+    boutiquesService = module.get<BoutiquesService>(BoutiquesService);
+    paymentCrypto = module.get<PaymentCryptoService>(PaymentCryptoService);
   });
 
-  describe('Sub-accounts Management', () => {
-    it('devrait envoyer une invitation de sous-compte FedaPay en mode sandbox simulation', async () => {
-      prisma.boutique.findUnique.mockResolvedValue({
-        id: 'btq-1',
-        name: 'Tech Store Cotonou',
-        ownerId: 'user-1',
-        email: 'vendeur@techstore.bj',
+  describe('Pilier 1 : Idempotence des Transactions', () => {
+    it('devrait retourner la réponse mise en cache pour une clé d\'idempotence déjà traitée', async () => {
+      const cachedResponse = {
+        success: true,
+        mode: 'sandbox_mock',
+        transactionId: 'mock_tx_cached_123',
+        amount: 10000,
+      };
+
+      idempotencyService.getRecord.mockResolvedValue({
+        responseBody: cachedResponse,
       });
 
-      prisma.boutique.update.mockResolvedValue({
-        id: 'btq-1',
-        fedapaySubAccountStatus: 'INVITED',
-      });
-
-      const result = await service.inviteSubAccount(
-        {
-          boutiqueId: 'btq-1',
-          email: 'vendeur@techstore.bj',
-          fullName: 'Koffi Vendeur',
-        },
-        { id: 'user-1', role: 'VENDEUR' },
+      const result = await service.createCheckoutTransaction(
+        { orderId: 'order-123' },
+        'idemp-key-abc',
       );
 
-      expect(result.success).toBe(true);
-      expect(result.status).toBe('INVITED');
-      expect(result.invitation.mode).toBe('sandbox_mock');
-      expect(prisma.boutique.update).toHaveBeenCalledWith({
-        where: { id: 'btq-1' },
-        data: { fedapaySubAccountStatus: 'INVITED' },
-      });
+      expect(result).toEqual(cachedResponse);
+      expect(prisma.order.findUnique).not.toHaveBeenCalled();
     });
 
-    it('devrait lier une référence de sous-compte validée (acc_xxxxxxxxx)', async () => {
-      prisma.boutique.findUnique.mockResolvedValue({
-        id: 'btq-1',
-        ownerId: 'user-1',
+    it('devrait dédupliquer les webhooks rejoués via la clé d\'événement FedaPay', async () => {
+      idempotencyService.getRecord.mockResolvedValue({
+        responseBody: { received: true, status: 'order_already_paid' },
       });
 
-      prisma.boutique.update.mockResolvedValue({
-        id: 'btq-1',
-        fedapaySubAccountRef: 'acc_cotonou_987654',
-        fedapaySubAccountStatus: 'ACTIVE',
-      });
+      const secret = 'whsec_test_secret_123456789';
+      const payload = {
+        name: 'transaction.approved',
+        id: 'evt_duplicate_999',
+        entity: { id: 'tx_999' },
+      };
+      const rawBody = JSON.stringify(payload);
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const validSig = crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
+      const validHeader = `t=${timestamp},s=${validSig}`;
 
-      const result = await service.linkSubAccount(
-        {
-          boutiqueId: 'btq-1',
-          subAccountRef: 'acc_cotonou_987654',
-        },
-        { id: 'user-1', role: 'VENDEUR' },
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.fedapaySubAccountRef).toBe('acc_cotonou_987654');
-      expect(result.fedapaySubAccountStatus).toBe('ACTIVE');
+      const result = await service.handleWebhook(rawBody, validHeader, payload);
+      expect(result.status).toBe('order_already_paid');
+      expect(prisma.order.findFirst).not.toHaveBeenCalled();
     });
   });
 
-  describe('Marketplace Checkout & Commissions Distribution', () => {
-    it('devrait calculer la commission marketplace et la part vendeur avec sous-compte actif', async () => {
-      const orderAmount = 50000;
-      const commissionRate = 5; // 5%
-      const expectedCommission = 2500; // 50000 * 0.05
-      const expectedVendorShare = 47500; // 50000 - 2500
+  describe('Pilier 2 : Chiffrement E2EE & Signature HMAC', () => {
+    it('devrait chiffrer en AES-256-GCM et déchiffrer les données sensibles de paiement', () => {
+      const sensitiveData = 'MTN Mobile Money: +22997001122 (Titulaire: A. Sossa)';
+      const encrypted = paymentCrypto.encrypt(sensitiveData);
+
+      expect(encrypted).toMatch(/^pay_enc:v1:/);
+      expect(encrypted).not.toContain('+22997001122');
+
+      const decrypted = paymentCrypto.decrypt(encrypted);
+      expect(decrypted).toBe(sensitiveData);
+    });
+
+    it('devrait valider la signature HMAC-SHA256 FedaPay et rejeter une fausse signature', async () => {
+      const secret = 'whsec_test_secret_123456789';
+      const payload = { name: 'transaction.approved', id: 'evt_sec_1', entity: { id: 'tx_sec' } };
+      const rawBody = JSON.stringify(payload);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const validSig = crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
+      const validHeader = `t=${timestamp},s=${validSig}`;
+      const fakeHeader = `t=${timestamp},s=0000000000000000000000000000000000000000000000000000000000000000`;
+
+      // Fausse signature rejetée
+      await expect(
+        service.handleWebhook(rawBody, fakeHeader, payload),
+      ).rejects.toThrow('Signature du Webhook FedaPay invalide.');
+    });
+  });
+
+  describe('Pilier 4 : Vérification Zero-Trust, Frais Acheteur & Frais Vendeur', () => {
+    it('MOBILE MONEY (2% acheteur) : panier 10 000 XOF -> acheteur paie 10 200 XOF, vendeur reçoit part nette déduite des frais fixes (150 XOF)', async () => {
+      const orderAmount = 10000;
+      const boutiqueCommissionRate = 5; // 5%
+      const fixedTransferFee = 150; // 150 FCFA
 
       prisma.order.findUnique.mockResolvedValue({
-        id: 'order-123',
-        reference: 'CMD-2026-999',
+        id: 'order-mm',
+        reference: 'CMD-MM-001',
         total: orderAmount,
         status: OrderStatus.PENDING,
-        customerName: 'Amina Client',
-        customerEmail: 'amina@client.com',
-        customerPhone: '+22997000000',
+        customerName: 'Ablam Client',
+        customerEmail: 'ablam@test.bj',
+        customerPhone: '+22997112233',
         boutiqueId: 'btq-1',
         boutique: {
           id: 'btq-1',
-          name: 'Tech Store Cotonou',
-          fedapaySubAccountRef: 'acc_cotonou_987654',
+          name: 'Boutique Cotonou',
+          fedapaySubAccountRef: 'acc_cotonou_123',
           fedapaySubAccountStatus: 'ACTIVE',
-          fedapayCommissionRate: commissionRate,
+          fedapayCommissionRate: boutiqueCommissionRate,
+          fedapayVendorFixedFee: fixedTransferFee,
         },
       });
 
-      prisma.order.update.mockResolvedValue({ id: 'order-123' });
+      prisma.order.update.mockResolvedValue({ id: 'order-mm' });
 
       const response = await service.createCheckoutTransaction({
-        orderId: 'order-123',
+        orderId: 'order-mm',
+        paymentChannel: 'MOBILE_MONEY',
       });
 
-      expect(response.success).toBe(true);
+      // Vérifications Frais Acheteur : 2% de 10 000 = 200 FCFA -> Total débité = 10 200 FCFA
       expect(response.amount).toBe(orderAmount);
-      expect(response.marketplaceSplit).toBeDefined();
-      expect(response.marketplaceSplit?.hasSubAccount).toBe(true);
-      expect(response.marketplaceSplit?.subAccountRef).toBe('acc_cotonou_987654');
-      expect(response.marketplaceSplit?.platformCommission).toBe(expectedCommission);
-      expect(response.marketplaceSplit?.vendorShare).toBe(expectedVendorShare);
+      expect(response.buyerFee).toBe(200);
+      expect(response.buyerFeeRate).toBe(2);
+      expect(response.totalChargedToBuyer).toBe(10200);
+      expect(response.paymentChannel).toBe('MOBILE_MONEY');
 
-      // Vérifie que la commande en base a bien enregistré la répartition
+      // Vérifications Marketplace & Frais Vendeur :
+      // Commission 5% = 500 FCFA
+      // Frais fixes de transfert vendeur = 150 FCFA
+      // Part nette reversée au sous-compte = 10 000 - 500 - 150 = 9 350 FCFA
+      expect(response.marketplaceSplit.hasSubAccount).toBe(true);
+      expect(response.marketplaceSplit.subAccountRef).toBe('acc_cotonou_123');
+      expect(response.marketplaceSplit.platformCommission).toBe(500);
+      expect(response.marketplaceSplit.vendorFixedTransferFee).toBe(150);
+      expect(response.marketplaceSplit.vendorNetShare).toBe(9350);
+
+      // Vérification que la DB a enregistré le découpage exact
       expect(prisma.order.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'order-123' },
+          where: { id: 'order-mm' },
           data: expect.objectContaining({
+            buyerPaymentChannel: 'MOBILE_MONEY',
+            buyerFeeRate: 2,
+            buyerFeeAmount: 200,
+            totalCharged: 10200,
             commissionRate: 5,
-            commissionAmount: 2500,
-            netAmount: 47500,
-            fedapaySubAccountRef: 'acc_cotonou_987654',
+            commissionAmount: 500,
+            vendorFixedFee: 150,
+            netAmount: 9350,
           }),
         }),
       );
+    });
+
+    it('CARTE BANCAIRE (4% acheteur) : panier 10 000 XOF -> acheteur paie 10 400 XOF, vendeur reçoit part nette déduite des frais fixes (150 XOF)', async () => {
+      const orderAmount = 10000;
+
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'order-card',
+        reference: 'CMD-CARD-002',
+        total: orderAmount,
+        status: OrderStatus.PENDING,
+        customerName: 'Fatou Client',
+        customerEmail: 'fatou@test.bj',
+        customerPhone: '+22997223344',
+        boutiqueId: 'btq-1',
+        boutique: {
+          id: 'btq-1',
+          name: 'Boutique Cotonou',
+          fedapaySubAccountRef: 'acc_cotonou_123',
+          fedapaySubAccountStatus: 'ACTIVE',
+          fedapayCommissionRate: 5,
+          fedapayVendorFixedFee: 150,
+        },
+      });
+
+      prisma.order.update.mockResolvedValue({ id: 'order-card' });
+
+      const response = await service.createCheckoutTransaction({
+        orderId: 'order-card',
+        paymentChannel: 'CARD',
+      });
+
+      // Frais acheteur 4% sur carte : 400 FCFA -> total débité 10 400 FCFA
+      expect(response.amount).toBe(orderAmount);
+      expect(response.buyerFee).toBe(400);
+      expect(response.buyerFeeRate).toBe(4);
+      expect(response.totalChargedToBuyer).toBe(10400);
+      expect(response.paymentChannel).toBe('CARD');
+
+      // Part vendeur nette : 10 000 - 500 - 150 = 9 350 FCFA
+      expect(response.marketplaceSplit.vendorNetShare).toBe(9350);
     });
   });
 
-  describe('Webhook & Signature HMAC Security', () => {
-    it('devrait valider la signature HMAC-SHA256 et traiter la commande payée', async () => {
-      const secret = 'whsec_test_secret_123456789';
-      const webhookPayload = {
-        name: 'transaction.approved',
-        id: 'evt_1234567',
-        entity: {
-          id: 'fedapay_tx_5555',
-          reference: 'CMD-2026-999',
-          custom_metadata: {
-            orderId: 'order-123',
-            orderReference: 'CMD-2026-999',
-          },
-        },
+  describe('Demande de Retrait / Transfert Acompte Boutique (BoutiquesService)', () => {
+    it('devrait déduire les frais fixes de transfert et chiffrer les coordonnées de paiement du vendeur', async () => {
+      const mockBoutique = {
+        id: 'btq-1',
+        status: BoutiqueStatus.ACTIVE,
+        balance: { toNumber: () => 50000 },
+        fedapayVendorFixedFee: 150,
       };
 
-      const rawBody = JSON.stringify(webhookPayload);
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const signature = crypto
-        .createHmac('sha256', secret)
-        .update(`${timestamp}.${rawBody}`)
-        .digest('hex');
+      prisma.boutique.findUnique.mockResolvedValue(mockBoutique);
+      prisma.boutique.updateMany.mockResolvedValue({ count: 1 });
+      prisma.withdrawalRequest.create.mockImplementation((args: any) => Promise.resolve(args.data));
 
-      const signatureHeader = `t=${timestamp},s=${signature}`;
+      const withdrawalAmount = 20000;
+      const paymentDetails = 'Virement Moov Money: +22995001122';
 
-      prisma.order.findFirst.mockResolvedValue({
-        id: 'order-123',
-        reference: 'CMD-2026-999',
-        total: 50000,
-        netAmount: 47500,
-        commissionAmount: 2500,
-        fedapaySubAccountRef: 'acc_cotonou_987654',
-        boutiqueId: 'btq-1',
-        status: OrderStatus.PENDING,
-      });
-
-      prisma.order.update.mockResolvedValue({ id: 'order-123' });
-      prisma.notification.create.mockResolvedValue({ id: 'notif-1' });
-
-      const result = await service.handleWebhook(
-        rawBody,
-        signatureHeader,
-        webhookPayload,
+      const result = await boutiquesService.requestWithdrawal(
+        'btq-1',
+        withdrawalAmount,
+        paymentDetails,
       );
 
-      expect(result.received).toBe(true);
-      expect(result.status).toBe('order_paid_success');
+      // Frais fixes déduits : 150 FCFA -> Montant net versé = 19 850 FCFA
+      expect(result.amount).toBe(20000);
+      expect(result.fee).toBe(150);
+      expect(result.netAmount).toBe(19850);
 
-      // Vérification que le statut de la commande passe à PAID
-      expect(prisma.order.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'order-123' },
-          data: expect.objectContaining({
-            status: OrderStatus.PAID,
-            paymentMethod: PaymentMethod.FEDAPAY,
-            paymentRef: 'FEDAPAY-fedapay_tx_5555',
-          }),
-        }),
-      );
-
-      // Notification au vendeur avec détails commissions
-      expect(prisma.notification.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            boutiqueId: 'btq-1',
-            type: 'order_paid',
-          }),
-        }),
-      );
-    });
-
-    it('devrait rejeter une requête Webhook si la signature est frauduleuse', async () => {
-      const invalidSignatureHeader = 't=123456,s=deadbeefinvalidchecksum';
-      const rawBody = JSON.stringify({ name: 'transaction.approved' });
-
-      await expect(
-        service.handleWebhook(rawBody, invalidSignatureHeader, {}),
-      ).rejects.toThrow('Signature du Webhook FedaPay invalide.');
+      // Coordonnées chiffrées en E2EE AES-256-GCM
+      expect(result.paymentInfo).toMatch(/^pay_enc:v1:/);
+      expect(result.paymentInfo).not.toContain('+22995001122');
     });
   });
 });

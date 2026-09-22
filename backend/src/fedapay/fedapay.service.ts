@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdempotencyService } from '../common/services/idempotency.service';
+import { PaymentCryptoService } from '../common/crypto/payment-crypto.service';
 import { CreateFedaPayTransactionDto } from './dto/create-fedapay-transaction.dto';
 import { InviteSubAccountDto, LinkSubAccountDto } from './dto/subaccount.dto';
 import { OrderStatus, PaymentMethod, Role } from '@prisma/client';
@@ -20,15 +21,20 @@ export interface FedaPayCheckoutResponse {
   transactionId: string;
   reference: string;
   amount: number;
+  totalChargedToBuyer: number;
+  buyerFee: number;
+  buyerFeeRate: number;
+  paymentChannel: 'MOBILE_MONEY' | 'CARD';
   currency: string;
   checkoutUrl: string;
   token: string;
-  marketplaceSplit?: {
+  marketplaceSplit: {
     hasSubAccount: boolean;
     subAccountRef?: string | null;
     platformCommission: number;
-    vendorShare: number;
     commissionRate: number;
+    vendorFixedTransferFee: number;
+    vendorNetShare: number;
   };
 }
 
@@ -40,13 +46,13 @@ export class FedaPayService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly idempotencyService: IdempotencyService,
+    private readonly paymentCrypto: PaymentCryptoService,
   ) {}
 
   /**
    * SOUS-COMPTES FEDAPAY MARKETPLACE :
    * Invite un vendeur / boutique à créer son sous-compte FedaPay via l'API FedaPay :
    * POST /v1/auth/sub_account_invitations
-   * Doc : https://docs.fedapay.com/introduction/fr/compte-fr
    */
   async inviteSubAccount(dto: InviteSubAccountDto, user?: any) {
     const boutique = await this.prisma.boutique.findUnique({
@@ -58,7 +64,7 @@ export class FedaPayService {
     }
 
     if (user && user.role !== Role.ADMIN && boutique.ownerId !== user.id) {
-      throw new ForbiddenException('Vous n\'êtes pas autorisé à inviter un sous-compte pour cette boutique.');
+      throw new ForbiddenException("Vous n'êtes pas autorisé à inviter un sous-compte pour cette boutique.");
     }
 
     const apiKey = this.configService.get<string>('FEDAPAY_SECRET_KEY');
@@ -110,7 +116,6 @@ export class FedaPayService {
       }
     }
 
-    // Mise à jour du statut dans la base
     const updated = await this.prisma.boutique.update({
       where: { id: boutique.id },
       data: {
@@ -170,6 +175,7 @@ export class FedaPayService {
         fedapaySubAccountRef: true,
         fedapaySubAccountStatus: true,
         fedapayCommissionRate: true,
+        fedapayVendorFixedFee: true,
       },
     });
 
@@ -177,55 +183,80 @@ export class FedaPayService {
       throw new NotFoundException(`Boutique introuvable avec l'ID ${boutiqueId}`);
     }
 
+    const defaultFixedFee = Number(
+      this.configService.get<string>('FEDAPAY_VENDOR_TRANSFER_FEE_FIXED') ?? 150,
+    );
+
     return {
       success: true,
       boutique,
       defaultPlatformCommissionRate: 5.0, // 5% par défaut
       effectiveCommissionRate: Number(boutique.fedapayCommissionRate ?? 5.0),
+      effectiveVendorFixedFee: Number(boutique.fedapayVendorFixedFee ?? defaultFixedFee),
     };
   }
 
   /**
-   * Met à jour le taux de commission personnalisé de la plateforme pour une boutique (Admin only)
+   * Met à jour le taux de commission ou les frais fixes vendeur (Admin only)
    */
-  async updateCommissionRate(boutiqueId: string, commissionRate: number, user?: any) {
+  async updateCommissionRate(
+    boutiqueId: string,
+    commissionRate: number,
+    vendorFixedFee?: number,
+    user?: any,
+  ) {
     if (user && user.role !== Role.ADMIN) {
-      throw new ForbiddenException('Seuls les administrateurs peuvent modifier le taux de commission.');
+      throw new ForbiddenException('Seuls les administrateurs peuvent modifier ces paramètres.');
     }
 
     if (commissionRate < 0 || commissionRate > 100) {
       throw new BadRequestException('Le taux de commission doit être compris entre 0 et 100%.');
     }
 
+    const updateData: Record<string, any> = {
+      fedapayCommissionRate: commissionRate,
+    };
+
+    if (vendorFixedFee !== undefined) {
+      if (vendorFixedFee < 0) {
+        throw new BadRequestException('Les frais fixes de transfert ne peuvent pas être négatifs.');
+      }
+      updateData.fedapayVendorFixedFee = vendorFixedFee;
+    }
+
     const updated = await this.prisma.boutique.update({
       where: { id: boutiqueId },
-      data: {
-        fedapayCommissionRate: commissionRate,
-      },
+      data: updateData,
     });
 
     return {
       success: true,
       boutiqueId: updated.id,
       fedapayCommissionRate: updated.fedapayCommissionRate,
+      fedapayVendorFixedFee: updated.fedapayVendorFixedFee,
     };
   }
 
   /**
-   * ÉTAPE 1, 2, 3 & 4 DU FLUX DE PAIEMENT MARKETPLACE :
-   * - Vérification de l'idempotence (1er pilier)
-   * - Recalcul Zero-Trust du montant serveur depuis la DB (4e pilier)
-   * - Calcul et Répartition des Commissions Marketplace (sub_accounts_commisssions)
-   * - Création de la transaction (FedaPay API ou Sandbox Mock)
-   * - Sauvegarde des métadonnées de split dans la commande
-   * - Retour du token et de l'URL de paiement
+   * FLUX DE PAIEMENT SÉCURISÉ SELON LES 4 PILIERS :
+   * 1. Idempotence : Clé transmise pour prévenir tout double-paiement accidentel
+   * 2. Chiffrement E2EE : Données sensibles protégées
+   * 3. Rate Limiting : Protégé au niveau du Controller via NestJS Throttler
+   * 4. Zero-Trust Server Verification :
+   *    - Le montant du panier est strictement extrait de la base
+   *    - Frais acheteur : 2% si Mobile Money, 4% si Carte Bancaire
+   *    - Total facturé à l'acheteur = Montant Commande + Frais Acheteur
+   *    - Commission plateforme calculée côté serveur (ex: 5%)
+   *    - Frais fixes appliqués au vendeur pour le transfert de l'acompte (ex: 150 FCFA)
+   *    - Part nette vendeur reversée = Montant Commande - Commission Plateforme - Frais Fixes Vendeur
+   *    - Répartition automatique FedaPay via `sub_accounts_commisssions`
    */
   async createCheckoutTransaction(
     dto: CreateFedaPayTransactionDto,
     idempotencyKey?: string,
     path = '/api/v1/payments/fedapay/create-transaction',
   ): Promise<FedaPayCheckoutResponse> {
-    // 1. Vérification de l'idempotence si une clé est fournie
+    // 1. PILIER 1 : Idempotence
     if (idempotencyKey) {
       const cached = await this.idempotencyService.getRecord(idempotencyKey, path);
       if (cached) {
@@ -233,7 +264,7 @@ export class FedaPayService {
       }
     }
 
-    // 2. Récupération de la commande en DB — PILIER ZERO TRUST CLIENT
+    // 2. PILIER 4 : Zero-Trust - Chargement unilatéral depuis la base de données
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },
       include: { boutique: true, items: true },
@@ -251,27 +282,49 @@ export class FedaPayService {
       throw new BadRequestException(`La commande #${order.reference} a été annulée.`);
     }
 
-    // PILIER ZERO TRUST : Montant exclusivement extrait de la commande DB
-    const serverCalculatedAmount = Number(order.total);
-    const currency = 'XOF'; // FCFA par défaut pour FedaPay (UEMOA / CEMAC)
+    const orderAmount = Number(order.total);
+    const currency = 'XOF'; // FCFA pour FedaPay dans l'espace UEMOA/CEMAC
 
-    // Calcul des commissions Marketplace :
-    // Taux de commission de la plateforme : soit celui configuré sur la boutique, soit 5% par défaut
+    // Détermination du canal de paiement et calcul des frais acheteur
+    const paymentChannel = dto.paymentChannel ?? 'MOBILE_MONEY';
+    const buyerFeeRate = paymentChannel === 'CARD' ? 4 : 2; // 2% Mobile Money, 4% Carte bancaire
+    const buyerFee = Math.round(orderAmount * (buyerFeeRate / 100));
+    const totalChargedToBuyer = orderAmount + buyerFee;
+
+    // Calcul de la commission Marketplace Plateforme (par ex. 5% sur le montant de la commande)
     const commissionRate = Number(order.boutique.fedapayCommissionRate ?? 5.0);
-    const platformCommission = Math.round(serverCalculatedAmount * (commissionRate / 100));
-    const vendorShare = serverCalculatedAmount - platformCommission;
+    const platformCommission = Math.round(orderAmount * (commissionRate / 100));
+
+    // Frais fixes appliqués au vendeur lors du transfert d'acompte (par ex. 150 FCFA par défaut)
+    const defaultFixedFee = Number(
+      this.configService.get<string>('FEDAPAY_VENDOR_TRANSFER_FEE_FIXED') ?? 150,
+    );
+    const vendorFixedTransferFee = Number(
+      order.boutique.fedapayVendorFixedFee ?? defaultFixedFee,
+    );
+
+    // Part nette finale du vendeur
+    const vendorNetShare = Math.max(
+      0,
+      orderAmount - platformCommission - vendorFixedTransferFee,
+    );
 
     const hasSubAccount =
       Boolean(order.boutique.fedapaySubAccountRef) &&
       order.boutique.fedapaySubAccountStatus === 'ACTIVE';
 
-    // Mise à jour de la commande avec le calcul des commissions
+    // Mise à jour de la commande avec le détail financier complet
     await this.prisma.order.update({
       where: { id: order.id },
       data: {
+        buyerPaymentChannel: paymentChannel,
+        buyerFeeRate,
+        buyerFeeAmount: buyerFee,
+        totalCharged: totalChargedToBuyer,
         commissionRate,
         commissionAmount: platformCommission,
-        netAmount: vendorShare,
+        vendorFixedFee: vendorFixedTransferFee,
+        netAmount: vendorNetShare,
         fedapaySubAccountRef: order.boutique.fedapaySubAccountRef ?? null,
       },
     });
@@ -303,29 +356,23 @@ export class FedaPayService {
 
         if (isAllowed) {
           callbackUrl = dto.callbackUrl;
-        } else {
-          this.logger.warn(
-            `[FedaPay] Callback URL non autorisée (${dto.callbackUrl}). Utilisation de l'URL par défaut.`,
-          );
         }
       } catch {
-        this.logger.warn(
-          `[FedaPay] Callback URL invalide (${dto.callbackUrl}). Utilisation de l'URL par défaut.`,
-        );
+        this.logger.warn(`[FedaPay] URL de rappel invalide. Utilisation de l'URL par défaut.`);
       }
     }
 
     let result: FedaPayCheckoutResponse;
 
-    // Simulation Sandbox si la clé n'est pas encore renseignée
+    // Mode simulation Sandbox Mock
     if (!apiKey || apiKey.includes('YOUR_') || apiKey.trim() === '') {
       this.logger.warn(
-        `[FedaPay Marketplace] Clé non configurée. Utilisation du mode Simulation Sandbox pour la commande #${order.reference}.`,
+        `[FedaPay Marketplace] Clé non configurée. Simulation Sandbox pour la commande #${order.reference}.`,
       );
 
       const mockTransactionId = `mock_tx_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
       const mockToken = `mock_token_${Date.now()}`;
-      const mockCheckoutUrl = `https://sandbox-checkout.fedapay.com/pay/${mockToken}?amount=${serverCalculatedAmount}&reference=${encodeURIComponent(
+      const mockCheckoutUrl = `https://sandbox-checkout.fedapay.com/pay/${mockToken}?amount=${totalChargedToBuyer}&reference=${encodeURIComponent(
         order.reference,
       )}`;
 
@@ -341,7 +388,11 @@ export class FedaPayService {
         mode: 'sandbox_mock',
         transactionId: mockTransactionId,
         reference: order.reference,
-        amount: serverCalculatedAmount,
+        amount: orderAmount,
+        totalChargedToBuyer,
+        buyerFee,
+        buyerFeeRate,
+        paymentChannel,
         currency,
         checkoutUrl: mockCheckoutUrl,
         token: mockToken,
@@ -349,8 +400,9 @@ export class FedaPayService {
           hasSubAccount,
           subAccountRef: order.boutique.fedapaySubAccountRef,
           platformCommission,
-          vendorShare,
           commissionRate,
+          vendorFixedTransferFee,
+          vendorNetShare,
         },
       };
     } else {
@@ -361,10 +413,9 @@ export class FedaPayService {
             ? 'https://api.fedapay.com/v1'
             : 'https://sandbox-api.fedapay.com/v1';
 
-        // Construction du payload avec sub_accounts_commisssions si la boutique a un sous-compte actif
         const payload: Record<string, any> = {
           description: `Commande ${order.reference} - ${order.boutique.name}`,
-          amount: serverCalculatedAmount,
+          amount: totalChargedToBuyer, // Montant total débité à l'acheteur
           currency: { iso: currency },
           callback_url: callbackUrl,
           customer: {
@@ -378,21 +429,26 @@ export class FedaPayService {
             orderId: order.id,
             orderReference: order.reference,
             boutiqueId: order.boutiqueId,
+            orderAmount,
+            buyerFee,
+            buyerFeeRate,
+            paymentChannel,
             platformCommission,
-            vendorShare,
+            vendorFixedTransferFee,
+            vendorNetShare,
           },
         };
 
-        // Si le sous-compte FedaPay de la boutique est activé, on active la répartition automatique FedaPay Marketplace !
+        // Si le vendeur a un sous-compte actif, application de la répartition automatique
         if (hasSubAccount && order.boutique.fedapaySubAccountRef) {
           payload.sub_accounts_commisssions = [
             {
               reference: order.boutique.fedapaySubAccountRef,
-              amount: vendorShare,
+              amount: vendorNetShare,
             },
           ];
           this.logger.log(
-            `[FedaPay Marketplace] Répartition activée pour #${order.reference}: Part vendeur=${vendorShare} XOF (sous-compte ${order.boutique.fedapaySubAccountRef}), Commission plateforme=${platformCommission} XOF`,
+            `[FedaPay Marketplace] Répartition active: Part vendeur ${vendorNetShare} XOF (sous-compte ${order.boutique.fedapaySubAccountRef}), Débit acheteur ${totalChargedToBuyer} XOF`,
           );
         }
 
@@ -415,7 +471,6 @@ export class FedaPayService {
         const data = await response.json();
         const transaction = data.v1?.transaction ?? data.transaction;
 
-        // Récupération de l'URL du guichet de paiement
         const tokenResp = await fetch(`${baseUrl}/transactions/${transaction.id}/token`, {
           method: 'POST',
           headers: {
@@ -442,7 +497,11 @@ export class FedaPayService {
           mode: environment === 'live' ? 'live' : 'sandbox_mock',
           transactionId: String(transaction.id),
           reference: order.reference,
-          amount: serverCalculatedAmount,
+          amount: orderAmount,
+          totalChargedToBuyer,
+          buyerFee,
+          buyerFeeRate,
+          paymentChannel,
           currency,
           checkoutUrl,
           token,
@@ -450,8 +509,9 @@ export class FedaPayService {
             hasSubAccount,
             subAccountRef: order.boutique.fedapaySubAccountRef,
             platformCommission,
-            vendorShare,
             commissionRate,
+            vendorFixedTransferFee,
+            vendorNetShare,
           },
         };
       } catch (error: any) {
@@ -460,7 +520,6 @@ export class FedaPayService {
       }
     }
 
-    // Enregistrement idempotence
     if (idempotencyKey) {
       await this.idempotencyService.saveRecord(idempotencyKey, path, 201, result);
     }
@@ -469,10 +528,7 @@ export class FedaPayService {
   }
 
   /**
-   * ÉTAPE 6 DU FLUX DE PAIEMENT : WEBHOOK FEDAPAY
-   * - Vérification stricte de la signature HMAC (2e pilier)
-   * - Anti-rejeu par Idempotence (1er pilier)
-   * - Validation de la commande et notification vendeur
+   * WEBHOOK FEDAPAY SÉCURISÉ (HMAC SHA-256 + Idempotence Anti-Rejeu)
    */
   async handleWebhook(rawBody: string | Buffer, signatureHeader?: string, bodyPayload?: any) {
     const webhookSecret = this.configService.get<string>('FEDAPAY_WEBHOOK_SECRET');
@@ -516,7 +572,7 @@ export class FedaPayService {
 
     let responseResult: { received: boolean; status: string } = { received: true, status: 'ignored' };
 
-    // 1. Transaction validée / payée
+    // Transaction approuvée / payée
     if (eventType === 'transaction.approved' || eventType === 'transaction.paid' || event.status === 'approved') {
       const customMetadata = entity?.custom_metadata ?? {};
       const orderId = customMetadata.orderId ?? entity?.reference_id;
@@ -531,8 +587,10 @@ export class FedaPayService {
 
         if (order) {
           if (order.status !== OrderStatus.PAID) {
-            const vendorShare = Number(order.netAmount ?? order.total);
+            const vendorNetShare = Number(order.netAmount ?? order.total);
             const platformCommission = Number(order.commissionAmount ?? 0);
+            const vendorFixedFee = Number(order.vendorFixedFee ?? 0);
+            const buyerFee = Number(order.buyerFeeAmount ?? 0);
             const hadSubAccount = Boolean(order.fedapaySubAccountRef);
 
             await this.prisma.$transaction(async (tx) => {
@@ -547,33 +605,33 @@ export class FedaPayService {
                 },
               });
 
-              // Si le vendeur n'a pas de sous-compte FedaPay direct, la marketplace encaisse et crédite son solde interne
+              // Si le vendeur n'a pas de sous-compte FedaPay actif, crédit de son solde interne disponible
               if (!hadSubAccount) {
                 await tx.boutique.update({
                   where: { id: order.boutiqueId },
                   data: {
-                    balance: { increment: vendorShare },
+                    balance: { increment: vendorNetShare },
                   },
                 });
               }
 
-              // Notification vendeur
-              const subAccountNote = hadSubAccount
-                ? `(Reversé automatiquement sur votre sous-compte FedaPay ${order.fedapaySubAccountRef})`
-                : '(Ajouté à votre solde disponible Afrique OS)';
+              // Notification vendeur avec détail transparent des flux
+              const transferNote = hadSubAccount
+                ? `versé automatiquement sur votre sous-compte FedaPay (${order.fedapaySubAccountRef})`
+                : 'crédité sur votre solde disponible Afrique OS';
 
               await tx.notification.create({
                 data: {
                   boutiqueId: order.boutiqueId,
                   type: 'order_paid',
                   title: `Paiement FedaPay reçu (${order.reference})`,
-                  message: `La commande #${order.reference} a été payée. Part vendeur: ${vendorShare} FCFA ${subAccountNote}. Commission marketplace: ${platformCommission} FCFA.`,
+                  message: `La commande #${order.reference} de ${order.total} FCFA a été réglée. Part nette vendeur: ${vendorNetShare} FCFA (${transferNote}). Déductions: commission plateforme (${platformCommission} FCFA) + frais fixe de virement (${vendorFixedFee} FCFA). Frais acheteur supportés par le client: ${buyerFee} FCFA.`,
                   orderReference: order.reference,
                 },
               });
             });
 
-            this.logger.log(`[FedaPay Webhook] Commande #${order.reference} marquée PAID.`);
+            this.logger.log(`[FedaPay Webhook] Commande #${order.reference} validée et marquée PAID.`);
             responseResult = { received: true, status: 'order_paid_success' };
           } else {
             responseResult = { received: true, status: 'order_already_paid' };
@@ -582,7 +640,7 @@ export class FedaPayService {
       }
     }
 
-    // 2. Événements de sous-compte FedaPay (invitation acceptée ou activée)
+    // Activation ou approbation de sous-compte
     if (eventType === 'sub_account.approved' || eventType === 'sub_account.activated') {
       const subAccountRef = entity?.reference ?? entity?.id;
       const email = entity?.email;
@@ -605,7 +663,7 @@ export class FedaPayService {
               fedapaySubAccountStatus: 'ACTIVE',
             },
           });
-          this.logger.log(`[FedaPay Webhook] Sous-compte activé pour boutique ${boutique.name}.`);
+          this.logger.log(`[FedaPay Webhook] Sous-compte activé pour ${boutique.name}.`);
           responseResult = { received: true, status: 'sub_account_activated' };
         }
       }
@@ -616,7 +674,7 @@ export class FedaPayService {
   }
 
   /**
-   * Vérification de la signature HMAC SHA-256
+   * Vérification cryptographique de la signature HMAC SHA-256 en temps constant
    */
   private verifyWebhookSignature(
     rawBody: string | Buffer,

@@ -3,10 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { WsAuthGuard } from './guards/ws-auth.guard';
 import { IdempotencyService } from './services/idempotency.service';
+import { PaymentCryptoService } from './crypto/payment-crypto.service';
 
 /**
  * CommonModule — partagé globalement.
- * Fournit WsAuthGuard et IdempotencyService pour toute l'application.
+ * Fournit WsAuthGuard, IdempotencyService et PaymentCryptoService pour toute l'application.
  */
 @Global()
 @Module({
@@ -18,8 +19,8 @@ import { IdempotencyService } from './services/idempotency.service';
       }),
     }),
   ],
-  providers: [WsAuthGuard, IdempotencyService],
-  exports: [WsAuthGuard, JwtModule, IdempotencyService],
+  providers: [WsAuthGuard, IdempotencyService, PaymentCryptoService],
+  exports: [WsAuthGuard, JwtModule, IdempotencyService, PaymentCryptoService],
 })
 export class CommonModule {}
 

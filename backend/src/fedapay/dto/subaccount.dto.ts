@@ -34,4 +34,8 @@ export class UpdateCommissionRateDto {
   @ApiProperty({ description: 'Taux de commission plateforme en pourcentage (ex: 5.0 pour 5%)' })
   @IsNotEmpty()
   commissionRate: number;
+
+  @ApiPropertyOptional({ description: 'Frais fixes de transfert d\'acompte appliqués au vendeur en FCFA (ex: 150)' })
+  @IsOptional()
+  vendorFixedFee?: number;
 }
