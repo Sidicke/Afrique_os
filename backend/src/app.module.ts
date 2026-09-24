@@ -1,3 +1,4 @@
+import { RefundsModule } from './refunds/refunds.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -23,6 +24,7 @@ import { FedaPayModule } from './fedapay/fedapay.module';
 
 @Module({
   imports: [
+    RefundsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],

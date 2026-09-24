@@ -1,5 +1,6 @@
 "use client";
 
+import { ResponsiveContainer, LineChart, Line, Tooltip } from "recharts";
 import { useState } from "react";
 import { DashboardCard, CardHeader } from "@/components/dashboard/ui/DashboardCard";
 import { Skeleton } from "@/components/dashboard/ui/Skeleton";
@@ -29,7 +30,7 @@ export function OrdersVolumeChart({
     return (
       <DashboardCard className="p-6">
         <CardHeader title="Order volume" subtitle="Évolution sur la période" />
-        <div className="mt-4 flex h-52 items-end gap-1.5">
+        <div className="mt-4 flex h-32 items-end gap-1.5">
           {Array.from({ length: 14 }).map((_, i) => (
             <Skeleton key={i} className="flex-1 rounded-t-lg" />
           ))}
@@ -80,39 +81,36 @@ export function OrdersVolumeChart({
           : `GMV total : ${formatPrice(volume.reduce((s, p) => s + p.gmvFcfa, 0))}`}
       </p>
 
-      <div className="mt-3 flex h-52 items-end gap-1.5">
-        {volume.map((p, i) => {
-          const v = values[i];
-          const h = Math.max(4, Math.round((v / max) * 100));
-          const isPeak = metric === "orders" && v === maxOrders;
-          return (
-            <div
-              key={`${p.label}-${i}`}
-              className="group relative flex h-full flex-1 flex-col items-center justify-end"
-            >
-              {/* Infobulle */}
-              <div className="pointer-events-none absolute bottom-full z-10 mb-1.5 hidden w-max max-w-40 -translate-x-1/2 left-1/2 flex-col items-center rounded-lg border border-line bg-ink-950 px-2.5 py-1.5 text-center shadow-lg group-hover:flex">
-                <span className="font-mono text-[9px] text-white/60">{p.label}</span>
-                <span className="font-mono text-[10px] font-bold text-white">
-                  {metric === "orders"
-                    ? `${v} cmd`
-                    : formatPrice(v)}
-                </span>
-              </div>
-              <div
-                className={cn(
-                  "w-full rounded-t-md transition-all duration-300",
-                  metric === "orders"
-                    ? isPeak
-                      ? "bg-gold-strong"
-                      : "bg-blue-600/80 group-hover:bg-blue-600"
-                    : "bg-green-600/80 group-hover:bg-green-600"
-                )}
-                style={{ height: `${h}%` }}
-              />
-            </div>
-          );
-        })}
+      <div className="mt-4 h-40 w-full relative">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={volume} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className="rounded-lg border border-line bg-ink-950 px-2.5 py-1.5 text-center shadow-lg">
+                      <span className="font-mono text-[9px] text-white/60 block mb-0.5">{payload[0].payload.label}</span>
+                      <span className="font-mono text-[10px] font-bold text-white">
+                        {metric === "orders" ? `${payload[0].value} cmd` : formatPrice(payload[0].value as number)}
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+              cursor={{ stroke: '#e5e7eb', strokeWidth: 2, strokeDasharray: '3 3' }}
+            />
+            <Line
+              type="monotone"
+              dataKey={metric === "orders" ? "orders" : "gmvFcfa"}
+              stroke={metric === "orders" ? "#2563eb" : "#16a34a"}
+              strokeWidth={3}
+              dot={{ r: 4, fill: "#ffffff", strokeWidth: 2, stroke: metric === "orders" ? "#2563eb" : "#16a34a" }}
+              activeDot={{ r: 6, fill: metric === "orders" ? "#1d4ed8" : "#15803d", strokeWidth: 0 }}
+              animationDuration={1000}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Axe des dates (échantillonnées) */}

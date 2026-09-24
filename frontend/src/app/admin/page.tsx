@@ -97,7 +97,7 @@ export default function AdminOverviewPage() {
           {/* Ligne 2 : Activité en direct (2/3) + Santé du système (1/3) */}
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <RecentActivity events={data.activity} />
+              <RecentActivity events={data.activity.slice(0, 4)} />
             </div>
             <div className="lg:col-span-1">
               <SystemStatus components={data.systemStatus} />

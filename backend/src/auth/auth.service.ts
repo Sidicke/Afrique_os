@@ -80,7 +80,7 @@ export class AuthService {
       throw new ConflictException('Un compte existe déjà avec cet email');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
     const role = dto.role === 'CLIENT' ? Role.CLIENT : Role.VENDEUR;
 
     const { user, boutique } = await this.prisma.$transaction(async (tx) => {
@@ -223,7 +223,7 @@ export class AuthService {
       data: { consumedAt: new Date() },
     });
 
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(newPassword, 12);
     await this.prisma.user.update({
       where: { email: normalizedEmail },
       data: { password: hashed, refreshTokenHash: null }, // Révocation des sessions
@@ -253,7 +253,7 @@ export class AuthService {
     if (!match) {
       throw new BadRequestException('Mot de passe actuel incorrect');
     }
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(newPassword, 12);
     await this.prisma.user.update({
       where: { id: userId },
       data: { password: hashed, refreshTokenHash: null },
@@ -615,7 +615,7 @@ export class AuthService {
       data: { consumedAt: new Date() },
     });
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
     const role = dto.role === 'VENDEUR' ? Role.VENDEUR : Role.CLIENT;
     const user = await this.prisma.user.create({
       data: {

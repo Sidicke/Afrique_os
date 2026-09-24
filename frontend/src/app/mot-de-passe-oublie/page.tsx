@@ -45,8 +45,8 @@ export default function MotDePasseOubliePage() {
       setError("Le code doit contenir 6 chiffres.");
       return;
     }
-    if (newPassword.length < 6) {
-      setError("Le mot de passe doit contenir au moins 6 caractères.");
+    if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&_\-]).{8,}$/.test(newPassword)) {
+      setError("8 car. min, 1 maj, 1 min, 1 chiffre, 1 spécial.");
       return;
     }
 
@@ -136,7 +136,7 @@ export default function MotDePasseOubliePage() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Min. 6 caractères"
+              placeholder="8 car. min, 1 maj, 1 min, 1 chiffre, 1 spécial"
               required
               disabled={busy}
             />

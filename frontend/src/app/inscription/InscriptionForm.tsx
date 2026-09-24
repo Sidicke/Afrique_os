@@ -285,11 +285,11 @@ export default function InscriptionForm() {
           "Retournez à l'étape précédente pour indiquer votre prénom et votre nom.",
       });
     }
-    if (password.length < 6) {
+    if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&_\-]).{8,}$/.test(password)) {
       return setError({
         title: "Mot de passe trop court",
         message:
-          "Choisissez un mot de passe d'au moins 6 caractères pour protéger votre compte.",
+          "Choisissez un mot de passe fort d'au moins 8 caractères.",
       });
     }
     if (password !== confirmPassword) {
@@ -660,7 +660,7 @@ export default function InscriptionForm() {
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="6 caractères minimum"
+                  placeholder="8 car. min, 1 maj, 1 min, 1 chiffre, 1 spécial"
                   required
                   disabled={busy}
                 />

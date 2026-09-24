@@ -112,16 +112,24 @@ export async function loadPublicShop(slug: string): Promise<void> {
       error: null,
     });
   } catch (err) {
-    // Repli sur la démo : la vitrine reste 100% fonctionnelle sans backend
-    setCatalogue({
-      products: DEFAULT_CATALOGUE.products,
-      categories: DEFAULT_CATALOGUE.categories,
-      brands: DEFAULT_CATALOGUE.brands,
-      boutiqueSlug: slug,
-      loaded: true,
-      loading: false,
-      error: null,
-    });
+    if (process.env.NODE_ENV === 'development') {
+      // Repli sur la démo en dev
+      setCatalogue({
+        products: DEFAULT_CATALOGUE.products,
+        categories: DEFAULT_CATALOGUE.categories,
+        brands: DEFAULT_CATALOGUE.brands,
+        boutiqueSlug: slug,
+        loaded: true,
+        loading: false,
+        error: null,
+      });
+    } else {
+      setCatalogue({
+        loaded: true,
+        loading: false,
+        error: "Boutique momentanément indisponible.",
+      });
+    }
   }
 }
 

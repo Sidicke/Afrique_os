@@ -71,7 +71,7 @@ export function VerificationDetail({ caseData, adminName, onUpdated }: Verificat
         : decisionModal === "CHANGES" && reason !== "Autre"
           ? reason
           : customReason.trim();
-    if (!finalReason) {
+    if (decisionModal !== "APPROVE" && !finalReason) {
       setToast("Un motif est obligatoire pour cette action.");
       return;
     }

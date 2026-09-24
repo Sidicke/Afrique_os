@@ -1,4 +1,4 @@
-import {
+import { Matches, 
   IsEmail,
   IsIn,
   IsOptional,
@@ -6,7 +6,7 @@ import {
   Length,
   MaxLength,
   MinLength,
-} from 'class-validator';
+ } from 'class-validator';
 
 /**
  * Étape finale de l'inscription : mot de passe + code reçu par e-mail.
@@ -26,7 +26,7 @@ export class CompleteRegistrationDto {
   referralCode?: string;
 
   @IsString()
-  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })
+  @Matches(/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&_\-]).{8,}$/, { message: 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&_-)' })
   @MaxLength(72)
   password: string;
 

@@ -109,6 +109,13 @@ const NAV_ITEMS = [
       },
       { label: "Produits", href: "/espace-vendeur/produits", icon: ICON_PRODUCTS },
       { label: "Clients", href: "/espace-vendeur/clients", icon: ICON_CLIENTS },
+      { label: "Portefeuille", href: "/espace-vendeur/portefeuille", icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+          <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+          <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+        </svg>
+      ) },
       { label: "Messagerie", href: "/espace-vendeur/messagerie", icon: ICON_MESSAGERIE },
     ],
   },
@@ -121,10 +128,10 @@ const NAV_ITEMS = [
   },
 ];
 
-/** Sous-paramètres de l'arborescence « Paramètres » */
 const PARAMETRES_TREE = [
   { label: "Mes boutiques", href: "/espace-vendeur/parametres", icon: "boutiques" as const },
   { label: "Profil", href: "/espace-vendeur/parametres/profil", icon: "profil" as const },
+  { label: "Vérification KYC", href: "/espace-vendeur/parametres/verification", icon: "cert" as const },
   { label: "Notifications", href: "/espace-vendeur/parametres/notifications", icon: "notifications" as const },
   { label: "Formule", href: "/espace-vendeur/parametres/formule", icon: "formule" as const },
 ];
@@ -166,6 +173,12 @@ const LEAF_ICONS: Record<string, React.ReactNode> = {
   promotions: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z" />
+    </svg>
+  ),
+  cert: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
     </svg>
   ),
   profil: (

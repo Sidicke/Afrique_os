@@ -38,6 +38,7 @@ model User {
   orders               Order[]
   settingsUpdates      PlatformSettings[] @relation("SettingsUpdater")
   pointTransactions    PointTransaction[]
+  refundRequests       RefundRequest[]
   teamInvitations      TeamMember[]       @relation("TeamInviter")
   teamMemberships      TeamMember[]
   referredBy           User?              @relation("Referrals", fields: [referredById], references: [id])
@@ -72,9 +73,9 @@ model Boutique {
   notifications         Json?
   ownerId               String
   balance               Decimal                @default(0) @db.Decimal(14, 2)
-  monthlyGoalFcfa       Decimal                @default(0) @db.Decimal(14, 2)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
+  monthlyGoalFcfa       Decimal                @default(0) @db.Decimal(14, 2)
   owner                 User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   brands                Brand[]
   categories            Category[]
@@ -82,6 +83,7 @@ model Boutique {
   sellerNotifications   Notification[]
   orders                Order[]
   products              Product[]
+  refundRequests        RefundRequest[]
   subscribers           Subscriber[]
   subscription          Subscription?
   teamMembers           TeamMember[]
@@ -181,8 +183,8 @@ model Review {
 }
 
 model Order {
-  id                 String        @id @default(cuid())
-  reference          String        @unique
+  id                 String         @id @default(cuid())
+  reference          String         @unique
   boutiqueId         String
   userId             String?
   customerName       String
@@ -191,26 +193,27 @@ model Order {
   address            String?
   city               String?
   country            String?
-  status             OrderStatus   @default(PENDING)
-  paymentMethod      PaymentMethod @default(MOBILE_MONEY)
-  pointsUsed         Int           @default(0)
+  status             OrderStatus    @default(PENDING)
+  paymentMethod      PaymentMethod  @default(MOBILE_MONEY)
+  pointsUsed         Int            @default(0)
   paymentRef         String?
   paidAt             DateTime?
   cancellationReason String?
   deliveryName       String?
-  deliveryPrice      Decimal       @default(0) @db.Decimal(12, 2)
-  total              Decimal       @db.Decimal(12, 2)
+  deliveryPrice      Decimal        @default(0) @db.Decimal(12, 2)
+  total              Decimal        @db.Decimal(12, 2)
   notes              String?
-  commissionRate     Decimal?      @db.Decimal(5, 2)
-  commissionAmount   Decimal?      @db.Decimal(12, 2)
-  netAmount          Decimal?      @db.Decimal(12, 2)
+  commissionRate     Decimal?       @db.Decimal(5, 2)
+  commissionAmount   Decimal?       @db.Decimal(12, 2)
+  netAmount          Decimal?       @db.Decimal(12, 2)
   planAtPurchase     String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
   deliveryContact    String?
-  boutique           Boutique      @relation(fields: [boutiqueId], references: [id])
-  user               User?         @relation(fields: [userId], references: [id])
+  boutique           Boutique       @relation(fields: [boutiqueId], references: [id])
+  user               User?          @relation(fields: [userId], references: [id])
   items              OrderItem[]
+  refundRequest      RefundRequest?
 
   @@index([boutiqueId, status])
   @@index([boutiqueId, createdAt])
@@ -283,8 +286,8 @@ model Subscriber {
 }
 
 /// *
-///  * Notification affichée au VENDEUR dans son dashboard (cloche) : créée côté
-///  * serveur sur des événements métier (ex. annulation de commande par un client).
+/// * Notification affichée au VENDEUR dans son dashboard (cloche) : créée côté
+/// * serveur sur des événements métier (ex. annulation de commande par un client).
 model Notification {
   id             String    @id @default(cuid())
   boutiqueId     String
@@ -301,9 +304,9 @@ model Notification {
 }
 
 /// *
-///  * Catalogue des formules d'abonnement (géré depuis le dashboard admin —
-///  * PlansManager). Le champ `boutique.plan` reste la formule active du vendeur
-///  * (cohérence : Subscription.plan.slug === boutique.plan).
+/// * Catalogue des formules d'abonnement (géré depuis le dashboard admin —
+/// * PlansManager). Le champ `boutique.plan` reste la formule active du vendeur
+/// * (cohérence : Subscription.plan.slug === boutique.plan).
 model Plan {
   id            String         @id @default(cuid())
   slug          String         @unique
@@ -322,8 +325,8 @@ model Plan {
 }
 
 /// *
-///  * Abonnement réel d'une boutique (billing). Le statut TRIAL couvre l'essai
-///  * gratuit ; le passage en ACTIVE se fait au premier paiement.
+/// * Abonnement réel d'une boutique (billing). Le statut TRIAL couvre l'essai
+/// * gratuit ; le passage en ACTIVE se fait au premier paiement.
 model Subscription {
   id                 String             @id @default(cuid())
   boutiqueId         String             @unique
@@ -345,8 +348,8 @@ model Subscription {
 }
 
 /// *
-///  * Signalement de modération : une cible (boutique, produit, utilisateur,
-///  * commande, avis) signalée par un utilisateur ou détectée par la plateforme.
+/// * Signalement de modération : une cible (boutique, produit, utilisateur,
+/// * commande, avis) signalée par un utilisateur ou détectée par la plateforme.
 model ModerationReport {
   id             String               @id @default(cuid())
   targetType     ModerationTargetType
@@ -371,8 +374,8 @@ model ModerationReport {
 }
 
 /// *
-///  * Journal d'audit administratif (doc 20 : qui → quoi → quand → sur quoi →
-///  * résultat). Chaque action importante du dashboard admin est tracée ici.
+/// * Journal d'audit administratif (doc 20 : qui → quoi → quand → sur quoi →
+/// * résultat). Chaque action importante du dashboard admin est tracée ici.
 model AdminLog {
   id          String   @id @default(cuid())
   adminId     String
@@ -416,9 +419,9 @@ model VerificationDocument {
 }
 
 /// *
-///  * Code de vérification OTP (ex. validation de l'e-mail à l'inscription).
-///  * Le code est stocké HASHÉ (SHA-256) avec une date d'expiration et un compteur
-///  * de tentatives — jamais en clair.
+/// * Code de vérification OTP (ex. validation de l'e-mail à l'inscription).
+/// * Le code est stocké HASHÉ (SHA-256) avec une date d'expiration et un compteur
+/// * de tentatives — jamais en clair.
 model OtpCode {
   id         String    @id @default(cuid())
   identifier String
@@ -433,8 +436,8 @@ model OtpCode {
 }
 
 /// *
-///  * Paramètres globaux de la plateforme (doc 11) — une seule ligne, le JSON
-///  * suit la structure du dashboard admin (10 sections).
+/// * Paramètres globaux de la plateforme (doc 11) — une seule ligne, le JSON
+/// * suit la structure du dashboard admin (10 sections).
 model PlatformSettings {
   id          String   @id @default("global")
   data        Json
@@ -469,8 +472,8 @@ model WithdrawalRequest {
 }
 
 /// *
-///   * Clés d'idempotence pour sécuriser les transactions financières (1er pilier de sécurité).
-///   * Empêche les réexécutions accidentelles ou les Webhooks répétés.
+/// * Clés d'idempotence pour sécuriser les transactions financières (1er pilier de sécurité).
+/// * Empêche les réexécutions accidentelles ou les Webhooks répétés.
 model IdempotencyKey {
   id           String   @id @default(cuid())
   key          String   @unique
@@ -485,8 +488,8 @@ model IdempotencyKey {
 }
 
 /// *
-///  * Membres d'équipe d'une boutique — invités par le propriétaire (Business+)
-///  * Un collaborateur peut avoir accès à une ou plusieurs boutiques du même owner.
+/// * Membres d'équipe d'une boutique — invités par le propriétaire (Business+)
+/// * Un collaborateur peut avoir accès à une ou plusieurs boutiques du même owner.
 model TeamMember {
   id          String           @id @default(cuid())
   boutiqueId  String
@@ -507,6 +510,26 @@ model TeamMember {
   @@unique([boutiqueId, email])
   @@index([boutiqueId])
   @@index([email])
+}
+
+model RefundRequest {
+  id              String       @id @default(cuid())
+  orderId         String       @unique
+  clientId        String
+  boutiqueId      String
+  reason          String
+  description     String?
+  evidenceUrl     String?
+  vendorComment   String?
+  vendorRepliedAt DateTime?
+  status          RefundStatus @default(PENDING)
+  adminNotes      String?
+  resolutionText  String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  boutique        Boutique     @relation(fields: [boutiqueId], references: [id])
+  client          User         @relation(fields: [clientId], references: [id])
+  order           Order        @relation(fields: [orderId], references: [id])
 }
 
 enum Role {
@@ -602,4 +625,13 @@ enum TeamMemberStatus {
   PENDING
   ACTIVE
   REVOKED
+}
+
+enum RefundStatus {
+  PENDING
+  VENDOR_REPLIED
+  REVIEWING
+  APPROVED
+  REJECTED
+  COMPLETED
 }

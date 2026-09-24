@@ -373,15 +373,11 @@ export default function AdminTopbar({
           </svg>
         </Link>
 
-        {/* Notifications admin — badge = vérifications en attente (données réelles) */}
+        {/* Notifications admin */}
         <Link
-          href="/admin/verification"
+          href="/admin/activite"
           className="relative rounded-xl border border-line bg-surface p-2 text-ink-600 transition-colors hover:border-blue-600 hover:text-blue-700"
-          aria-label={
-            pendingVerifications > 0
-              ? `Notifications administrateur (${pendingVerifications} vérifications en attente)`
-              : "Notifications administrateur"
-          }
+          aria-label="Notifications administrateur"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />

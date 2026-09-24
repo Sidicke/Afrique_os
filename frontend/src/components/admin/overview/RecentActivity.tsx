@@ -50,14 +50,14 @@ interface RecentActivityProps {
 /** Recent activity — doc 03 §14/§15 : uniquement les événements administrativement pertinents */
 export function RecentActivity({ events }: RecentActivityProps) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-4 sm:p-6 shadow-sm shadow-ink-950/[0.03]">
-      <div className="flex items-center justify-between">
+    <section className="p-2 sm:p-4">
+      <div className="flex items-center justify-between border-b border-line pb-4 mb-4">
         <div>
           <h3 className="font-display text-base font-semibold text-ink-950">Activité récente</h3>
           <p className="mt-0.5 text-xs text-ink-500">Événements importants de la plateforme</p>
         </div>
         <Link
-          href="/admin/moderation"
+          href="/admin/activite"
           className="font-mono text-[11px] font-semibold text-blue-700 transition-colors hover:text-blue-600"
         >
           Journal complet →

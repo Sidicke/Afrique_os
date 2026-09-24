@@ -195,8 +195,8 @@ export default function ComptePage() {
       setPwdError("Le code doit contenir 6 chiffres.");
       return;
     }
-    if (pwd.next.length < 6) {
-      setPwdError("Le nouveau mot de passe doit contenir au moins 6 caractères.");
+    if (!/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&_\-]).{8,}$/.test(pwd.next)) {
+      setPwdError("8 car. min, 1 maj, 1 min, 1 chiffre, 1 spécial.");
       return;
     }
     if (pwd.next !== pwd.confirm) {

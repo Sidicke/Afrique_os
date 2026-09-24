@@ -54,3 +54,4 @@ export {
   orderStatusLabel,
   paymentMethodLabel,
 } from "./mappers";
+export { refundsApi } from "./refunds";
