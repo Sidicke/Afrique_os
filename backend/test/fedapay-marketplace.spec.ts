@@ -40,7 +40,39 @@ describe('FedaPay Marketplace & Sécurité des Transactions', () => {
       },
       withdrawalRequest: {
         create: jest.fn(),
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
+        update: jest.fn(),
+      },
+      refundRequest: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        upsert: jest.fn(),
+        update: jest.fn(),
+        findMany: jest.fn(),
+      },
+      plan: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+      },
+      subscription: {
+        findUnique: jest.fn(),
+        upsert: jest.fn(),
+        update: jest.fn(),
+      },
+      product: {
+        update: jest.fn(),
+      },
+      variant: {
+        update: jest.fn(),
+      },
+      user: {
+        update: jest.fn(),
+      },
+      pointTransaction: {
+        create: jest.fn(),
       },
       notification: {
         create: jest.fn(),
@@ -331,6 +363,259 @@ describe('FedaPay Marketplace & Sécurité des Transactions', () => {
       // Coordonnées chiffrées en E2EE AES-256-GCM
       expect(result.paymentInfo).toMatch(/^pay_enc:v1:/);
       expect(result.paymentInfo).not.toContain('+22995001122');
+    });
+  });
+
+  describe('Système de Remboursement avec Motifs & Payouts Mobile Money', () => {
+    it('devrait soumettre une demande de remboursement avec motif pour une commande payée', async () => {
+      const mockOrder = {
+        id: 'order-refund-1',
+        reference: 'CMD-REFUND-001',
+        total: 15000,
+        status: OrderStatus.PAID,
+        customerName: 'Amina Client',
+        customerPhone: '61001122',
+        boutiqueId: 'btq-1',
+        boutique: { id: 'btq-1', ownerId: 'vendor-1' },
+        refundRequest: null,
+      };
+
+      prisma.order.findUnique.mockResolvedValue(mockOrder);
+      prisma.order.update.mockResolvedValue({ id: 'order-refund-1', status: 'REFUND_REQUESTED' });
+      prisma.refundRequest.upsert.mockImplementation((args: any) => Promise.resolve({ id: 'ref-req-1', ...args.create }));
+      prisma.notification.create.mockResolvedValue({ id: 'notif-1' });
+
+      const result = await service.requestOrderRefund({
+        orderId: 'order-refund-1',
+        reason: 'ARTICLE_NON_CONFORME',
+        details: 'La taille reçue ne correspond pas à la commande',
+        customerPhone: '61001122',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.refundRequest.reason).toBe('ARTICLE_NON_CONFORME');
+      expect(result.refundRequest.status).toBe('PENDING');
+      expect(result.refundRequest.amount).toBe(15000);
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'order-refund-1' },
+          data: expect.objectContaining({ status: 'REFUND_REQUESTED' }),
+        }),
+      );
+    });
+
+    it('devrait rejeter une demande de remboursement sur une commande non payée (PENDING)', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 'order-pending-1',
+        status: OrderStatus.PENDING,
+        boutique: { ownerId: 'v-1' },
+      });
+
+      await expect(
+        service.requestOrderRefund({
+          orderId: 'order-pending-1',
+          reason: 'CHANGEMENT_AVIS',
+        }),
+      ).rejects.toThrow('Seules les commandes payées sont éligibles.');
+    });
+
+    it('devrait approuver un remboursement, réintégrer les stocks, restituer les points et virer les fonds', async () => {
+      const mockRefund = {
+        id: 'ref-req-1',
+        orderId: 'order-1',
+        amount: 25000,
+        customerPhone: '61002233',
+        status: 'PENDING',
+        boutique: { id: 'btq-1', ownerId: 'vendor-1', balance: { toNumber: () => 60000 } },
+        order: {
+          id: 'order-1',
+          reference: 'CMD-PAID-001',
+          total: 25000,
+          customerName: 'Kofi Mensah',
+          userId: 'user-client-1',
+          pointsUsed: 500,
+          fedapaySubAccountRef: null,
+          items: [
+            { productId: 'prod-1', variantId: 'var-1', quantity: 2 },
+          ],
+        },
+      };
+
+      prisma.refundRequest.findUnique.mockResolvedValue(mockRefund);
+      prisma.refundRequest.update.mockResolvedValue({ id: 'ref-req-1', status: 'APPROVED' });
+      prisma.order.update.mockResolvedValue({ id: 'order-1', status: 'REFUNDED' });
+      prisma.product.update.mockResolvedValue({});
+      prisma.variant.update.mockResolvedValue({});
+      prisma.user.update.mockResolvedValue({});
+      prisma.pointTransaction.create.mockResolvedValue({});
+      prisma.boutique.update.mockResolvedValue({});
+      prisma.notification.create.mockResolvedValue({});
+
+      const result = await service.approveRefund('ref-req-1', { id: 'vendor-1', role: 'VENDEUR' });
+
+      expect(result.success).toBe(true);
+      expect(result.refundRequest.status).toBe('APPROVED');
+
+      // Remise en stock du produit et de sa variante
+      expect(prisma.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'prod-1' },
+          data: { stock: { increment: 2 } },
+        }),
+      );
+      expect(prisma.variant.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'var-1' },
+          data: { stock: { increment: 2 } },
+        }),
+      );
+
+      // Restitution des points fidélité
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-client-1' },
+          data: { pointsBalance: { increment: 500 } },
+        }),
+      );
+
+      // Payout simulé proprement en mode test sandbox
+      expect(result.payout.reference).toBeDefined();
+    });
+
+    it('devrait rejeter un remboursement avec un motif justificatif et rétablir le statut PAID', async () => {
+      const mockRefund = {
+        id: 'ref-req-2',
+        orderId: 'order-2',
+        status: 'PENDING',
+        boutique: { id: 'btq-1', ownerId: 'vendor-1' },
+        order: { id: 'order-2', reference: 'CMD-PAID-002' },
+      };
+
+      prisma.refundRequest.findUnique.mockResolvedValue(mockRefund);
+      prisma.refundRequest.update.mockResolvedValue({ id: 'ref-req-2', status: 'REJECTED' });
+      prisma.order.update.mockResolvedValue({ id: 'order-2', status: OrderStatus.PAID });
+      prisma.notification.create.mockResolvedValue({});
+
+      const result = await service.rejectRefund('ref-req-2', { id: 'vendor-1', role: 'VENDEUR' }, {
+        rejectionReason: 'Délai de rétractation de 7 jours dépassé.',
+      });
+
+      expect(result.success).toBe(true);
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'order-2' },
+          data: { status: OrderStatus.PAID },
+        }),
+      );
+    });
+  });
+
+  describe('Paiement des Abonnements Boutiques via FedaPay', () => {
+    it('devrait générer une session de paiement FedaPay pour un abonnement payant', async () => {
+      const mockBoutique = {
+        id: 'btq-sub-1',
+        name: 'Boutique Wax',
+        email: 'wax@afriqueos.com',
+        phone: '61003344',
+        ownerId: 'owner-sub-1',
+        owner: { name: 'Aïcha Diallo', email: 'aicha@gmail.com' },
+      };
+
+      const mockPlan = {
+        id: 'plan-pro',
+        slug: 'pro',
+        name: 'Forfait Pro',
+        price: 9900,
+      };
+
+      prisma.boutique.findUnique.mockResolvedValue(mockBoutique);
+      prisma.plan.findUnique.mockResolvedValue(mockPlan);
+      prisma.subscription.upsert.mockResolvedValue({ id: 'sub-1' });
+
+      const result = await service.createSubscriptionCheckout(
+        { boutiqueId: 'btq-sub-1', planSlug: 'pro' },
+        { id: 'owner-sub-1', role: 'VENDEUR' },
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.amount).toBe(9900);
+      expect(result.checkoutUrl).toBeDefined();
+      expect(prisma.subscription.upsert).toHaveBeenCalled();
+    });
+
+    it('devrait activer automatiquement un plan gratuit (0 FCFA) sans passerelle de paiement', async () => {
+      const mockBoutique = {
+        id: 'btq-free',
+        name: 'Boutique Starter',
+        ownerId: 'owner-free',
+        owner: { name: 'Starter Owner' },
+      };
+
+      const freePlan = {
+        id: 'plan-starter',
+        slug: 'starter',
+        name: 'Starter Gratuit',
+        price: 0,
+      };
+
+      prisma.boutique.findUnique.mockResolvedValue(mockBoutique);
+      prisma.plan.findUnique.mockResolvedValue(freePlan);
+      prisma.subscription.upsert.mockResolvedValue({ id: 'sub-free', status: 'ACTIVE' });
+      prisma.boutique.update.mockResolvedValue({});
+
+      const result = await service.createSubscriptionCheckout(
+        { boutiqueId: 'btq-free', planSlug: 'starter' },
+        { id: 'owner-free', role: 'VENDEUR' },
+      );
+
+      expect(result.freePlan).toBe(true);
+      expect(result.message).toContain('activée avec succès');
+      expect(prisma.boutique.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'btq-free' },
+          data: { plan: 'starter' },
+        }),
+      );
+    });
+  });
+
+  describe('Traitement des Retraits Vendeurs via Payouts FedaPay (Admin)', () => {
+    it('devrait déchiffrer paymentInfo E2EE et exécuter le virement Mobile Money', async () => {
+      const plainPhone = '61998877';
+      const encryptedPhone = paymentCrypto.encrypt(plainPhone);
+
+      const mockWithdrawal = {
+        id: 'wd-1',
+        boutiqueId: 'btq-1',
+        amount: 50000,
+        fee: 300,
+        netAmount: 49700,
+        status: 'PENDING',
+        paymentInfo: encryptedPhone,
+        boutique: {
+          id: 'btq-1',
+          name: 'Wax Elegance',
+          owner: { name: 'Salif Keita' },
+        },
+      };
+
+      prisma.withdrawalRequest.findUnique.mockResolvedValue(mockWithdrawal);
+      prisma.withdrawalRequest.update.mockResolvedValue({ id: 'wd-1', status: 'APPROVED' });
+      prisma.notification.create.mockResolvedValue({});
+
+      const result = await service.processWithdrawalPayout(
+        { withdrawalId: 'wd-1' },
+        { id: 'admin-1', role: 'ADMIN' },
+      );
+
+      expect(result.success).toBe(true);
+      expect(prisma.withdrawalRequest.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'wd-1' },
+          data: expect.objectContaining({ status: 'APPROVED' }),
+        }),
+      );
+      expect(prisma.notification.create).toHaveBeenCalled();
     });
   });
 });

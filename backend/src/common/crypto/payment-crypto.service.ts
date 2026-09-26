@@ -77,4 +77,11 @@ export class PaymentCryptoService {
       return '[Données sensibles altérées ou clé invalide]';
     }
   }
+
+  /**
+   * Vérifie si une chaîne est chiffrée selon le format standard Afrique OS
+   */
+  isEncrypted(text: string | null | undefined): boolean {
+    return typeof text === 'string' && text.startsWith(PREFIX);
+  }
 }

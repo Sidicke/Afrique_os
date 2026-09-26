@@ -91,6 +91,7 @@ model Boutique {
   teamMembers           TeamMember[]
   verificationDocuments VerificationDocument[]
   withdrawals           WithdrawalRequest[]
+  refundRequests        RefundRequest[]
 
   @@index([ownerId])
   @@index([status])
@@ -215,6 +216,9 @@ model Order {
   buyerFeeAmount       Decimal?      @default(0) @db.Decimal(12, 2)
   totalCharged         Decimal?      @db.Decimal(12, 2)
   vendorFixedFee       Decimal?      @default(0) @db.Decimal(12, 2)
+  refundReason         String?
+  refundedAmount       Decimal?      @db.Decimal(12, 2)
+  refundedAt           DateTime?
   planAtPurchase     String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -222,6 +226,7 @@ model Order {
   boutique           Boutique      @relation(fields: [boutiqueId], references: [id])
   user               User?         @relation(fields: [userId], references: [id])
   items              OrderItem[]
+  refundRequest      RefundRequest?
 
   @@index([boutiqueId, status])
   @@index([boutiqueId, createdAt])
@@ -346,6 +351,8 @@ model Subscription {
   currentPeriodStart DateTime           @default(now())
   currentPeriodEnd   DateTime?
   cancelledAt        DateTime?
+  fedapayTransactionId String?
+  paymentUrl         String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   boutique           Boutique           @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
@@ -476,6 +483,8 @@ model WithdrawalRequest {
   createdAt   DateTime         @default(now())
   processedAt DateTime?
   paymentInfo String?
+  fedapayPayoutId String?
+  payoutReference String?
   boutique    Boutique         @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
 
   @@index([boutiqueId])
@@ -549,6 +558,8 @@ enum OrderStatus {
   SHIPPING
   DELIVERED
   CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
 }
 
 enum PaymentMethod {
@@ -615,4 +626,37 @@ enum TeamMemberStatus {
   PENDING
   ACTIVE
   REVOKED
+}
+
+/// *
+///  * Demande de remboursement client avec motif obligatoire.
+///  * Si approuvé, le remboursement est exécuté via l'API Payouts FedaPay (Mobile Money)
+///  * ou validé côté passerelle.
+model RefundRequest {
+  id              String        @id @default(cuid())
+  orderId         String        @unique
+  boutiqueId      String
+  amount          Decimal       @db.Decimal(12, 2)
+  reason          String
+  details         String?
+  customerPhone   String
+  status          RefundStatus  @default(PENDING)
+  payoutId        String?
+  payoutReference String?
+  processedAt     DateTime?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  boutique        Boutique      @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  @@index([boutiqueId])
+  @@index([status])
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSED
 }
