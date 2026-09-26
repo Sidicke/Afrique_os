@@ -296,11 +296,13 @@ export class OrdersService {
     // 1. Machine à états irréversible
     const validTransitions: Record<OrderStatus, OrderStatus[]> = {
       PENDING: [OrderStatus.PAID, OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      PAID: [OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      WHATSAPP_CONFIRMED: [OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      SHIPPING: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      DELIVERED: [], // Aucun retour en arrière possible
-      CANCELLED: [], // Aucun retour en arrière possible
+      PAID: [OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.REFUND_REQUESTED, OrderStatus.REFUNDED],
+      WHATSAPP_CONFIRMED: [OrderStatus.SHIPPING, OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.REFUND_REQUESTED],
+      SHIPPING: [OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.REFUND_REQUESTED],
+      DELIVERED: [OrderStatus.REFUND_REQUESTED],
+      CANCELLED: [],
+      REFUND_REQUESTED: [OrderStatus.REFUNDED, OrderStatus.PAID, OrderStatus.CANCELLED],
+      REFUNDED: [],
     };
 
     if (!validTransitions[order.status].includes(dto.status)) {
@@ -563,12 +565,33 @@ export class OrdersService {
         include: { items: true },
       });
 
-      // Si la commande était déjà payée, régulariser le solde vendeur et restituer les points
+      // Si la commande était déjà payée, créer la demande de remboursement avec le motif
       if (order.status === OrderStatus.PAID) {
-        await tx.boutique.update({
-          where: { id: boutiqueId },
-          data: { balance: { decrement: Number(order.total) } },
+        const refundReason = trimmedReason || 'Annulation demandée par le client';
+        await tx.refundRequest.upsert({
+          where: { orderId: order.id },
+          create: {
+            orderId: order.id,
+            boutiqueId: order.boutiqueId,
+            amount: order.total,
+            reason: refundReason,
+            customerPhone: dto.phone,
+            status: 'PENDING',
+          },
+          update: {
+            amount: order.total,
+            reason: refundReason,
+            customerPhone: dto.phone,
+            status: 'PENDING',
+          },
         });
+
+        if (!order.fedapaySubAccountRef) {
+          await tx.boutique.update({
+            where: { id: boutiqueId },
+            data: { balance: { decrement: Number(order.netAmount ?? order.total) } },
+          });
+        }
 
         if (order.userId && order.pointsUsed > 0) {
           await tx.user.update({
@@ -914,6 +937,8 @@ export class OrdersService {
       SHIPPING: 'shipping',
       DELIVERED: 'delivered',
       CANCELLED: 'cancelled',
+      REFUND_REQUESTED: 'refund_requested',
+      REFUNDED: 'refunded',
     };
     return map[status];
   }

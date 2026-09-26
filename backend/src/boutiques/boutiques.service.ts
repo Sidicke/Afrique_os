@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { BoutiqueStatus, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentCryptoService } from '../common/crypto/payment-crypto.service';
+import { calculateFedaPayTransferFee } from '../fedapay/utils/transfer-fee.util';
 import { CreateBoutiqueDto } from './dto/create-boutique.dto';
 import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
 import { InviteTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
@@ -41,17 +43,25 @@ const publicSelect = {
 
 @Injectable()
 export class BoutiquesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentCrypto: PaymentCryptoService,
+  ) {}
 
   async getWallet(boutiqueId: string) {
     const boutique = await this.prisma.boutique.findUnique({
       where: { id: boutiqueId },
-      select: { balance: true }
+      select: { balance: true },
     });
     const withdrawals = await this.prisma.withdrawalRequest.findMany({
       where: { boutiqueId },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
-    return { balance: boutique?.balance || 0, withdrawals };
+    const decryptedWithdrawals = withdrawals.map((w) => ({
+      ...w,
+      paymentInfo: this.paymentCrypto.decrypt(w.paymentInfo),
+    }));
+    return { balance: boutique?.balance || 0, withdrawals: decryptedWithdrawals };
   }
 
   async requestWithdrawal(boutiqueId: string, amount: number, paymentInfo: string) {
@@ -72,6 +82,18 @@ export class BoutiquesService {
         throw new BadRequestException('Solde insuffisant pour ce retrait');
       }
 
+      // Application des frais fixes de transfert selon le barème officiel FedaPay
+      const fixedFee = calculateFedaPayTransferFee(amount);
+      if (amount <= fixedFee) {
+        throw new BadRequestException(
+          `Le montant du retrait doit être supérieur aux frais fixes de transfert (${fixedFee} FCFA)`,
+        );
+      }
+      const netAmount = amount - fixedFee;
+
+      // Chiffrement E2EE AES-256-GCM des coordonnées de paiement sensibles
+      const encryptedPaymentInfo = this.paymentCrypto.encrypt(paymentInfo.trim());
+
       // Débit atomique conditionnel anti-race condition
       const updated = await tx.boutique.updateMany({
         where: {
@@ -90,12 +112,13 @@ export class BoutiquesService {
         data: {
           boutiqueId,
           amount,
-          paymentInfo: paymentInfo.trim(),
+          fee: fixedFee,
+          netAmount,
+          paymentInfo: encryptedPaymentInfo,
         },
       });
     });
   }
-  constructor(private readonly prisma: PrismaService) {}
 
   /** Création d'une boutique (toujours PENDING, vérifiée par un admin ensuite) */
   async create(ownerId: string, dto: CreateBoutiqueDto) {

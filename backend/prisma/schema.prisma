@@ -73,9 +73,13 @@ model Boutique {
   notifications         Json?
   ownerId               String
   balance               Decimal                @default(0) @db.Decimal(14, 2)
+  monthlyGoalFcfa       Decimal                @default(0) @db.Decimal(14, 2)
+  fedapaySubAccountRef    String?
+  fedapaySubAccountStatus String?                @default("NONE")
+  fedapayCommissionRate   Decimal?               @db.Decimal(5, 2)
+  fedapayVendorFixedFee   Decimal?               @db.Decimal(12, 2)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
-  monthlyGoalFcfa       Decimal                @default(0) @db.Decimal(14, 2)
   owner                 User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   brands                Brand[]
   categories            Category[]
@@ -203,9 +207,19 @@ model Order {
   deliveryPrice      Decimal        @default(0) @db.Decimal(12, 2)
   total              Decimal        @db.Decimal(12, 2)
   notes              String?
-  commissionRate     Decimal?       @db.Decimal(5, 2)
-  commissionAmount   Decimal?       @db.Decimal(12, 2)
-  netAmount          Decimal?       @db.Decimal(12, 2)
+  commissionRate     Decimal?      @db.Decimal(5, 2)
+  commissionAmount   Decimal?      @db.Decimal(12, 2)
+  netAmount          Decimal?      @db.Decimal(12, 2)
+  fedapayTransactionId String?
+  fedapaySubAccountRef String?
+  buyerPaymentChannel  String?       @default("MOBILE_MONEY")
+  buyerFeeRate         Decimal?      @db.Decimal(5, 2)
+  buyerFeeAmount       Decimal?      @default(0) @db.Decimal(12, 2)
+  totalCharged         Decimal?      @db.Decimal(12, 2)
+  vendorFixedFee       Decimal?      @default(0) @db.Decimal(12, 2)
+  refundReason         String?
+  refundedAmount       Decimal?      @db.Decimal(12, 2)
+  refundedAt           DateTime?
   planAtPurchase     String?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
@@ -338,6 +352,8 @@ model Subscription {
   currentPeriodStart DateTime           @default(now())
   currentPeriodEnd   DateTime?
   cancelledAt        DateTime?
+  fedapayTransactionId String?
+  paymentUrl         String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   boutique           Boutique           @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
@@ -462,10 +478,14 @@ model WithdrawalRequest {
   id          String           @id @default(cuid())
   boutiqueId  String
   amount      Decimal          @db.Decimal(14, 2)
+  fee         Decimal          @default(0) @db.Decimal(12, 2)
+  netAmount   Decimal?         @db.Decimal(14, 2)
   status      WithdrawalStatus @default(PENDING)
   createdAt   DateTime         @default(now())
   processedAt DateTime?
   paymentInfo String?
+  fedapayPayoutId String?
+  payoutReference String?
   boutique    Boutique         @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
 
   @@index([boutiqueId])
@@ -515,21 +535,31 @@ model TeamMember {
 model RefundRequest {
   id              String       @id @default(cuid())
   orderId         String       @unique
-  clientId        String
+  clientId        String?
   boutiqueId      String
+  amount          Decimal      @default(0) @db.Decimal(12, 2)
   reason          String
   description     String?
+  details         String?
   evidenceUrl     String?
+  customerPhone   String?
   vendorComment   String?
   vendorRepliedAt DateTime?
   status          RefundStatus @default(PENDING)
   adminNotes      String?
   resolutionText  String?
+  rejectionReason String?
+  payoutId        String?
+  payoutReference String?
+  processedAt     DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
-  boutique        Boutique     @relation(fields: [boutiqueId], references: [id])
-  client          User         @relation(fields: [clientId], references: [id])
-  order           Order        @relation(fields: [orderId], references: [id])
+  boutique        Boutique     @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  client          User?        @relation(fields: [clientId], references: [id])
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([boutiqueId])
+  @@index([status])
 }
 
 enum Role {
@@ -559,6 +589,8 @@ enum OrderStatus {
   SHIPPING
   DELIVERED
   CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
 }
 
 enum PaymentMethod {
@@ -634,4 +666,5 @@ enum RefundStatus {
   APPROVED
   REJECTED
   COMPLETED
+  PROCESSED
 }

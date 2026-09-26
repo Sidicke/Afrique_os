@@ -74,6 +74,8 @@ const ORDER_STATUS_UI: Record<OrderStatus, string> = {
   SHIPPING: 'SHIPPING',
   DELIVERED: 'DELIVERED',
   CANCELLED: 'CANCELLED',
+  REFUND_REQUESTED: 'REFUND_REQUESTED',
+  REFUNDED: 'REFUNDED',
 };
 
 interface AdminIdentity {
@@ -840,12 +842,33 @@ export class AdminService {
         include: { items: true },
       });
 
-      // Si la commande était déjà payée, régulariser le solde vendeur et restituer les points
+      // Si la commande était déjà payée, créer la demande de remboursement avec le motif
       if (order.status === OrderStatus.PAID) {
-        await tx.boutique.update({
-          where: { id: order.boutiqueId },
-          data: { balance: { decrement: Number(order.total) } },
+        const refundReason = dto.reason?.trim() || 'Annulation administrative par l\'administrateur';
+        await tx.refundRequest.upsert({
+          where: { orderId: order.id },
+          create: {
+            orderId: order.id,
+            boutiqueId: order.boutiqueId,
+            amount: order.total,
+            reason: refundReason,
+            customerPhone: order.customerPhone,
+            status: 'PENDING',
+          },
+          update: {
+            amount: order.total,
+            reason: refundReason,
+            customerPhone: order.customerPhone,
+            status: 'PENDING',
+          },
         });
+
+        if (!order.fedapaySubAccountRef) {
+          await tx.boutique.update({
+            where: { id: order.boutiqueId },
+            data: { balance: { decrement: Number(order.netAmount ?? order.total) } },
+          });
+        }
 
         if (order.userId && order.pointsUsed > 0) {
           await tx.user.update({
@@ -2317,6 +2340,8 @@ export class AdminService {
       SHIPPING: 'Expédiée',
       DELIVERED: 'Livrée',
       CANCELLED: 'Annulée',
+      REFUND_REQUESTED: 'Remboursement demandé',
+      REFUNDED: 'Remboursée',
     };
     return map[status];
   }
