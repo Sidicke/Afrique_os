@@ -5,11 +5,13 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { BoutiqueStatus, VerificationStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { BoutiqueStatus, SubscriptionStatus, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBoutiqueDto } from './dto/create-boutique.dto';
 import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
 import { InviteTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
+import { SubscribePlanDto } from './dto/subscribe-plan.dto';
 
 /** Projection publique d'une boutique (vitrine) */
 const publicSelect = {
@@ -43,15 +45,45 @@ const publicSelect = {
 export class BoutiquesService {
 
   async getWallet(boutiqueId: string) {
-    const boutique = await this.prisma.boutique.findUnique({
-      where: { id: boutiqueId },
-      select: { balance: true }
-    });
-    const withdrawals = await this.prisma.withdrawalRequest.findMany({
-      where: { boutiqueId },
-      orderBy: { createdAt: 'desc' }
-    });
-    return { balance: boutique?.balance || 0, withdrawals };
+    const [boutique, withdrawals, heldAllocations] = await Promise.all([
+      this.prisma.boutique.findUnique({
+        where: { id: boutiqueId },
+        select: { balance: true },
+      }),
+      this.prisma.withdrawalRequest.findMany({
+        where: { boutiqueId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.settlementAllocation.findMany({
+        where: {
+          beneficiaryType: 'SELLER_BOUTIQUE',
+          beneficiaryId: boutiqueId,
+          status: {
+            in: [
+              'AWAITING_DELIVERY_VERIFICATION',
+              'AWAITING_BUYER_CONFORMITY',
+              'ON_HOLD_DISPUTE',
+            ],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const totalBalance = Number(boutique?.balance || 0);
+    const heldAmount = heldAllocations.reduce(
+      (sum, a) => sum + Number(a.netAmountFcfa || 0),
+      0,
+    );
+    const availableToWithdraw = Math.max(0, totalBalance - heldAmount);
+
+    return {
+      balance: boutique?.balance || 0,
+      heldAmount,
+      availableToWithdraw,
+      heldAllocations,
+      withdrawals,
+    };
   }
 
   async requestWithdrawal(boutiqueId: string, amount: number, paymentInfo: string) {
@@ -68,8 +100,35 @@ export class BoutiquesService {
       if (boutique.status !== BoutiqueStatus.ACTIVE) {
         throw new BadRequestException('Seule une boutique active peut demander un retrait');
       }
-      if (boutique.balance.toNumber() < amount) {
-        throw new BadRequestException('Solde insuffisant pour ce retrait');
+
+      // Calcul des fonds bloqués (livraison non encore vérifiée, délai de conformité en cours, ou litige ouvert)
+      const heldAllocations = await tx.settlementAllocation.findMany({
+        where: {
+          beneficiaryType: 'SELLER_BOUTIQUE',
+          beneficiaryId: boutiqueId,
+          status: {
+            in: [
+              'AWAITING_DELIVERY_VERIFICATION',
+              'AWAITING_BUYER_CONFORMITY',
+              'ON_HOLD_DISPUTE',
+            ],
+          },
+        },
+        select: { netAmountFcfa: true, status: true },
+      });
+
+      const heldAmount = heldAllocations.reduce(
+        (sum, a) => sum + Number(a.netAmountFcfa || 0),
+        0,
+      );
+      const availableToWithdraw = Math.max(0, boutique.balance.toNumber() - heldAmount);
+
+      if (availableToWithdraw < amount) {
+        throw new BadRequestException(
+          heldAmount > 0
+            ? `Solde disponible insuffisant (${availableToWithdraw} FCFA disponibles ; ${heldAmount} FCFA sont réservés en attente de confirmation de livraison/conformité ou sous litige).`
+            : 'Solde insuffisant pour ce retrait',
+        );
       }
 
       // Débit atomique conditionnel anti-race condition
@@ -77,13 +136,13 @@ export class BoutiquesService {
         where: {
           id: boutiqueId,
           status: BoutiqueStatus.ACTIVE,
-          balance: { gte: amount },
+          balance: { gte: amount + heldAmount },
         },
         data: { balance: { decrement: amount } },
       });
 
       if (updated.count === 0) {
-        throw new BadRequestException('Solde insuffisant pour ce retrait');
+        throw new BadRequestException('Solde disponible insuffisant pour ce retrait');
       }
 
       return tx.withdrawalRequest.create({
@@ -95,7 +154,10 @@ export class BoutiquesService {
       });
     });
   }
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   /** Création d'une boutique (toujours PENDING, vérifiée par un admin ensuite) */
   async create(ownerId: string, dto: CreateBoutiqueDto) {
@@ -494,5 +556,271 @@ export class BoutiquesService {
     }
     await this.prisma.teamMember.delete({ where: { id: memberId } });
     return { success: true };
+  }
+
+  /**
+   * Souscrire ou changer de formule d'abonnement (Starter, Pro, Business, Enterprise)
+   * Supporte le règlement via PayDunya Checkout ou l'activation directe (Gratuit / Sandbox).
+   */
+  async subscribePlan(userId: string, dto: SubscribePlanDto) {
+    const planSlug = dto.plan.toLowerCase();
+    const PLAN_DEFAULTS: Record<
+      string,
+      { name: string; price: number; description: string; sortOrder: number }
+    > = {
+      starter: {
+        name: 'Starter',
+        price: 0,
+        description: 'Commencez à vendre gratuitement, sans abonnement.',
+        sortOrder: 1,
+      },
+      pro: {
+        name: 'Pro',
+        price: 15000,
+        description: 'Formule Pro avec commission réduite et badge vérifié.',
+        sortOrder: 2,
+      },
+      business: {
+        name: 'Business',
+        price: 12500,
+        description: 'Jusqu’à 3 boutiques indépendantes, commission 2 % et analytics avancés.',
+        sortOrder: 3,
+      },
+      enterprise: {
+        name: 'Enterprise',
+        price: 45000,
+        description: 'Offre grands comptes, multi-boutiques illimité et accompagnement VIP.',
+        sortOrder: 4,
+      },
+    };
+
+    const meta = PLAN_DEFAULTS[planSlug];
+    if (!meta) {
+      throw new BadRequestException('Formule d’abonnement invalide.');
+    }
+
+    const boutiques = await this.prisma.boutique.findMany({
+      where: { ownerId: userId },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (boutiques.length === 0) {
+      throw new BadRequestException(
+        'Veuillez créer votre première boutique avant de souscrire un abonnement.',
+      );
+    }
+
+    // S'assure que le plan existe dans la table Plan
+    const planRecord = await this.prisma.plan.upsert({
+      where: { slug: planSlug },
+      update: { isActive: true },
+      create: {
+        slug: planSlug,
+        name: meta.name,
+        description: meta.description,
+        price: meta.price,
+        isActive: true,
+        sortOrder: meta.sortOrder,
+      },
+    });
+
+    const amountFcfa = meta.price;
+    const paymentMethod = dto.paymentMethod ?? (amountFcfa > 0 ? 'PAYDUNYA' : 'DIRECT');
+
+    // Tout abonnement payant (via Mobile Money Bénin MTN/Moov/Celtiis, Carte ou PayDunya)
+    // passe obligatoirement par une vraie facture PayDunya Checkout pour débiter le compte Sandbox/Live
+    if (amountFcfa > 0 && paymentMethod !== 'DIRECT') {
+      const cleanKey = (v?: string) => (v ?? '').trim().replace(/^['"]|['"]$/g, '').trim();
+      const masterKey = cleanKey(this.configService.get<string>('PAYDUNYA_MASTER_KEY'));
+      const privateKey = cleanKey(this.configService.get<string>('PAYDUNYA_PRIVATE_KEY'));
+      const publicKey = cleanKey(this.configService.get<string>('PAYDUNYA_PUBLIC_KEY'));
+      const tokenKey = cleanKey(this.configService.get<string>('PAYDUNYA_TOKEN'));
+      const environment = cleanKey(this.configService.get<string>('PAYDUNYA_ENVIRONMENT') || 'sandbox').toLowerCase();
+
+      const isConfigured =
+        masterKey.trim() !== '' &&
+        !masterKey.includes('YOUR_') &&
+        privateKey.trim() !== '' &&
+        !privateKey.includes('YOUR_') &&
+        publicKey.trim() !== '' &&
+        !publicKey.includes('YOUR_') &&
+        tokenKey.trim() !== '' &&
+        !tokenKey.includes('YOUR_');
+
+      if (!isConfigured) {
+        throw new BadRequestException(
+          'Les 4 clés API PayDunya (PAYDUNYA_MASTER_KEY, PAYDUNYA_PUBLIC_KEY, PAYDUNYA_PRIVATE_KEY, PAYDUNYA_TOKEN) doivent être configurées dans backend/.env pour lancer un test réel sur PayDunya Sandbox.',
+        );
+      }
+
+      const isLive = environment === 'live' || environment === 'production';
+      const baseUrl = isLive
+        ? 'https://app.paydunya.com/api/v1'
+        : 'https://app.paydunya.com/sandbox-api/v1';
+      const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3001';
+      const returnUrl =
+        dto.callbackUrl ||
+        `${frontendUrl}/espace-vendeur/parametres/formule?subscribed_plan=${encodeURIComponent(planSlug)}`;
+      const cancelUrl = `${frontendUrl}/espace-vendeur/parametres/formule?cancelled=1`;
+      const ipnUrl = process.env.PAYDUNYA_IPN_URL;
+
+      const mainBoutique = boutiques[0];
+      const payload = {
+        invoice: {
+          items: {
+            item_0: {
+              name: `Abonnement ZennShop - Formule ${meta.name}`,
+              quantity: 1,
+              unit_price: String(amountFcfa),
+              total_price: String(amountFcfa),
+              description: meta.description,
+            },
+          },
+          total_amount: amountFcfa,
+          description: `Abonnement mensuel ZennShop (${meta.name}) - ${mainBoutique.name}`,
+        },
+        store: {
+          name: 'ZennShop Plateforme',
+          tagline: 'Abonnements Commerçants Bénin',
+        },
+        custom_data: {
+          type: 'SUBSCRIPTION',
+          userId,
+          planSlug,
+          planId: planRecord.id,
+          boutiqueId: mainBoutique.id,
+          preferredChannel: dto.operator ?? paymentMethod,
+          customerPhone: dto.phone ?? '',
+        },
+        actions: {
+          cancel_url: cancelUrl,
+          return_url: returnUrl,
+          ...(ipnUrl ? { callback_url: ipnUrl } : {}),
+        },
+      };
+
+      const response = await fetch(`${baseUrl}/checkout-invoice/create`, {
+        method: 'POST',
+        headers: {
+          'PAYDUNYA-MASTER-KEY': masterKey,
+          'PAYDUNYA-PRIVATE-KEY': privateKey,
+          'PAYDUNYA-PUBLIC-KEY': publicKey,
+          'PAYDUNYA-TOKEN': tokenKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new BadRequestException(
+          `Erreur HTTP PayDunya (${response.status}): ${errText}`,
+        );
+      }
+
+      const data = await response.json();
+      if (data.response_code !== '00') {
+        throw new BadRequestException(
+          `PayDunya a refusé la création de la facture (${data.response_code}): ${data.response_text ?? data.description ?? ''}`,
+        );
+      }
+
+      const token = String(data.token);
+      const checkoutUrl =
+        data.response_text ??
+        `https://paydunya.com/${isLive ? 'checkout' : 'sandbox-checkout'}/invoice/${token}`;
+      return {
+        success: true,
+        mode: 'paydunya_redirect',
+        plan: planSlug,
+        planName: meta.name,
+        amount: amountFcfa,
+        token,
+        checkoutUrl,
+      };
+    }
+
+    // Uniquement pour la formule gratuite Starter (0 FCFA)
+    await this.activateUserSubscription(userId, planSlug);
+
+    return {
+      success: true,
+      mode: 'activated',
+      plan: planSlug,
+      planName: meta.name,
+      amount: amountFcfa,
+    };
+  }
+
+  /**
+   * Active atomiquement l'abonnement d'un vendeur sur toutes ses boutiques
+   * et synchronise la table Subscription.
+   */
+  async activateUserSubscription(userId: string, planSlug: string) {
+    const normalizedSlug = planSlug.toLowerCase();
+    const PLAN_PRICES: Record<string, { name: string; price: number; sortOrder: number }> = {
+      starter: { name: 'Starter', price: 0, sortOrder: 1 },
+      pro: { name: 'Pro', price: 15000, sortOrder: 2 },
+      business: { name: 'Business', price: 12500, sortOrder: 3 },
+      enterprise: { name: 'Enterprise', price: 45000, sortOrder: 4 },
+    };
+    const meta = PLAN_PRICES[normalizedSlug] ?? { name: normalizedSlug, price: 12500, sortOrder: 3 };
+
+    const planRecord = await this.prisma.plan.upsert({
+      where: { slug: normalizedSlug },
+      update: { isActive: true },
+      create: {
+        slug: normalizedSlug,
+        name: meta.name,
+        price: meta.price,
+        isActive: true,
+        sortOrder: meta.sortOrder,
+      },
+    });
+
+    const boutiques = await this.prisma.boutique.findMany({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.boutique.updateMany({
+        where: { ownerId: userId },
+        data: { plan: normalizedSlug },
+      });
+
+      for (const b of boutiques) {
+        if (normalizedSlug === 'starter') {
+          await tx.subscription.deleteMany({
+            where: { boutiqueId: b.id },
+          });
+        } else {
+          await tx.subscription.upsert({
+            where: { boutiqueId: b.id },
+            update: {
+              planId: planRecord.id,
+              status: SubscriptionStatus.ACTIVE,
+              price: meta.price,
+              currentPeriodStart: now,
+              currentPeriodEnd: periodEnd,
+              cancelledAt: null,
+            },
+            create: {
+              boutiqueId: b.id,
+              planId: planRecord.id,
+              status: SubscriptionStatus.ACTIVE,
+              price: meta.price,
+              startsAt: now,
+              currentPeriodStart: now,
+              currentPeriodEnd: periodEnd,
+            },
+          });
+        }
+      }
+    });
+
+    return { plan: normalizedSlug, planId: planRecord.id };
   }
 }

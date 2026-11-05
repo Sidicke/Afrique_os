@@ -8,6 +8,7 @@ import { useSession } from "@/lib/useSession";
 import { setAdminPeriod, useAdminPeriod } from "@/lib/useAdminPeriod";
 import { useAdminVerifications } from "@/hooks/useAdminVerifications";
 import { adminService } from "@/services/adminService";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 interface AdminTopbarProps {
   onOpenMobileSidebar?: () => void;
@@ -164,6 +165,18 @@ export default function AdminTopbar({
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
+
+        <Link
+          href="/admin"
+          className="flex items-center lg:hidden shrink-0"
+          aria-label="ZennShop — Administration"
+        >
+          <ZennShopLogo
+            variant="horizontal"
+            tone="light"
+            className="h-7 w-auto"
+          />
+        </Link>
 
         {/* Bouton recherche mobile */}
         <button

@@ -24,7 +24,7 @@ const PAYMENT_METHODS = [
   'CASH_ON_DELIVERY',
   'CARD',
   'WHATSAPP_DIRECT',
-  'FEDAPAY',
+  'PAYDUNYA',
 ] as const;
 
 export class CreateOrderDto {

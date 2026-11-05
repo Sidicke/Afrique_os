@@ -17,30 +17,52 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seed de la plateforme…');
 
+  // ⚠️ Garde-fou : refus d'exécuter le seed de démo en production.
+  // Il crée des comptes avec des mots de passe faibles et connus (admin1234…).
+  if (process.env.NODE_ENV === 'production') {
+    console.error(
+      '⛔ REFUS : le seed de démo crée des comptes à mots de passe connus. ' +
+        'Il ne doit JAMAIS être exécuté sur un environnement de production. ' +
+        'Créez le compte admin réel manuellement avec un mot de passe fort.',
+    );
+    process.exit(1);
+  }
+
   // ===== Admin plateforme =====
-  const adminPassword = await bcrypt.hash('admin1234', 10);
+  const adminPassword = await bcrypt.hash('Aboubakar2004', 10);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@plateforme.com' },
-    update: {},
-    create: {
-      email: 'admin@plateforme.com',
+    where: { email: 'aboubakarsidicke@gmail.com' },
+    update: {
       password: adminPassword,
-      name: 'Admin Plateforme',
+      name: 'Aboubakar adramane',
+      phone: '0195348659',
+      role: Role.ADMIN,
+    },
+    create: {
+      email: 'aboubakarsidicke@gmail.com',
+      password: adminPassword,
+      name: 'Aboubakar adramane',
+      phone: '0195348659',
       role: Role.ADMIN,
     },
   });
-  console.log('✅ Admin plateforme :', admin.email, '/ admin1234');
+  console.log('✅ Admin plateforme :', admin.email, '/ Aboubakar2004');
 
-  // ===== Vendeur + boutique active =====
-  const sellerPassword = await bcrypt.hash('vendeur1234', 10);
+  // ===== Vendeur 1 (AVEC Abonnement Pro) + boutique active Aziz Tech =====
+  const sellerPassword = await bcrypt.hash('Bao2004', 10);
   const seller = await prisma.user.upsert({
-    where: { email: 'vendeur@aziztech.com' },
-    update: {},
-    create: {
-      email: 'vendeur@aziztech.com',
+    where: { email: 'baoconsilium.ecom@gmail.com' },
+    update: {
       password: sellerPassword,
-      name: 'Aziz Koné',
-      phone: '+225 07 00 00 00 00',
+      name: 'Bao Bari',
+      phone: '0161577055',
+      role: Role.VENDEUR,
+    },
+    create: {
+      email: 'baoconsilium.ecom@gmail.com',
+      password: sellerPassword,
+      name: 'Bao Bari',
+      phone: '0161577055',
       role: Role.VENDEUR,
     },
   });
@@ -48,7 +70,14 @@ async function main() {
   const boutique = await prisma.boutique.upsert({
     where: { slug: 'aziz-tech' },
     // Boutique de démo vérifiée : badge de confiance affiché sur la vitrine
-    update: { verificationStatus: VerificationStatus.VERIFIED },
+    update: {
+      verificationStatus: VerificationStatus.VERIFIED,
+      ownerId: seller.id,
+      email: 'baoconsilium.ecom@gmail.com',
+      phone: '0161577055',
+      whatsappNumber: '+2290161577055',
+      plan: 'pro',
+    },
     create: {
       name: 'Aziz Tech',
       slug: 'aziz-tech',
@@ -57,12 +86,12 @@ async function main() {
         "Aziz Tech, c'est l'essentiel de l'électronique et des accessoires, soigneusement sélectionnés pour votre quotidien.",
       status: BoutiqueStatus.ACTIVE,
       verificationStatus: VerificationStatus.VERIFIED,
-      plan: 'starter',
-      email: 'vendeur@aziztech.com',
-      phone: '+225 07 00 00 00 00',
-      whatsappNumber: '+2250700000000',
-      city: "Côte d'Ivoire",
-      country: "Côte d'Ivoire",
+      plan: 'pro',
+      email: 'baoconsilium.ecom@gmail.com',
+      phone: '0161577055',
+      whatsappNumber: '+2290161577055',
+      city: 'Cotonou',
+      country: 'Bénin',
       ownerId: seller.id,
       deliveryShortLabel: 'Livraison 24-48h',
       deliveryNote: 'Livraison 24-48h à Abidjan et partout en Côte d’Ivoire',
@@ -264,23 +293,35 @@ async function main() {
     }
   }
 
-  // ===== Boutique 2 : Wax & Style (mode africaine) =====
-  const waxPassword = await bcrypt.hash('vendeur1234', 10);
+  // ===== Boutique 2 : Wax & Style (SANS abonnement - Starter) =====
+  const waxPassword = await bcrypt.hash('Semevo2004', 10);
   const waxSeller = await prisma.user.upsert({
-    where: { email: 'vendeur@waxstyle.com' },
-    update: {},
-    create: {
-      email: 'vendeur@waxstyle.com',
+    where: { email: 'sembkv24@gmail.com' },
+    update: {
       password: waxPassword,
-      name: 'Aïcha Traoré',
-      phone: '+225 07 11 22 33 44',
+      name: 'Semevo Bocovo',
+      phone: '0167107041',
+      role: Role.VENDEUR,
+    },
+    create: {
+      email: 'sembkv24@gmail.com',
+      password: waxPassword,
+      name: 'Semevo Bocovo',
+      phone: '0167107041',
       role: Role.VENDEUR,
     },
   });
 
   const waxBoutique = await prisma.boutique.upsert({
     where: { slug: 'wax-style' },
-    update: { verificationStatus: VerificationStatus.VERIFIED },
+    update: {
+      verificationStatus: VerificationStatus.VERIFIED,
+      ownerId: waxSeller.id,
+      email: 'sembkv24@gmail.com',
+      phone: '0167107041',
+      whatsappNumber: '+2290167107041',
+      plan: 'starter',
+    },
     create: {
       name: 'Wax & Style',
       slug: 'wax-style',
@@ -290,11 +331,11 @@ async function main() {
       status: BoutiqueStatus.ACTIVE,
       verificationStatus: VerificationStatus.VERIFIED,
       plan: 'starter',
-      email: 'vendeur@waxstyle.com',
-      phone: '+225 07 11 22 33 44',
-      whatsappNumber: '+2250711223344',
-      city: 'Abidjan (Treichville)',
-      country: "Côte d'Ivoire",
+      email: 'sembkv24@gmail.com',
+      phone: '0167107041',
+      whatsappNumber: '+2290167107041',
+      city: 'Cotonou',
+      country: 'Bénin',
       ownerId: waxSeller.id,
       deliveryShortLabel: 'Livraison 48-72h',
       deliveryNote: 'Livraison 48-72h partout en Côte d’Ivoire',
@@ -438,37 +479,49 @@ async function main() {
   }
   console.log('✅ Boutique Wax & Style :', waxProducts.length, 'produits · marques :', brandsWax.length);
 
-  // ===== Boutique 3 : Beauté Naturelle (cosmétiques) =====
-  const beautePassword = await bcrypt.hash('vendeur1234', 10);
+  // ===== Boutique 3 : Beauté Naturelle (SANS abonnement - Starter) =====
+  const beautePassword = await bcrypt.hash('Isaac2004', 10);
   const beauteSeller = await prisma.user.upsert({
-    where: { email: 'vendeur@beautenaturelle.com' },
-    update: {},
-    create: {
-      email: 'vendeur@beautenaturelle.com',
+    where: { email: 'adjamanisaac@gmail.com' },
+    update: {
       password: beautePassword,
-      name: 'Kadiatou Bamba',
-      phone: '+225 05 55 66 77 88',
+      name: 'Issaac Adjaman',
+      phone: '0158470266',
+      role: Role.VENDEUR,
+    },
+    create: {
+      email: 'adjamanisaac@gmail.com',
+      password: beautePassword,
+      name: 'Issaac Adjaman',
+      phone: '0158470266',
       role: Role.VENDEUR,
     },
   });
 
   const beauteBoutique = await prisma.boutique.upsert({
     where: { slug: 'beaute-naturelle' },
-    update: { verificationStatus: VerificationStatus.VERIFIED },
+    update: {
+      verificationStatus: VerificationStatus.VERIFIED,
+      ownerId: beauteSeller.id,
+      email: 'adjamanisaac@gmail.com',
+      phone: '0158470266',
+      whatsappNumber: '+2290158470266',
+      plan: 'starter',
+    },
     create: {
       name: 'Beauté Naturelle',
       slug: 'beaute-naturelle',
       tagline: 'Le pouvoir des plantes, pour une peau éclatante',
       description:
-        'Cosmétiques naturels à base de karité, beurre de cacao et huiles végétales, préparés artisanalement en Côte d’Ivoire.',
+        'Cosmétiques naturels à base de karité, beurre de cacao et huiles végétales, préparés artisanalement.',
       status: BoutiqueStatus.ACTIVE,
       verificationStatus: VerificationStatus.VERIFIED,
       plan: 'starter',
-      email: 'vendeur@beautenaturelle.com',
-      phone: '+225 05 55 66 77 88',
-      whatsappNumber: '+2250555667788',
-      city: 'Abidjan (Cocody)',
-      country: "Côte d'Ivoire",
+      email: 'adjamanisaac@gmail.com',
+      phone: '0158470266',
+      whatsappNumber: '+2290158470266',
+      city: 'Cotonou',
+      country: 'Bénin',
       ownerId: beauteSeller.id,
       deliveryShortLabel: 'Livraison 24-48h',
       deliveryNote: 'Livraison 24-48h à Abidjan et partout en Côte d’Ivoire',
@@ -627,70 +680,92 @@ async function main() {
   }
   console.log('✅ Plans d’abonnement :', plans.map((p) => p.slug).join(', '));
 
-  // ---- Client de démo (auteur des signalements) ----
-  const clientPassword = await bcrypt.hash('client1234', 10);
+  // ---- Client 1 : Sidicke Aboubakar ----
+  const clientPassword = await bcrypt.hash('Abou204', 10);
   const client = await prisma.user.upsert({
-    where: { email: 'client@demo.com' },
-    update: {},
-    create: {
-      email: 'client@demo.com',
+    where: { email: 'sidickelpc123@gmail.com' },
+    update: {
       password: clientPassword,
-      name: 'Awa Diallo',
-      phone: '+225 07 08 12 34 56',
+      name: 'Sidicke Aboubakar',
+      phone: '0159427030',
+      role: Role.CLIENT,
+    },
+    create: {
+      email: 'sidickelpc123@gmail.com',
+      password: clientPassword,
+      name: 'Sidicke Aboubakar',
+      phone: '0159427030',
       role: Role.CLIENT,
     },
   });
 
-  // ---- Boutique 4 : Maison du Cuir (PENDING — dossier de vérification) ----
-  const cuirPassword = await bcrypt.hash('vendeur1234', 10);
-  const cuirSeller = await prisma.user.upsert({
-    where: { email: 'vendeur@maisonducuir.com' },
-    update: {},
+  // ---- Client 2 : Sem Bocovo ----
+  const client2Password = await bcrypt.hash('Sem2004', 10);
+  await prisma.user.upsert({
+    where: { email: 'sembkv@gmail.com' },
+    update: {
+      password: client2Password,
+      name: 'Sem Bocovo',
+      phone: '0156243619',
+      role: Role.CLIENT,
+    },
     create: {
-      email: 'vendeur@maisonducuir.com',
-      password: cuirPassword,
-      name: 'Yao Kouamé',
-      phone: '+225 07 55 44 33 22',
-      role: Role.VENDEUR,
+      email: 'sembkv@gmail.com',
+      password: client2Password,
+      name: 'Sem Bocovo',
+      phone: '0156243619',
+      role: Role.CLIENT,
     },
   });
-  const cuirBoutique = await prisma.boutique.upsert({
-    where: { slug: 'maison-du-cuir' },
-    update: {},
-    create: {
-      name: 'Maison du Cuir',
-      slug: 'maison-du-cuir',
-      tagline: 'Maroquinerie artisanale',
-      description: 'Sacs et ceintures en cuir véritable, fabriqués à la main en Côte d’Ivoire.',
-      status: BoutiqueStatus.PENDING,
-      verificationStatus: VerificationStatus.PENDING,
-      plan: 'starter',
-      email: 'vendeur@maisonducuir.com',
-      phone: '+225 07 55 44 33 22',
-      whatsappNumber: '+2250755443322',
-      city: 'Abidjan (Yopougon)',
-      country: "Côte d'Ivoire",
-      ownerId: cuirSeller.id,
-      socialLinks: { instagram: '', facebook: '', twitter: '', linkedin: '', tiktok: '' },
-      deliveryPacks: [{ id: 'standard', name: 'Standard', price: 2000, description: 'Livraison 24-72h.' }],
-      promotions: [],
-      notifications: [],
-    },
-  });
-  const cuirDocCount = await prisma.verificationDocument.count({ where: { boutiqueId: cuirBoutique.id } });
-  if (cuirDocCount === 0) {
-    await prisma.verificationDocument.create({
-      data: {
-        boutiqueId: cuirBoutique.id,
-        type: VerificationDocumentType.IDENTITY,
-        label: "Pièce d'identité",
-        url: '/assets/verification/yao-identity.jpg',
-      },
-    });
-  }
-  console.log('✅ Boutique en attente de vérification : maison-du-cuir (Yao Kouamé)');
 
-  // ---- Abonnements réels des boutiques ----
+  // ---- Livreur Indépendant : Morgan Bocovo ----
+  const courierPassword = await bcrypt.hash('Morgan2004', 10);
+  const courierUser = await prisma.user.upsert({
+    where: { email: 'bocovomorgan24@gmail.com' },
+    update: {
+      password: courierPassword,
+      name: 'Morgan Bocovo',
+      phone: '0167174369',
+      role: Role.CLIENT,
+    },
+    create: {
+      email: 'bocovomorgan24@gmail.com',
+      password: courierPassword,
+      name: 'Morgan Bocovo',
+      phone: '0167174369',
+      role: Role.CLIENT,
+    },
+  });
+
+  await prisma.courierProfile.upsert({
+    where: { userId: courierUser.id },
+    update: {
+      displayName: 'Morgan Bocovo',
+      phone: '0167174369',
+      verificationStatus: VerificationStatus.VERIFIED,
+      status: 'ACTIVE',
+      isAvailable: true,
+    },
+    create: {
+      userId: courierUser.id,
+      courierType: 'INDEPENDENT',
+      displayName: 'Morgan Bocovo',
+      phone: '0167174369',
+      whatsappNumber: '+2290167174369',
+      department: 'Littoral',
+      commune: 'Cotonou',
+      vehicleType: 'MOTO',
+      plateNumber: 'BJ-2024-MB',
+      idDocumentType: 'CIP',
+      idDocumentNumber: 'CIP-BJ-0167174369',
+      verificationStatus: VerificationStatus.VERIFIED,
+      status: 'ACTIVE',
+      isAvailable: true,
+      coveredCommunes: ['Cotonou', 'Abomey-Calavi', 'Porto-Novo', 'Ouidah'],
+    },
+  });
+
+  // ---- Abonnement réel (1 boutique avec abonnement Pro : Aziz Tech ; les 2 autres sans abonnement) ----
   const attachSubscription = async (
     boutiqueId: string | undefined,
     planSlug: string,
@@ -714,7 +789,6 @@ async function main() {
       update: data,
       create: { boutiqueId, ...data },
     });
-    // Cohérence (doc 08/21) : la formule active de la boutique suit l'abonnement
     await prisma.boutique.update({ where: { id: boutiqueId }, data: { plan: planSlug } });
   };
   const azizTech = await prisma.boutique.findUnique({ where: { slug: 'aziz-tech' } });
@@ -725,19 +799,7 @@ async function main() {
     startsAt: new Date(now.getTime() - 60 * 864e5),
     currentPeriodEnd: new Date(now.getTime() + 30 * 864e5),
   });
-  await attachSubscription(waxStyle?.id, 'starter', SubscriptionStatus.TRIAL, {
-    startsAt: new Date(now.getTime() - 20 * 864e5),
-    trialEndsAt: new Date(now.getTime() + 6 * 864e5), // expire bientôt → alerte essai
-  });
-  await attachSubscription(beauteNaturelle?.id, 'starter', SubscriptionStatus.ACTIVE, {
-    startsAt: new Date(now.getTime() - 45 * 864e5),
-    currentPeriodEnd: new Date(now.getTime() + 15 * 864e5),
-  });
-  await attachSubscription(cuirBoutique.id, 'starter', SubscriptionStatus.TRIAL, {
-    startsAt: new Date(now.getTime() - 2 * 864e5),
-    trialEndsAt: new Date(now.getTime() + 12 * 864e5),
-  });
-  console.log('✅ Abonnements : Aziz Tech (Pro · actif), Wax & Style (essai), Beauté Naturelle (Starter), Maison du Cuir (essai)');
+  console.log('✅ Abonnements : Aziz Tech (Pro · actif), Wax & Style (Starter sans abonnement), Beauté Naturelle (Starter sans abonnement)');
 
   // ---- Signalements de modération ----
   const reportCount = await prisma.moderationReport.count();

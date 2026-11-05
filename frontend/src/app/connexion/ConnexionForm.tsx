@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { User } from "lucide-react";
@@ -54,9 +54,15 @@ export default function ConnexionForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<FriendlyError | null>(null);
+  const [existingUser, setExistingUser] = useState<ReturnType<typeof getSessionUser>>(null);
 
-  // Déjà connecté ? Redirection immédiate selon le rôle du compte.
-  const existingUser = getSessionUser();
+  // Déjà connecté ? On lit la session après montage (évite désaccord d'hydratation)
+  useEffect(() => {
+    const user = getSessionUser();
+    if (user) {
+      setExistingUser(user);
+    }
+  }, []);
 
 
   const handleSubmit = async (e: React.FormEvent) => {

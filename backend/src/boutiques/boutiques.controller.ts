@@ -23,6 +23,7 @@ import { RequestWithdrawalDto } from './dto/request-withdrawal.dto';
 import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
 import { InviteTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
+import { SubscribePlanDto } from './dto/subscribe-plan.dto';
 import { ParseEnumPipe } from '@nestjs/common';
 
 @ApiTags('boutiques')
@@ -63,6 +64,15 @@ export class BoutiquesController {
   @ApiOperation({ summary: 'Boutiques de l’utilisateur connecté' })
   findMy(@CurrentUser() user: AuthenticatedUser) {
     return this.boutiquesService.findMy(user.id);
+  }
+
+  /** POST /boutiques/subscribe — souscrire ou changer de formule d'abonnement */
+  @Post('subscribe')
+  @Roles('VENDEUR', 'ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Souscrire ou changer de formule d’abonnement (PayDunya ou activation directe)' })
+  subscribe(@CurrentUser() user: AuthenticatedUser, @Body() dto: SubscribePlanDto) {
+    return this.boutiquesService.subscribePlan(user.id, dto);
   }
 
   /** PATCH /boutiques/:id — mise à jour (protégé par BoutiqueOwnerGuard) */

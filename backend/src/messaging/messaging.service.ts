@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MessageSender, Prisma } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StartConversationDto } from './dto/start-conversation.dto';
@@ -24,6 +25,7 @@ export class MessagingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly mailService: MailService,
   ) {}
 
   async applyDiscountSeller(conversationId: string, sellerId: string, agreedPrice: number) {
@@ -411,22 +413,29 @@ export class MessagingService {
    * (cloche du dashboard) — jamais pour ses propres messages.
    */
   async addMessage(actor: Actor, conversationId: string, content: string) {
-    await this.assertAccess(actor, conversationId);
+    const convContext = await this.assertAccess(actor, conversationId, true);
     const conversation = await this.prisma.conversation.update({
       where: { id: conversationId },
       data: { lastMessageAt: new Date() },
       include: {
-        boutique: { select: { ownerId: true, id: true, logoImage: true } },
+        boutique: { select: { ownerId: true, id: true, name: true, email: true, logoImage: true } },
+        user: { select: { id: true, name: true, email: true } },
       },
     });
 
     const encryptedContent = MessageCrypto.encrypt(content);
 
+    const senderRole =
+      convContext?.channelType === 'COURIER_CLIENT' && convContext.courierUserId === actor.id
+        ? MessageSender.LIVREUR
+        : actor.role === 'CLIENT'
+          ? MessageSender.CLIENT
+          : MessageSender.VENDEUR;
+
     const message = await this.prisma.message.create({
       data: {
         conversationId,
-        senderRole:
-          actor.role === 'CLIENT' ? MessageSender.CLIENT : MessageSender.VENDEUR,
+        senderRole,
         senderId: actor.id,
         content: encryptedContent,
       },
@@ -444,6 +453,35 @@ export class MessagingService {
     // quand le client écrit — le vendeur ne se notifie pas lui-même.
     if (actor.role === 'CLIENT') {
       void this.notifySellerNewMessage(conversation, content);
+      if (conversation.boutique.email) {
+        void this.mailService.sendNewMessageNotice(
+          conversation.boutique.email,
+          {
+            recipientName: conversation.boutique.name,
+            recipientRole: 'VENDEUR',
+            senderName: conversation.clientName ?? conversation.user?.name ?? 'Un client',
+            boutiqueName: conversation.boutique.name,
+            messagePreview: this.truncateMessage(content),
+            productName: conversation.productName,
+            orderReference: conversation.orderReference,
+          },
+          conversation.user?.email ?? undefined,
+        );
+      }
+    } else if (actor.role === 'VENDEUR' && conversation.user?.email) {
+      void this.mailService.sendNewMessageNotice(
+        conversation.user.email,
+        {
+          recipientName: conversation.user.name ?? conversation.clientName ?? 'Client',
+          recipientRole: 'CLIENT',
+          senderName: conversation.boutique.name,
+          boutiqueName: conversation.boutique.name,
+          messagePreview: this.truncateMessage(content),
+          productName: conversation.productName,
+          orderReference: conversation.orderReference,
+        },
+        conversation.boutique.email ?? undefined,
+      );
     }
 
     return {
@@ -500,18 +538,42 @@ export class MessagingService {
 
   // ===== Helpers =====
 
-  private async assertAccess(actor: Actor, conversationId: string) {
-    if (actor.role === 'ADMIN') return;
+  private async assertAccess(actor: Actor, conversationId: string, requireWriteAccess = false) {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
-      include: { boutique: { select: { ownerId: true } } },
+      include: {
+        boutique: { select: { ownerId: true } },
+        shipmentAccesses: true,
+      },
     });
     if (!conversation) throw new NotFoundException('Conversation introuvable');
+    if (actor.role === 'ADMIN') return conversation;
+
+    if (conversation.channelType === 'COURIER_CLIENT') {
+      const isCourier = conversation.courierUserId === actor.id;
+      const isClient = conversation.userId === actor.id;
+      if (!isCourier && !isClient) {
+        throw new ForbiddenException('Accès refusé à cette conversation de livraison');
+      }
+      if (requireWriteAccess) {
+        const hasActiveMissionAccess = conversation.shipmentAccesses.some(
+          (a) => a.status === 'ACTIVE',
+        );
+        if (!hasActiveMissionAccess) {
+          throw new ForbiddenException(
+            'La livraison étant confirmée ou terminée, l’écriture dans cette conversation est révoquée.',
+          );
+        }
+      }
+      return conversation;
+    }
+
     const isVendeur = conversation.boutique.ownerId === actor.id;
     const isClient = conversation.userId === actor.id;
     if (!isVendeur && !isClient) {
       throw new ForbiddenException('Accès refusé à cette conversation');
     }
+    return conversation;
   }
 
 }

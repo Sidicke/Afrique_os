@@ -43,6 +43,12 @@ model User {
   teamMemberships      TeamMember[]
   referredBy           User?              @relation("Referrals", fields: [referredById], references: [id])
   referees             User[]             @relation("Referrals")
+  courierProfile       CourierProfile?
+  ownedAgencies        DeliveryAgency[]   @relation("AgencyOwner")
+  addressSnapshots     AddressSnapshot[]
+  customerShipments    Shipment[]         @relation("ShipmentCustomer")
+  courierConversations Conversation[]     @relation("ConversationCourier")
+  deliveryDisputes     DeliveryDispute[]  @relation("DisputeOpener")
 
   @@index([role])
 }
@@ -89,6 +95,9 @@ model Boutique {
   teamMembers           TeamMember[]
   verificationDocuments VerificationDocument[]
   withdrawals           WithdrawalRequest[]
+  shipments             Shipment[]
+  deliveryMissions      DeliveryMission[]
+  deliveryDisputes      DeliveryDispute[]
 
   @@index([ownerId])
   @@index([status])
@@ -214,6 +223,9 @@ model Order {
   user               User?          @relation(fields: [userId], references: [id])
   items              OrderItem[]
   refundRequest      RefundRequest?
+  shipments          Shipment[]
+  settlements        SettlementAllocation[]
+  deliveryDisputes   DeliveryDispute[]
 
   @@index([boutiqueId, status])
   @@index([boutiqueId, createdAt])
@@ -250,14 +262,19 @@ model Conversation {
   agreedPrice        Decimal?  @db.Decimal(14, 2)
   orderId            String?
   orderReference     String?
+  courierUserId      String?
+  channelType        String    @default("SELLER_CLIENT")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   boutique           Boutique  @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
   user               User?     @relation("ConversationClient", fields: [userId], references: [id])
+  courierUser        User?     @relation("ConversationCourier", fields: [courierUserId], references: [id])
   messages           Message[]
+  shipmentAccesses   ShipmentConversationAccess[]
 
   @@index([boutiqueId])
   @@index([userId])
+  @@index([courierUserId])
 }
 
 model Message {
@@ -566,12 +583,13 @@ enum PaymentMethod {
   CASH_ON_DELIVERY
   CARD
   WHATSAPP_DIRECT
-  FEDAPAY
+  PAYDUNYA
 }
 
 enum MessageSender {
   CLIENT
   VENDEUR
+  LIVREUR
 }
 
 enum UserStatus {
@@ -635,3 +653,667 @@ enum RefundStatus {
   REJECTED
   COMPLETED
 }
+
+// ============================================================================
+// EXTENSION SYSTÈME DE LIVRAISON ZENNSHOP (BÉNIN : LOCAL, AGENCE, INTERURBAIN)
+// ============================================================================
+
+model DeliveryZone {
+  id               String             @id @default(cuid())
+  code             String             @unique
+  name             String
+  department       String
+  commune          String
+  arrondissement   String?
+  quartier         String?
+  zoneType         DeliveryZoneType   @default(URBAN)
+  latitude         Float?
+  longitude        Float?
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  stations         Station[]
+  originRules      DeliveryRateRule[] @relation("OriginZoneRate")
+  destinationRules DeliveryRateRule[] @relation("DestinationZoneRate")
+
+  @@index([department, commune])
+  @@index([isActive])
+}
+
+model Station {
+  id                  String        @id @default(cuid())
+  code                String        @unique
+  name                String
+  carrierCompany      String
+  department          String
+  commune             String
+  quartier            String?
+  address             String?
+  landmark            String?
+  contactPhone        String?
+  openingHours        String?
+  latitude            Float?
+  longitude           Float?
+  zoneId              String?
+  isActive            Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  zone                DeliveryZone? @relation(fields: [zoneId], references: [id])
+  destinationShipments Shipment[]   @relation("ShipmentDestinationStation")
+  originLegs          DeliveryLeg[] @relation("LegOriginStation")
+  destinationLegs     DeliveryLeg[] @relation("LegDestinationStation")
+
+  @@index([department, commune])
+  @@index([isActive])
+}
+
+model DeliveryRateRule {
+  id                String           @id @default(cuid())
+  name              String
+  originZoneId      String?
+  destinationZoneId String?
+  deliveryMode      DeliveryMode     @default(HOME)
+  packageSize       PackageSize      @default(STANDARD)
+  basePriceFcfa     Decimal          @db.Decimal(12, 2)
+  agencyFeeSharePct Decimal          @default(90) @db.Decimal(5, 2)
+  estimatedMinHours Int              @default(2)
+  estimatedMaxHours Int              @default(24)
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  originZone        DeliveryZone?    @relation("OriginZoneRate", fields: [originZoneId], references: [id])
+  destinationZone   DeliveryZone?    @relation("DestinationZoneRate", fields: [destinationZoneId], references: [id])
+
+  @@index([originZoneId, destinationZoneId, deliveryMode])
+  @@index([isActive])
+}
+
+model AddressSnapshot {
+  id                   String                 @id @default(cuid())
+  userId               String?
+  country              String                 @default("Bénin")
+  department           String
+  commune              String
+  arrondissement       String?
+  quartier             String
+  streetOrLandmark     String
+  deliveryInstructions String?
+  recipientName        String?
+  contactPhone         String
+  secondaryPhone       String?
+  latitude             Float?
+  longitude            Float?
+  accuracyMeters       Float?
+  locationSource       AddressLocationSource  @default(MANUAL_APPROXIMATE)
+  precisionLevel       AddressPrecisionLevel  @default(LANDMARK_TEXT)
+  confirmedByCustomer  Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  user                 User?                  @relation(fields: [userId], references: [id])
+  originShipments      Shipment[]             @relation("ShipmentOriginAddress")
+  destinationShipments Shipment[]             @relation("ShipmentDestinationAddress")
+  originLegs           DeliveryLeg[]          @relation("LegOriginAddress")
+  destinationLegs      DeliveryLeg[]          @relation("LegDestinationAddress")
+
+  @@index([userId])
+  @@index([department, commune])
+}
+
+model DeliveryAgency {
+  id                  String               @id @default(cuid())
+  name                String               @unique
+  slug                String               @unique
+  ownerId             String
+  phone               String
+  whatsappNumber      String?
+  email               String?
+  department          String               @default("Littoral")
+  commune             String               @default("Cotonou")
+  address             String?
+  description         String?
+  logoUrl             String?
+  rccmNumber          String?
+  ifuNumber           String?
+  idDocumentUrl       String?
+  verificationStatus  VerificationStatus   @default(PENDING)
+  status              AgencyStatus         @default(PENDING)
+  coveredCommunes     String[]
+  supportsInterurban  Boolean              @default(false)
+  baseRateFcfa        Decimal              @default(1000) @db.Decimal(12, 2)
+  balance             Decimal              @default(0) @db.Decimal(14, 2)
+  pendingBalance      Decimal              @default(0) @db.Decimal(14, 2)
+  rating              Float                @default(5.0)
+  completedDeliveries Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  owner               User                 @relation("AgencyOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships         AgencyMembership[]
+  activeCouriers      CourierProfile[]     @relation("CourierActiveAgency")
+  shipments           Shipment[]
+  missions            DeliveryMission[]
+
+  @@index([ownerId])
+  @@index([status, verificationStatus])
+}
+
+model CourierProfile {
+  id                 String               @id @default(cuid())
+  userId             String               @unique
+  courierType        CourierType          @default(INDEPENDENT)
+  displayName        String
+  phone              String
+  whatsappNumber     String?
+  department         String               @default("Littoral")
+  commune            String               @default("Cotonou")
+  vehicleType        VehicleType          @default(MOTO)
+  plateNumber        String?
+  idDocumentType     String?
+  idDocumentNumber   String?
+  idDocumentUrl      String?
+  selfieUrl          String?
+  verificationStatus VerificationStatus   @default(PENDING)
+  status             CourierStatus        @default(PENDING)
+  isAvailable        Boolean              @default(true)
+  coveredCommunes    String[]
+  activeAgencyId     String?
+  balance            Decimal              @default(0) @db.Decimal(14, 2)
+  pendingBalance     Decimal              @default(0) @db.Decimal(14, 2)
+  rating             Float                @default(5.0)
+  completedMissions  Int                  @default(0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeAgency       DeliveryAgency?      @relation("CourierActiveAgency", fields: [activeAgencyId], references: [id])
+  memberships        AgencyMembership[]
+  assignedShipments  Shipment[]           @relation("ShipmentAssignedCourier")
+  assignedMissions   DeliveryMission[]    @relation("MissionAssignedCourier")
+  requestedMissions  DeliveryMission[]    @relation("MissionRequestedCourier")
+
+  @@index([courierType, verificationStatus, status])
+  @@index([activeAgencyId])
+}
+
+model AgencyMembership {
+  id                      String                 @id @default(cuid())
+  agencyId                String
+  courierProfileId        String
+  status                  AgencyMembershipStatus @default(PENDING)
+  role                    String                 @default("COURIER")
+  canBeRequestedBySeller  Boolean                @default(true)
+  invitedByUserId         String?
+  joinedAt                DateTime?
+  detachedAt              DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  agency                  DeliveryAgency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  courierProfile          CourierProfile         @relation(fields: [courierProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, courierProfileId])
+  @@index([courierProfileId, status])
+  @@index([agencyId, status])
+}
+
+model Shipment {
+  id                      String                        @id @default(cuid())
+  reference               String                        @unique
+  orderId                 String
+  boutiqueId              String
+  customerUserId          String?
+  status                  ShipmentStatus                @default(AWAITING_PREPARATION)
+  deliveryMode            DeliveryMode                  @default(HOME)
+  dispatchMode            DispatchMode?
+  originAddressId         String?
+  destinationAddressId    String?
+  destinationStationId    String?
+  packageCategory         PackageSize                   @default(STANDARD)
+  packageDescription      String?
+  declaredValueFcfa       Decimal                       @default(0) @db.Decimal(12, 2)
+  isFragile               Boolean                       @default(false)
+  quotedFeeFcfa           Decimal                       @default(0) @db.Decimal(12, 2)
+  chargedToBuyerFcfa      Decimal                       @default(0) @db.Decimal(12, 2)
+  sellerSubsidyFcfa       Decimal                       @default(0) @db.Decimal(12, 2)
+  isFeeIncludedInPack     Boolean                       @default(false)
+  deliveryCodeHash        String?
+  deliveryCodeCipher      String?
+  deliveryCodeExpiresAt   DateTime?
+  deliveryCodeAttempts    Int                           @default(0)
+  deliveryCodeLockedUntil DateTime?
+  guestTrackingTokenHash  String?
+  assignedAgencyId        String?
+  assignedCourierId       String?
+  personalCourierName     String?
+  personalCourierPhone    String?
+  dispatchedAt            DateTime?
+  pickedUpAt              DateTime?
+  arrivedAtStationAt      DateTime?
+  deliveredVerifiedAt     DateTime?
+  conformityDeadlineAt    DateTime?
+  buyerAcceptedAt         DateTime?
+  cancelledAt             DateTime?
+  cancellationReason      String?
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  order                   Order                         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  boutique                Boutique                      @relation(fields: [boutiqueId], references: [id])
+  customer                User?                         @relation("ShipmentCustomer", fields: [customerUserId], references: [id])
+  originAddress           AddressSnapshot?              @relation("ShipmentOriginAddress", fields: [originAddressId], references: [id])
+  destinationAddress      AddressSnapshot?              @relation("ShipmentDestinationAddress", fields: [destinationAddressId], references: [id])
+  destinationStation      Station?                      @relation("ShipmentDestinationStation", fields: [destinationStationId], references: [id])
+  assignedAgency          DeliveryAgency?               @relation(fields: [assignedAgencyId], references: [id])
+  assignedCourier         CourierProfile?               @relation("ShipmentAssignedCourier", fields: [assignedCourierId], references: [id])
+  legs                    DeliveryLeg[]
+  missions                DeliveryMission[]
+  evidences               HandoverEvidence[]
+  events                  DeliveryEvent[]
+  conversationAccesses    ShipmentConversationAccess[]
+  settlements             SettlementAllocation[]
+  disputes                DeliveryDispute[]
+
+  @@index([orderId])
+  @@index([boutiqueId, status])
+  @@index([customerUserId])
+  @@index([assignedCourierId])
+  @@index([assignedAgencyId])
+}
+
+model DeliveryLeg {
+  id                  String             @id @default(cuid())
+  shipmentId          String
+  sequence            Int                @default(1)
+  legType             DeliveryLegType    @default(DIRECT_LOCAL)
+  status              DeliveryLegStatus  @default(PLANNED)
+  originAddressId     String?
+  destinationAddressId String?
+  originStationId     String?
+  destinationStationId String?
+  carrierCompany      String?
+  carrierTicketRef    String?
+  carrierContactPhone String?
+  driverName          String?
+  vehicleIdentifier   String?
+  departureTime       DateTime?
+  estimatedArrivalAt  DateTime?
+  actualArrivalAt     DateTime?
+  agreedFeeFcfa       Decimal            @default(0) @db.Decimal(12, 2)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  shipment            Shipment           @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  originAddress       AddressSnapshot?   @relation("LegOriginAddress", fields: [originAddressId], references: [id])
+  destinationAddress  AddressSnapshot?   @relation("LegDestinationAddress", fields: [destinationAddressId], references: [id])
+  originStation       Station?           @relation("LegOriginStation", fields: [originStationId], references: [id])
+  destinationStation  Station?           @relation("LegDestinationStation", fields: [destinationStationId], references: [id])
+  missions            DeliveryMission[]
+  evidences           HandoverEvidence[]
+  events              DeliveryEvent[]
+
+  @@unique([shipmentId, sequence])
+  @@index([shipmentId, status])
+}
+
+model DeliveryMission {
+  id                        String                        @id @default(cuid())
+  reference                 String                        @unique
+  shipmentId                String
+  legId                     String?
+  boutiqueId                String
+  missionMode               DispatchMode                  @default(PUBLIC_POOL)
+  status                    DeliveryMissionStatus         @default(OFFERED)
+  agencyId                  String?
+  courierProfileId          String?
+  requestedCourierProfileId String?
+  agencyApprovedPreferred   Boolean?
+  agreedFeeFcfa             Decimal                       @default(0) @db.Decimal(12, 2)
+  appliedCommissionRatePct  Decimal                       @default(10) @db.Decimal(5, 2)
+  platformCommissionFcfa    Decimal                       @default(0) @db.Decimal(12, 2)
+  netCourierPayoutFcfa      Decimal                       @default(0) @db.Decimal(12, 2)
+  isExternalSellerPayment   Boolean                       @default(false)
+  originSummary             String?
+  destinationSummary        String?
+  reservedUntil             DateTime?
+  expiresAt                 DateTime?
+  acceptedAt                DateTime?
+  pickedUpAt                DateTime?
+  completedAt               DateTime?
+  cancelledAt               DateTime?
+  cancellationReason        String?
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  shipment                  Shipment                      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  leg                       DeliveryLeg?                  @relation(fields: [legId], references: [id])
+  boutique                  Boutique                      @relation(fields: [boutiqueId], references: [id])
+  agency                    DeliveryAgency?               @relation(fields: [agencyId], references: [id])
+  courierProfile            CourierProfile?               @relation("MissionAssignedCourier", fields: [courierProfileId], references: [id])
+  requestedCourierProfile   CourierProfile?               @relation("MissionRequestedCourier", fields: [requestedCourierProfileId], references: [id])
+  evidences                 HandoverEvidence[]
+  events                    DeliveryEvent[]
+  conversationAccesses      ShipmentConversationAccess[]
+  settlements               SettlementAllocation[]
+
+  @@index([status, missionMode])
+  @@index([shipmentId])
+  @@index([courierProfileId, status])
+  @@index([agencyId, status])
+}
+
+model HandoverEvidence {
+  id                 String             @id @default(cuid())
+  shipmentId         String
+  legId              String?
+  missionId          String?
+  step               HandoverStep
+  actorUserId        String?
+  actorRole          String
+  verificationMethod VerificationMethod @default(PHOTO_DECLARATION)
+  codeVerified       Boolean            @default(false)
+  receiptReference   String?
+  carrierCompany     String?
+  driverPhone        String?
+  photoUrl           String?
+  signatureData      String?
+  gpsLatitude        Float?
+  gpsLongitude       Float?
+  gpsAccuracyMeters  Float?
+  notes              String?
+  status             EvidenceStatus     @default(DECLARED)
+  verifiedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  shipment           Shipment           @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  leg                DeliveryLeg?       @relation(fields: [legId], references: [id])
+  mission            DeliveryMission?   @relation(fields: [missionId], references: [id])
+
+  @@index([shipmentId, step])
+  @@index([missionId])
+}
+
+model DeliveryEvent {
+  id          String           @id @default(cuid())
+  shipmentId  String
+  legId       String?
+  missionId   String?
+  actorId     String?
+  actorRole   String
+  eventType   String
+  oldStatus   String?
+  newStatus   String?
+  description String?
+  payload     Json?
+  createdAt   DateTime         @default(now())
+  shipment    Shipment         @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  leg         DeliveryLeg?     @relation(fields: [legId], references: [id])
+  mission     DeliveryMission? @relation(fields: [missionId], references: [id])
+
+  @@index([shipmentId, createdAt])
+}
+
+model ShipmentConversationAccess {
+  id             String                   @id @default(cuid())
+  conversationId String
+  shipmentId     String
+  missionId      String
+  customerUserId String?
+  courierUserId  String
+  status         ConversationAccessStatus @default(ACTIVE)
+  activatedAt    DateTime                 @default(now())
+  revokedAt      DateTime?
+  revokedReason  String?
+  conversation   Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  shipment       Shipment                 @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  mission        DeliveryMission          @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([missionId, conversationId])
+  @@index([conversationId, status])
+  @@index([shipmentId, status])
+  @@index([courierUserId, status])
+}
+
+model SettlementAllocation {
+  id                   String                    @id @default(cuid())
+  orderId              String
+  shipmentId           String?
+  missionId            String?
+  beneficiaryType      SettlementBeneficiaryType
+  beneficiaryId        String
+  grossAmountFcfa      Decimal                   @db.Decimal(14, 2)
+  commissionRate       Decimal                   @default(0) @db.Decimal(5, 2)
+  commissionAmountFcfa Decimal                   @default(0) @db.Decimal(14, 2)
+  netAmountFcfa        Decimal                   @db.Decimal(14, 2)
+  status               SettlementStatus          @default(PENDING_PAYMENT)
+  holdReason           String?
+  eligibleForReleaseAt DateTime?
+  releasedAt           DateTime?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  order                Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment             Shipment?                 @relation(fields: [shipmentId], references: [id])
+  mission              DeliveryMission?          @relation(fields: [missionId], references: [id])
+
+  @@index([orderId, beneficiaryType])
+  @@index([shipmentId])
+  @@index([beneficiaryId, status])
+}
+
+model DeliveryDispute {
+  id                       String                @id @default(cuid())
+  reference                String                @unique
+  shipmentId               String
+  orderId                  String
+  boutiqueId               String
+  openedByUserId           String?
+  disputeScope             DisputeScope          @default(BOTH)
+  reason                   String
+  description              String
+  evidenceUrls             String[]
+  status                   DeliveryDisputeStatus @default(OPEN)
+  sellerAllocationFrozen   Boolean               @default(false)
+  deliveryAllocationFrozen Boolean               @default(false)
+  adminNotes               String?
+  resolutionSummary        String?
+  resolvedByUserId         String?
+  resolvedAt               DateTime?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  shipment                 Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  order                    Order                 @relation(fields: [orderId], references: [id])
+  boutique                 Boutique              @relation(fields: [boutiqueId], references: [id])
+  openedBy                 User?                 @relation("DisputeOpener", fields: [openedByUserId], references: [id])
+
+  @@index([shipmentId])
+  @@index([orderId])
+  @@index([status])
+}
+
+enum DeliveryZoneType {
+  URBAN
+  PERIURBAN
+  INTERURBAN
+}
+
+enum DeliveryMode {
+  HOME
+  STATION_PICKUP
+  INTERURBAN_STATION
+  INTERURBAN_HOME
+  SELLER_SELF
+}
+
+enum PackageSize {
+  SMALL
+  STANDARD
+  LARGE
+  FRAGILE
+}
+
+enum AddressLocationSource {
+  GPS_CONFIRMED
+  OSM_PIN
+  MANUAL_APPROXIMATE
+}
+
+enum AddressPrecisionLevel {
+  EXACT_GPS
+  PIN_CONFIRMED
+  LANDMARK_TEXT
+}
+
+enum AgencyStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum CourierType {
+  INDEPENDENT
+  AGENCY_MEMBER
+}
+
+enum CourierStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+}
+
+enum VehicleType {
+  MOTO
+  TRICYCLE
+  VAN
+  CAR
+  BICYCLE
+}
+
+enum AgencyMembershipStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DETACHED
+}
+
+enum ShipmentStatus {
+  DRAFT
+  AWAITING_PREPARATION
+  READY_FOR_DISPATCH
+  AWAITING_ASSIGNMENT
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  HANDOVER_PENDING
+  ARRIVED_AT_STATION
+  PICKUP_CONFIRMATION_PENDING
+  DELIVERY_PENDING_VERIFICATION
+  DELIVERED_VERIFIED
+  BUYER_ACCEPTED
+  FAILED_ATTEMPT
+  RETURNING
+  RETURNED
+  LOST
+  CANCELLED
+  UNDER_REVIEW
+}
+
+enum DispatchMode {
+  SELLER_PERSONAL_COURIER
+  PARTNER_AGENCY
+  PUBLIC_POOL
+}
+
+enum DeliveryLegType {
+  COLLECTION
+  INTERURBAN_TRANSIT
+  LAST_MILE
+  STATION_PICKUP
+  DIRECT_LOCAL
+}
+
+enum DeliveryLegStatus {
+  PLANNED
+  AWAITING_ASSIGNMENT
+  ASSIGNED
+  IN_PROGRESS
+  HANDOVER_DECLARED
+  ARRIVED_AT_STATION
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DeliveryMissionStatus {
+  OFFERED
+  RESERVED
+  ASSIGNED
+  ACCEPTED
+  COLLECTING
+  CARRYING
+  HANDOVER_PENDING
+  COMPLETED
+  DECLINED
+  EXPIRED
+  FAILED
+  CANCELLED
+  REASSIGNED
+}
+
+enum HandoverStep {
+  PICKUP_FROM_SELLER
+  HANDOVER_TO_CARRIER
+  ARRIVAL_AT_STATION
+  PICKUP_FROM_STATION
+  DELIVERY_TO_BUYER
+  BUYER_CONFORMITY_CONFIRMATION
+}
+
+enum VerificationMethod {
+  BUYER_CODE
+  SIGNED_GUEST_LINK
+  CARRIER_RECEIPT
+  STATION_AGENT_CONFIRMATION
+  PHOTO_DECLARATION
+}
+
+enum EvidenceStatus {
+  DECLARED
+  VERIFIED
+  REJECTED
+}
+
+enum ConversationAccessStatus {
+  ACTIVE
+  REVOKED
+  CLOSED
+}
+
+enum SettlementBeneficiaryType {
+  SELLER_BOUTIQUE
+  DELIVERY_AGENCY
+  INDEPENDENT_COURIER
+  PLATFORM_COMMISSION
+}
+
+enum SettlementStatus {
+  PENDING_PAYMENT
+  HELD_BY_PSP_OR_LEDGER
+  AWAITING_DELIVERY_VERIFICATION
+  AWAITING_BUYER_CONFORMITY
+  ELIGIBLE_FOR_RELEASE
+  ON_HOLD_DISPUTE
+  RELEASED_TO_WALLET
+  EXTERNALLY_SETTLED
+  REFUNDED
+  CANCELLED
+}
+
+enum DisputeScope {
+  PRODUCT_ONLY
+  DELIVERY_ONLY
+  BOTH
+}
+
+enum DeliveryDisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_REFUND_BUYER
+  RESOLVED_RELEASE_SELLER
+  RESOLVED_RELEASE_COURIER
+  RESOLVED_SPLIT
+  REJECTED
+}
+

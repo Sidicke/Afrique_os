@@ -19,15 +19,39 @@ export class RefundsService {
     const existing = await this.prisma.refundRequest.findUnique({ where: { orderId } });
     if (existing) throw new BadRequestException('Une demande existe déjà pour cette commande.');
 
-    return this.prisma.refundRequest.create({
-      data: {
-        orderId,
-        clientId,
-        boutiqueId: order.boutiqueId,
-        reason,
-        description,
-        evidenceUrl,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.refundRequest.create({
+        data: {
+          orderId,
+          clientId,
+          boutiqueId: order.boutiqueId,
+          reason,
+          description,
+          evidenceUrl,
+        },
+      });
+
+      // Décision D4 & Règle 13/14 : Toute demande de remboursement bloque immédiatement le reversement vendeur non encore décaissé
+      await tx.settlementAllocation.updateMany({
+        where: {
+          orderId,
+          beneficiaryType: 'SELLER_BOUTIQUE',
+          status: {
+            in: [
+              'PENDING_PAYMENT',
+              'AWAITING_DELIVERY_VERIFICATION',
+              'AWAITING_BUYER_CONFORMITY',
+              'ELIGIBLE_FOR_RELEASE',
+            ],
+          },
+        },
+        data: {
+          status: 'ON_HOLD_DISPUTE',
+          holdReason: `Demande de remboursement #${created.id} : ${reason}`,
+        },
+      });
+
+      return created;
     });
   }
 
@@ -84,15 +108,61 @@ export class RefundsService {
   }
 
   async adminDecide(id: string, action: 'APPROVE' | 'REJECT', resolutionText: string) {
-    const req = await this.prisma.refundRequest.findUnique({ where: { id } });
-    if (!req) throw new NotFoundException('Demande introuvable.');
-
-    return this.prisma.refundRequest.update({
+    const req = await this.prisma.refundRequest.findUnique({
       where: { id },
-      data: {
-        status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-        resolutionText,
-      },
+      include: { order: true },
+    });
+    if (!req) throw new NotFoundException('Demande introuvable.');
+    if (req.status === 'APPROVED' || req.status === 'REJECTED') {
+      throw new BadRequestException('Cette demande de remboursement a déjà été traitée.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.refundRequest.update({
+        where: { id },
+        data: {
+          status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+          resolutionText,
+        },
+      });
+
+      if (action === 'APPROVE') {
+        const sellerAllocs = await tx.settlementAllocation.findMany({
+          where: {
+            orderId: req.orderId,
+            beneficiaryType: 'SELLER_BOUTIQUE',
+            status: { not: 'REFUNDED' },
+          },
+        });
+
+        if (sellerAllocs.length > 0) {
+          await tx.settlementAllocation.updateMany({
+            where: {
+              orderId: req.orderId,
+              beneficiaryType: 'SELLER_BOUTIQUE',
+              status: { not: 'REFUNDED' },
+            },
+            data: { status: 'REFUNDED' },
+          });
+
+          for (const alloc of sellerAllocs) {
+            const deduction = Number(alloc.netAmountFcfa || 0);
+            if (deduction > 0 && alloc.beneficiaryId) {
+              await tx.boutique.update({
+                where: { id: alloc.beneficiaryId },
+                data: { balance: { decrement: deduction } },
+              });
+            }
+          }
+        } else if (req.order && Number(req.order.netAmount || 0) > 0) {
+          await tx.boutique.update({
+            where: { id: req.boutiqueId },
+            data: { balance: { decrement: Number(req.order.netAmount) } },
+          });
+        }
+      }
+
+      return updated;
     });
   }
 }

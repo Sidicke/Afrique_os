@@ -307,7 +307,7 @@ export interface ApiCreateOrderInput {
     | "CASH_ON_DELIVERY"
     | "CARD"
     | "WHATSAPP_DIRECT"
-    | "FEDAPAY";
+    | "PAYDUNYA";
   deliveryName?: string;
   deliveryPrice?: number;
   notes?: string;

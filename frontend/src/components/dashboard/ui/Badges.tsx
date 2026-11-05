@@ -32,7 +32,7 @@ export function PaymentBadge({ method }: { method: PaymentMethod | string }) {
     CASH_ON_DELIVERY: { label: "À la livraison", className: "bg-gold-wash text-gold-strong" },
     CARD: { label: "Carte", className: "bg-ink-100 text-ink-700" },
     WHATSAPP_DIRECT: { label: "Directe", className: "bg-blue-100 text-blue-700" },
-    FEDAPAY: { label: "FedaPay", className: "bg-purple-100 text-purple-700" },
+    PAYDUNYA: { label: "PayDunya", className: "bg-purple-100 text-purple-700" },
   };
   const badge = config[method] || { label: method || "Inconnu", className: "bg-gray-100 text-gray-700" };
   return <span className={cn(base, badge.className)}>{badge.label}</span>;

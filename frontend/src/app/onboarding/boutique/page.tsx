@@ -14,6 +14,7 @@ import {
 import { shopsApi } from "@/lib/api/shops";
 import { useSession } from "@/lib/useSession";
 import { ApiError } from "@/lib/api/http";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 const TOTAL_STEPS = 3;
 
@@ -82,6 +83,9 @@ export default function OnboardingBoutiquePage() {
         <div className="relative z-10 flex min-h-screen items-center justify-center bg-midnight-950/40 backdrop-blur-md p-4">
            <div className="w-full max-w-lg bg-surface rounded-3xl shadow-2xl overflow-hidden border border-line">
               <div className="p-8">
+                 <Link href="/" className="mb-6 inline-flex items-center" aria-label="ZennShop (accueil)">
+                   <ZennShopLogo variant="horizontal" tone="light" className="h-9 w-auto" />
+                 </Link>
                  <h2 className="text-2xl font-display font-bold text-ink-950 mb-2">Connexion requise.</h2>
                  <p className="text-sm text-ink-600 mb-6">Connectez-vous ou créez un compte pour commencer votre boutique.</p>
                  <div className="flex items-center gap-2">
@@ -279,6 +283,9 @@ export default function OnboardingBoutiquePage() {
       <div className="relative z-10 flex min-h-screen items-center justify-center bg-midnight-950/40 backdrop-blur-md p-4">
          <div className="w-full max-w-lg bg-surface rounded-3xl shadow-2xl overflow-hidden border border-line">
             <div className="p-8">
+               <Link href="/" className="mb-6 inline-flex items-center" aria-label="ZennShop (accueil)">
+                 <ZennShopLogo variant="horizontal" tone="light" className="h-9 w-auto" />
+               </Link>
                
                {createdSlug ? (
                  <>

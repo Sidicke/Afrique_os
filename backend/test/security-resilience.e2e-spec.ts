@@ -284,16 +284,20 @@ describe('🛡️ Audit de Sécurité & Résilience E2E', () => {
     });
   });
 
-  describe('6. 🔐 Webhook FedaPay : Rejet de Signature Falsifiée', () => {
+  describe('6. 🔐 Webhook PayDunya : Rejet de Signature Falsifiée', () => {
     it('Rejette un webhook avec signature invalide → 400 Bad Request', async () => {
       const fakePayload = {
-        event: 'transaction.approved',
-        entity: { id: 9999, reference: 'AC-FAKE', amount: 5000 },
+        data: {
+          status: 'completed',
+          hash: 'invalidsignature1234567890abcdef',
+          invoice: { token: 'test_fake_token', total_amount: 5000 },
+          custom_data: { orderReference: 'AC-FAKE' },
+        },
       };
 
       const res = await request(app.getHttpServer())
-        .post('/api/v1/payments/fedapay/webhook')
-        .set('x-fedapay-signature', 'invalidsignature1234567890abcdef')
+        .post('/api/v1/payments/paydunya/webhook')
+        .set('x-paydunya-signature', 'invalidsignature1234567890abcdef')
         .send(fakePayload);
 
       expect(res.status).toBe(400);

@@ -224,9 +224,14 @@ export class AuthService {
     });
 
     const hashed = await bcrypt.hash(newPassword, 12);
-    await this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { email: normalizedEmail },
       data: { password: hashed, refreshTokenHash: null }, // Révocation des sessions
+    });
+
+    void this.mail.sendPasswordChangedEmail({
+      userEmail: normalizedEmail,
+      userName: updatedUser.name,
     });
 
     return { success: true };
@@ -258,6 +263,12 @@ export class AuthService {
       where: { id: userId },
       data: { password: hashed, refreshTokenHash: null },
     });
+
+    void this.mail.sendPasswordChangedEmail({
+      userEmail: user.email,
+      userName: user.name,
+    });
+
     return { success: true };
   }
 
@@ -627,6 +638,12 @@ export class AuthService {
       },
     });
 
+    void this.mail.sendWelcomeAccountEmail({
+      userName: user.name ?? 'Membre ZennShop',
+      userEmail: user.email,
+      role: role === Role.VENDEUR ? 'VENDEUR' : 'CLIENT',
+    });
+
     return this.buildAuthResponse(user);
   }
 
@@ -667,7 +684,11 @@ export class AuthService {
       },
     });
 
-    await this.mail.sendOtpEmail(identifier, code);
+    if (purpose === 'RESET_PASSWORD') {
+      await this.mail.sendPasswordResetOtpEmail(identifier, code);
+    } else {
+      await this.mail.sendOtpEmail(identifier, code);
+    }
   }
 
   private async buildAuthResponse(user: {

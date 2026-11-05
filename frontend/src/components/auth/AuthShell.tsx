@@ -8,6 +8,7 @@ import {
   Package, Tag,
   Store, LayoutDashboard, Banknote
 } from "lucide-react";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 interface AuthShellProps {
   eyebrow: string;
@@ -355,13 +356,12 @@ function AuthBrandPanel({ intent = "general" }: { intent?: "general" | "acheter"
 
       <div className="relative">
         {/* Logo */}
-        <Link href="/" className="inline-flex items-center gap-3" aria-label="ZennShop (accueil)">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-gold-400/40 bg-gold-400/10 font-display text-base font-bold text-gold-300">
-            ZS
-          </span>
-          <span className="font-display text-xl font-bold tracking-tight text-white">
-            Zenn<span className="text-gold-400">Shop</span>
-          </span>
+        <Link href="/" className="group inline-flex items-center" aria-label="ZennShop (accueil)">
+          <ZennShopLogo
+            variant="horizontal"
+            tone="dark"
+            className="h-10 w-auto xl:h-11 transition-transform duration-300 group-hover:scale-[1.02]"
+          />
         </Link>
 
         {/* Message clé */}
@@ -432,15 +432,14 @@ export default function AuthShell({
             {/* Logo mobile (le panneau marque est masqué sur <lg) */}
             <Link
               href="/"
-              className="mb-8 flex items-center gap-3 lg:hidden"
+              className="group mb-8 inline-flex items-center lg:hidden"
               aria-label="ZennShop (accueil)"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-400/40 bg-midnight-950 font-display text-sm font-bold text-gold-300">
-                ZS
-              </span>
-              <span className="font-display text-lg font-bold tracking-tight text-ink-950">
-                Zenn<span className="text-gold-600">Shop</span>
-              </span>
+              <ZennShopLogo
+                variant="horizontal"
+                tone="light"
+                className="h-9 w-auto sm:h-10 transition-transform duration-300 group-hover:scale-[1.02]"
+              />
             </Link>
 
             {notice && <div className="mb-5">{notice}</div>}

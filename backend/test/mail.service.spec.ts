@@ -2,9 +2,16 @@ import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import {
   buildCancellationEmail,
+  buildMilestoneReachedEmail,
+  buildNewMessageEmail,
   buildOrderConfirmationEmail,
   buildOtpEmail,
+  buildPasswordChangedEmail,
+  buildPasswordResetOtpEmail,
   buildSellerCancellationEmail,
+  buildSellerSaleValidatedEmail,
+  buildSubscriptionExpiringEmail,
+  buildWelcomeAccountEmail,
 } from '../src/mail/email-templates';
 import {
   CancellationMailData,
@@ -372,6 +379,103 @@ describe('MailService', () => {
       await expect(
         service.sendSellerCancellationNotice(sellerSampleData()),
       ).resolves.toBeUndefined();
+    });
+
+    it('utilise bien les 2 canaux pro (MAIL_FROM_SYSTEM vs MAIL_FROM_ACTIVITY)', async () => {
+      const send = jest.fn().mockResolvedValue({ data: {}, error: null });
+      MockResend.mockImplementation(() => ({ emails: { send } }));
+      const service = new MailService(
+        configWith({
+          RESEND_API_KEY: 're_x',
+          MAIL_FROM_SYSTEM: 'compte@zennshop.com',
+          MAIL_FROM_SYSTEM_NAME: 'ZennShop Sécurité',
+          MAIL_FROM_ACTIVITY: 'activite@zennshop.com',
+          MAIL_FROM_ACTIVITY_NAME: 'ZennShop Activité',
+        }),
+      );
+
+      // 1. Canal Système (mot de passe oublié)
+      await service.sendPasswordResetOtpEmail('user@example.com', '654321', 'Koffi');
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0][0].from).toBe('ZennShop Sécurité <compte@zennshop.com>');
+      expect(send.mock.calls[0][0].html).toContain('Compte &amp; Sécurité');
+      expect(send.mock.calls[0][0].html).toContain('L’équipe');
+
+      // 2. Canal Activité (vente validée, message, objectif, rappel formule)
+      await service.sendMilestoneReached('vendeur@aziztech.com', {
+        sellerName: 'Aziz',
+        boutiqueName: 'Aziz Tech',
+        milestoneBadge: '100 000 FCFA ATTEINTS',
+        milestoneTitle: 'Objectif mensuel atteint !',
+      });
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send.mock.calls[1][0].from).toBe('ZennShop Activité <activite@zennshop.com>');
+      expect(send.mock.calls[1][0].html).toContain('Activité Plateforme');
+      expect(send.mock.calls[1][0].html).toContain('100 000 FCFA ATTEINTS');
+    });
+  });
+
+  describe('Nouveaux templates (Système & Activités)', () => {
+    it('génère les mails Système (Password Reset, Password Changed, Welcome)', () => {
+      const reset = buildPasswordResetOtpEmail('908172', 'Awa');
+      expect(reset.subject).toContain('908 •••');
+      expect(reset.html).toContain('Awa');
+
+      const changed = buildPasswordChangedEmail({
+        userName: 'Awa',
+        userEmail: 'awa@example.com',
+      });
+      expect(changed.subject).toContain('modifié');
+      expect(changed.html).toContain('awa@example.com');
+
+      const welcome = buildWelcomeAccountEmail({
+        userName: 'Awa',
+        userEmail: 'awa@example.com',
+        role: 'VENDEUR',
+        shopName: 'Maison Awa',
+      });
+      expect(welcome.subject).toContain('Bienvenue sur ZennShop');
+      expect(welcome.html).toContain('Maison Awa');
+    });
+
+    it('génère les mails Activités (Vente validée, Nouveau message, Objectif, Rappel formule)', () => {
+      const sale = buildSellerSaleValidatedEmail({
+        ...confirmationSampleData(),
+        netAmount: 104500,
+      });
+      expect(sale.subject).toContain('Nouvelle vente validée #AC-8901');
+      expect(sale.html).toContain(formatPrice(104500));
+
+      const msg = buildNewMessageEmail({
+        recipientName: 'Aziz Tech',
+        recipientRole: 'VENDEUR',
+        senderName: 'Awa Diallo',
+        boutiqueName: 'Aziz Tech',
+        messagePreview: 'Bonjour, est-ce disponible en noir ?',
+        productName: 'Écouteurs Sans Fil',
+      });
+      expect(msg.subject).toContain('Nouveau message de Awa Diallo');
+      expect(msg.html).toContain('Bonjour, est-ce disponible en noir ?');
+
+      const milestone = buildMilestoneReachedEmail({
+        sellerName: 'Aziz',
+        boutiqueName: 'Aziz Tech',
+        milestoneBadge: '10 VENTES VALIDÉES',
+        milestoneTitle: 'Cap des 10 commandes franchi',
+      });
+      expect(milestone.subject).toContain('Objectif atteint');
+      expect(milestone.html).toContain('10 VENTES VALIDÉES');
+
+      const sub = buildSubscriptionExpiringEmail({
+        sellerName: 'Aziz',
+        boutiqueName: 'Aziz Tech',
+        planName: 'Business',
+        daysRemaining: 3,
+        expiresAtFormatted: '30 octobre 2026',
+        commissionRate: '2 %',
+      });
+      expect(sub.subject).toContain('Votre formule ZennShop Business expire dans 3 jours');
+      expect(sub.html).toContain('30 octobre 2026');
     });
   });
 });

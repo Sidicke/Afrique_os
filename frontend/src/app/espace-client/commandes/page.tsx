@@ -11,6 +11,7 @@ import { ListSkeleton } from "@/components/client/ui/Skeleton";
 import { OrderCard } from "@/components/client/ui/OrderCard";
 import { Tabs, type TabItem } from "@/components/client/ui/Tabs";
 import { IconAlert, IconBag } from "@/components/client/icons";
+import { ShipmentTrackerCard } from "@/components/delivery/ShipmentTrackerCard";
 
 type OrderTab = "all" | "active" | "delivered" | "cancelled";
 
@@ -42,6 +43,7 @@ export default function MesCommandesPage() {
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -73,6 +75,61 @@ export default function MesCommandesPage() {
     const t = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(t);
   }, [load]);
+
+  // Confirmation automatique au retour de PayDunya Checkout (?token=...)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const paydunyaOrderId = params.get("paydunya_order") ?? undefined;
+    if (!token) return;
+
+    void ordersApi
+      .confirmPayDunyaTransaction(token, paydunyaOrderId)
+      .then((res) => {
+        if (res.paydunyaStatus === "completed" || res.settlementStatus === "settled") {
+          setNotice("Paiement PayDunya confirmé avec succès ! Votre commande est payée.");
+        }
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("token");
+        cleanUrl.searchParams.delete("paydunya_order");
+        window.history.replaceState({}, "", cleanUrl.toString());
+        void load();
+      })
+      .catch(() => {});
+  }, [load]);
+
+  /** Paiement en ligne via PayDunya pour une commande en attente (PENDING) */
+  const handlePayWithPayDunya = async (order: ApiOrder) => {
+    setPayingId(order.id);
+    setError(null);
+    try {
+      const callbackUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/checkout/success?paydunya_order=${encodeURIComponent(order.id)}`
+          : undefined;
+      const res = await ordersApi.createPayDunyaTransaction({
+        orderId: order.id,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        callbackUrl,
+      });
+      if (res.checkoutUrl && typeof window !== "undefined") {
+        window.location.href = res.checkoutUrl;
+        return;
+      }
+      setNotice(`Paiement initialisé pour la commande ${order.orderNumber}.`);
+      void load();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Impossible d'initialiser le paiement PayDunya pour le moment.");
+      }
+    } finally {
+      setPayingId(null);
+    }
+  };
 
   /** Annulation (uniquement PENDING / PAID, comme le backend) */
   const handleCancel = async (order: ApiOrder) => {
@@ -250,9 +307,23 @@ export default function MesCommandesPage() {
                   onToggle={() => setExpandedId(expanded ? null : order.id)}
                   footer={
                     <div className="flex flex-col gap-3 border-t border-midnight-950/8 pt-3">
-                      {/* Annulation (si le backend l'autorise) */}
+                      {/* Suivi d'expédition ZennShop, Code de remise à 6 chiffres & Chat Livreur */}
+                      <ShipmentTrackerCard orderId={order.id} viewerRole="CLIENT" />
+                      {/* Paiement PayDunya & Annulation */}
                       {canCancel && (
-                        <div className="flex justify-end">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {order.status === "pending" && confirmCancelId !== order.id && (
+                            <button
+                              type="button"
+                              onClick={() => void handlePayWithPayDunya(order)}
+                              disabled={payingId === order.id}
+                              className="rounded-lg bg-midnight-950 px-3.5 py-1.5 text-xs font-semibold text-gold-300 transition-colors hover:bg-midnight-800 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                            >
+                              {payingId === order.id
+                                ? "Redirection PayDunya…"
+                                : `Payer avec PayDunya (${formatCurrency(order.totalPriceFcfa)})`}
+                            </button>
+                          )}
                           {confirmCancelId === order.id ? (
                             <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:min-w-80">
                               <label
@@ -316,6 +387,21 @@ export default function MesCommandesPage() {
                             className="inline-flex items-center gap-1.5 text-xs font-semibold text-gold-700 transition-colors hover:text-gold-600"
                           >
                             Discuter de cette commande
+                          </Link>
+                        </div>
+                      )}
+
+                      {/* Demande de remboursement pour commande livrée */}
+                      {order.status === "delivered" && (
+                        <div className="flex items-center justify-between gap-3 pt-1 border-t border-midnight-950/5">
+                          <span className="text-xs text-midnight-950/45">
+                            Un problème avec votre colis ?
+                          </span>
+                          <Link
+                            href={`/espace-client/commandes/${order.id}/remboursement`}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 transition-colors hover:text-rose-700"
+                          >
+                            Demander un remboursement
                           </Link>
                         </div>
                       )}

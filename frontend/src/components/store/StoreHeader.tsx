@@ -18,6 +18,7 @@ import { cn, initials, publicShopHref } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { getSessionUser } from "@/lib/api/session";
 import { motion, AnimatePresence } from "framer-motion";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 export default function StoreHeader() {
   const { formatPrice } = useTranslation();
@@ -175,6 +176,18 @@ export default function StoreHeader() {
             className="group flex items-center gap-1.5 rounded-full border border-midnight-950/15 bg-midnight-950/5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-midnight-950 transition-all hover:border-gold-500 hover:bg-midnight-950 hover:text-gold-300"
           >
             <IconChevronLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
+            <ZennShopLogo
+              variant="symbol"
+              tone="light"
+              className="h-4 w-4 shrink-0 group-hover:hidden"
+              title={null}
+            />
+            <ZennShopLogo
+              variant="symbol"
+              tone="dark"
+              className="hidden h-4 w-4 shrink-0 group-hover:block"
+              title={null}
+            />
             <span className="font-display text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">
               {backLabel}
             </span>

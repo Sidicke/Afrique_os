@@ -17,11 +17,12 @@ export type ApiOrderStatus =
   | "CANCELLED";
 
 export const ordersApi = {
-  /** Création depuis la vitrine (total recalculé serveur) */
-  create(boutiqueId: string, input: ApiCreateOrderInput) {
+  /** Création depuis la vitrine (total recalculé serveur, idempotent via clé UUID) */
+  create(boutiqueId: string, input: ApiCreateOrderInput, idempotencyKey?: string) {
     return apiFetch<ApiOrder>(`/orders/boutique/${encodeURIComponent(boutiqueId)}`, {
       method: "POST",
       body: JSON.stringify(input),
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     });
   },
 
@@ -106,5 +107,51 @@ export const ordersApi = {
         body: JSON.stringify(trimmedReason ? { phone, reason: trimmedReason } : { phone }),
       },
     );
+  },
+
+  /**
+   * Création d'une facture Checkout PayDunya côté serveur (Zero-Trust & Idempotent).
+   */
+  createPayDunyaTransaction(
+    input: {
+      orderId: string;
+      callbackUrl?: string;
+      customerName?: string;
+      customerEmail?: string;
+      customerPhone?: string;
+    },
+    idempotencyKey?: string,
+  ) {
+    return apiFetch<{
+      success: boolean;
+      mode: "live" | "sandbox" | "sandbox_mock";
+      transactionId: string;
+      reference: string;
+      amount: number;
+      currency: string;
+      checkoutUrl: string;
+      token: string;
+    }>("/payments/paydunya/create-transaction", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    });
+  },
+
+  /**
+   * Confirmation directe d'une facture PayDunya par son token au retour du client sur `return_url`
+   * (fonctionne même en `localhost` sans tunnel IPN).
+   */
+  confirmPayDunyaTransaction(token: string, orderId?: string) {
+    const qs = orderId ? `?orderId=${encodeURIComponent(orderId)}` : "";
+    return apiFetch<{
+      success: boolean;
+      token: string;
+      paydunyaStatus: string;
+      orderId: string | null;
+      orderReference: string | null;
+      settlementStatus: string;
+      receiptUrl: string | null;
+    }>(`/payments/paydunya/confirm/${encodeURIComponent(token)}${qs}`);
   },
 };

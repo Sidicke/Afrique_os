@@ -9,6 +9,7 @@ import { merchantProfile } from "@/services/dashboardService";
 import { getBoutiqueName } from "@/lib/api/session";
 import NotificationBell from "./NotificationBell";
 import { CurrencySelector } from "./CurrencySelector";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 interface TopbarProps {
   onOpenMobileSidebar?: () => void;
@@ -38,7 +39,7 @@ export default function DashboardTopbar({
   return (
     <header className="shrink-0 z-30 flex h-16 w-full items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur-xl sm:px-8">
       {/* Left: Mobile Toggle & Global Search */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <button
           onClick={onOpenMobileSidebar}
           className="rounded-lg p-2 text-ink-600 hover:bg-ink-50 hover:text-ink-950 lg:hidden"
@@ -50,6 +51,18 @@ export default function DashboardTopbar({
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
+
+        <Link
+          href="/espace-vendeur"
+          className="flex items-center lg:hidden"
+          aria-label="ZennShop — Espace Vendeur"
+        >
+          <ZennShopLogo
+            variant="horizontal"
+            tone="light"
+            className="h-7 w-auto"
+          />
+        </Link>
 
         {/* Global Search Bar */}
         <form onSubmit={handleSearchSubmit} className="relative hidden sm:block w-64 md:w-80">

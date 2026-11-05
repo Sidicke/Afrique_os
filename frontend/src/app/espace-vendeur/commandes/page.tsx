@@ -16,6 +16,7 @@ import { OrderStatus, PaymentMethod } from "@/types/dashboard";
 import AssetImage from "@/components/ui/AssetImage";
 import { shopsApi } from "@/lib/api";
 import { useSession } from "@/lib/useSession";
+import { ShipmentTrackerCard } from "@/components/delivery/ShipmentTrackerCard";
 
 type StatusTab = "all" | OrderStatus;
 
@@ -425,6 +426,12 @@ function CommandesContent() {
                             >
                               Annuler ✕
                             </button>
+                          </div>
+                        )}
+
+                        {(order.status === "paid" || order.status === "shipping" || order.status === "delivered") && (
+                          <div className="w-full min-w-[320px] pt-1">
+                            <ShipmentTrackerCard orderId={order.id} viewerRole="VENDEUR" />
                           </div>
                         )}
                       </div>

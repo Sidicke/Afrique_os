@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -43,9 +44,10 @@ export class OrdersController {
   create(
     @Param('boutiqueId') boutiqueId: string,
     @Body() dto: CreateOrderDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
-    return this.ordersService.create(boutiqueId, dto, user?.id);
+    return this.ordersService.create(boutiqueId, dto, user?.id, idempotencyKey);
   }
 
   // ===== Routes client connecté =====
@@ -108,7 +110,7 @@ export class OrdersController {
 
   /** Historique d'un client (par numéro de téléphone) — vitrine */
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @Get('boutique/:boutiqueId/customer/:phone')
   @ApiOperation({ summary: 'Historique des commandes d’un client (téléphone)' })
   findForCustomer(
@@ -120,7 +122,7 @@ export class OrdersController {
 
   /** Suivi d'une commande par numéro (référence, ex. #AC-8901) — vitrine */
   @Public()
-  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('boutique/:boutiqueId/reference/:reference')
   @ApiOperation({ summary: 'Suivi d’une commande par numéro (référence)' })
   findByReference(

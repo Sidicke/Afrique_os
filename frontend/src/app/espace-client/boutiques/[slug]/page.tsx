@@ -11,5 +11,5 @@ export default async function ClientBoutiqueRedirect({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  redirect(`/boutique/${slug}`);
+  redirect(`/b/${slug}`);
 }

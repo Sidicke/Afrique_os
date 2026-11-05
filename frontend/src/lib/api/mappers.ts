@@ -73,7 +73,7 @@ const PAYMENT_UPPER: Record<PaymentMethod, string> = {
   CASH_ON_DELIVERY: "CASH_ON_DELIVERY",
   CARD: "CARD",
   WHATSAPP_DIRECT: "WHATSAPP_DIRECT",
-  FEDAPAY: "FEDAPAY",
+  PAYDUNYA: "PAYDUNYA",
 };
 
 export function toApiPaymentMethod(
@@ -441,7 +441,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   CASH_ON_DELIVERY: "Paiement à la livraison",
   CARD: "Carte bancaire",
   WHATSAPP_DIRECT: "WhatsApp",
-  FEDAPAY: "FedaPay",
+  PAYDUNYA: "PayDunya",
 };
 
 /** Libellé français d'un moyen de paiement (checkout + confirmation) */

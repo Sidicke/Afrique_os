@@ -25,7 +25,7 @@ import AuthShell, {
   AuthStepper,
 } from "@/components/auth/AuthShell";
 import { authApi } from "@/lib/api/auth";
-import { setSession } from "@/lib/api/session";
+import { getSessionUser, setSession } from "@/lib/api/session";
 import { friendlyAuthError } from "@/lib/api/errorMessages";
 import type { FriendlyError } from "@/lib/api/errorMessages";
 import SocialAuthButtons from "@/components/auth/SocialAuthButtons";
@@ -161,6 +161,7 @@ export default function InscriptionForm() {
   const next = searchParams.get("next");
   const roleParam = (searchParams.get("role") || searchParams.get("intent") || "").toLowerCase();
   const planParam = searchParams.get("plan");
+  const refParam = searchParams.get("ref") || searchParams.get("referral") || undefined;
 
   const isSellerIntent = Boolean(
     roleParam === "seller" ||
@@ -202,6 +203,15 @@ export default function InscriptionForm() {
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendIn]);
+
+  // Si un vendeur déjà connecté clique sur « Passer à Business » depuis /tarifs,
+  // on le redirige directement vers sa page Formule & Abonnement.
+  useEffect(() => {
+    const existingUser = getSessionUser();
+    if (existingUser?.role === "VENDEUR" && (planParam || isSellerIntent)) {
+      router.replace("/espace-vendeur/parametres/formule");
+    }
+  }, [planParam, isSellerIntent, router]);
 
   const chooseIntent = (value: Intent) => {
     setIntent(value);
@@ -321,6 +331,7 @@ export default function InscriptionForm() {
         email: email.trim(),
         password,
         code: otp,
+        referralCode: refParam,
         role: intent === "vendre" ? "VENDEUR" : "CLIENT",
         phone: phone.trim() || undefined,
       });

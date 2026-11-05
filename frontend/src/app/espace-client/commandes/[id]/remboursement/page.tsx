@@ -19,7 +19,7 @@ export default function AskRefundPage() {
     setTimeout(() => {
       setIsSubmitting(false);
       alert("Votre demande de remboursement a bien été envoyée au vendeur et au service de résolution.");
-      router.push(`/espace-client/commandes/${params.id}`);
+      router.push("/espace-client/commandes");
     }, 1500);
   };
 
@@ -27,7 +27,7 @@ export default function AskRefundPage() {
     <div className="mx-auto max-w-xl py-8">
       <div className="mb-6 flex items-center gap-3">
         <Link 
-          href={`/espace-client/commandes/${params.id}`}
+          href="/espace-client/commandes"
           className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-midnight-950 transition-colors hover:bg-gray-200"
         >
           <IconArrowLeft className="h-5 w-5" />

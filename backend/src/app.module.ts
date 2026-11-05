@@ -20,11 +20,13 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { SearchModule } from './search/search.module';
 import { UsersModule } from './users/users.module';
-import { FedaPayModule } from './fedapay/fedapay.module';
+import { PayDunyaModule } from './paydunya/paydunya.module';
+import { DeliveryModule } from './delivery/delivery.module';
 
 @Module({
   imports: [
     RefundsModule,
+    DeliveryModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
@@ -47,7 +49,7 @@ import { FedaPayModule } from './fedapay/fedapay.module';
     BrandsModule,
     ProductsModule,
     OrdersModule,
-    FedaPayModule,
+    PayDunyaModule,
     DashboardModule,
     MessagingModule,
     NewsletterModule,

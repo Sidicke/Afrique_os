@@ -33,14 +33,14 @@ describe('⚡ Tests de Résistance, Rate Limiting & Charge (DoS Applicatif)', ()
 
   describe('1. 🛡️ Protection Anti-Bruteforce & Déclenchement du Rate Limiter (HTTP 429)', () => {
     it('Bloque avec HTTP 429 (Too Many Requests) lorsque le seuil du Throttler est dépassé sur une route protégée', async () => {
-      // La route /payments/fedapay/create-transaction est configurée avec un seuil strict : limit=5 par minute
+      // La route /payments/paydunya/create-transaction est configurée avec un seuil strict : limit=5 par minute
       const totalRequests = 10;
       const responses: request.Response[] = [];
 
       // Envoi séquentiel rapide de 10 requêtes
       for (let i = 0; i < totalRequests; i++) {
         const res = await request(app.getHttpServer())
-          .post('/api/v1/payments/fedapay/create-transaction')
+          .post('/api/v1/payments/paydunya/create-transaction')
           .send({ orderId: '00000000-0000-0000-0000-000000000000' });
         responses.push(res);
       }

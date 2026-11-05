@@ -57,13 +57,13 @@ describe('Messagerie (e2e)', () => {
         name: 'Client Messagerie',
         role: 'CLIENT',
         email: `client-msg-${unique}@test.com`,
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(201);
     clientToken = (
       await request(server)
         .post('/api/v1/auth/login')
-        .send({ email: `client-msg-${unique}@test.com`, password: 'password123' })
+        .send({ email: `client-msg-${unique}@test.com`, password: 'Password123!' })
     ).body.accessToken as string;
 
     // Le client ouvre une conversation avec la boutique
@@ -72,7 +72,7 @@ describe('Messagerie (e2e)', () => {
       .set('Authorization', `Bearer ${clientToken}`)
       .send({
         clientName: 'Client Messagerie',
-        clientPhone: '+2250700000099',
+        clientPhone: `+225${String(unique).slice(-10)}`,
         firstMessage: 'Bonjour, le Smartphone Pro est-il disponible ?',
       })
       .expect(201);
@@ -124,13 +124,13 @@ describe('Messagerie (e2e)', () => {
         name: 'Intrus Msg',
         role: 'CLIENT',
         email: `intrus-msg-${unique}@test.com`,
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(201);
     const intruderToken = (
       await request(server)
         .post('/api/v1/auth/login')
-        .send({ email: `intrus-msg-${unique}@test.com`, password: 'password123' })
+        .send({ email: `intrus-msg-${unique}@test.com`, password: 'Password123!' })
     ).body.accessToken as string;
 
     await request(server)

@@ -1,0 +1,56 @@
+{
+  "brand": "ZennShop",
+  "tagline": "Votre commerce en pleine lumière",
+  "brief": "Plateforme e-commerce et marketplace multi-vendeurs conçue pour l'Afrique francophone (Mobile Money, messagerie chiffrée AES-256-GCM, vitrines privées + marketplace central). Le logo doit incarner le passage du commerce dispersé au commerce connecté et s'adapter nativement aux deux univers visuels de l'application : « Nuit & Or » (#070f1a + #c4b697) et « Papier & Or » (#f6f8fb + #0b1626 + #8f7c59).",
+  "adjectives": [
+    "souverain",
+    "connecté",
+    "fiable",
+    "lumineux",
+    "architectural"
+  ],
+  "criteria": "Succès : lisible dès 16 px (favicon / Mobile-First), aucun effet boîte-dans-boîte dans les badges UI, bicolore adaptatif sur fonds sombres et clairs, score svg_audit 100/100.",
+  "industry": "retail",
+  "mockups": [
+    "website",
+    "app-icon",
+    "payment-card",
+    "shopping-bag",
+    "signage",
+    "social"
+  ],
+  "nav": [
+    "Marketplace",
+    "Boutiques",
+    "Tarifs",
+    "Vendre"
+  ],
+  "brand_color": "#8f7c59",
+  "tile_color": "#070f1a",
+  "greyscale": false,
+  "final": true,
+  "round": 2,
+  "concepts": [
+    {
+      "name": "Nexus Z — L'Échange Connecté",
+      "symbol": "final/svg/zennshop-symbol-light.svg",
+      "lockup": "final/svg/zennshop-horizontal-light.svg",
+      "stacked": "final/svg/zennshop-stacked-light.svg",
+      "avatar": "final/icons/app-icon.svg",
+      "symbol_on_tile": "final/svg/zennshop-symbol-dark.svg",
+      "stacked_on_tile": "final/svg/zennshop-stacked-dark.svg",
+      "lockup_on_tile": "final/svg/zennshop-horizontal-dark.svg",
+      "symbol_on_dark": "final/svg/zennshop-symbol-dark.svg",
+      "lockup_on_dark": "final/svg/zennshop-horizontal-dark.svg",
+      "stacked_on_dark": "final/svg/zennshop-stacked-dark.svg",
+      "idea": "Deux chevrons symétriques imbriqués à 45° — le haut pour la vitrine privée (« Zenn »), le bas pour le marketplace connecté (« Shop ») — séparés par le canal direct de l'échange.",
+      "rationale": [
+        "Double lecture immédiate : lettre Z monumentale + deux flèches/comptoirs qui convergent autour d'un canal d'échange à 45°",
+        "Architecture bicolore native : reprend exactement la dualité typographique Zenn (Encre/Ivoire) + Shop (Or) du design system",
+        "Silhouette franche sans conteneur externe : s'intègre aussi bien seule qu'à l'intérieur des badges rounded-xl de l'interface",
+        "Trois coupes optiques (standard, inversée anti-irradiation, et petite taille ≤ 32 px) validées à 100/100 par svg_audit"
+      ]
+    }
+  ],
+  "recommendation": "Direction « Nexus Z » déployée avec 6 jeux de couleurs adaptatifs (light, dark, gold-duo, african, terracotta, mono) et composant React <ZennShopLogo /> intégré sur l'ensemble des pages."
+}

@@ -180,6 +180,28 @@ export const shopsApi = {
       method: "DELETE",
     });
   },
+
+  /** Souscrire ou changer de formule d'abonnement (PayDunya, Mobile Money, Carte ou activation directe) */
+  subscribe(input: {
+    plan: "starter" | "pro" | "business" | "enterprise";
+    paymentMethod?: "PAYDUNYA" | "MOBILE_MONEY" | "CARD" | "DIRECT";
+    operator?: string;
+    phone?: string;
+    callbackUrl?: string;
+  }) {
+    return apiFetch<{
+      success: boolean;
+      mode: "paydunya_redirect" | "activated";
+      plan: string;
+      planName: string;
+      amount: number;
+      token?: string;
+      checkoutUrl?: string;
+    }>("/boutiques/subscribe", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
 };
 
 export interface ApiTeamMember {

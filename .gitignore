@@ -21,6 +21,10 @@ pgdata/
 *.sqlite
 *.sqlite3
 
+# Docs locales sensibles (identifiants de démo, notes privées)
+mdp.md
+cleapi.md
+
 # Pentest, security runs & temporary archives
 strix_runs/
 Ecommerce/

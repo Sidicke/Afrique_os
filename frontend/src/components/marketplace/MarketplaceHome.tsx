@@ -13,7 +13,10 @@ import MarketplaceCatalogue from "./MarketplaceCatalogue";
 
 /**
  * Accueil du Marketplace : espace commercial public de la plateforme.
- * 
+ *
+ * `hideHero` permet de masquer le hero (grande bannière « Grand marché africain »)
+ * quand le composant est déjà précédé d'une bannière de salutation — ex. espace client.
+ *
  * Structure épurée et 100% dynamique :
  *   1. Hero (recherche, catégories réelles du backend, métriques en direct)
  *   2. Barre de confiance souveraine (Mobile Money, boutiques vérifiées, WhatsApp direct)
@@ -24,8 +27,10 @@ import MarketplaceCatalogue from "./MarketplaceCatalogue";
  */
 export default function MarketplaceHome({
   hideSellerBanner = false,
+  hideHero = false,
 }: {
   hideSellerBanner?: boolean;
+  hideHero?: boolean;
 }) {
   const [category, setCategory] = useState<string | null>(null);
 
@@ -39,8 +44,8 @@ export default function MarketplaceHome({
 
   return (
     <div className="flex flex-col bg-paper min-h-screen">
-      {/* 1. Hero : recherche, catégories réelles et métriques DB */}
-      <MarketplaceHero onSelectCategory={handleCategorySelect} />
+      {/* 1. Hero : recherche, catégories réelles et métriques DB (masqué dans l'espace client) */}
+      {!hideHero && <MarketplaceHero onSelectCategory={handleCategorySelect} />}
 
       {/* 2. Barre de réassurance souveraine : Mobile Money, contact direct, boutiques vérifiées */}
       <TrustBar />

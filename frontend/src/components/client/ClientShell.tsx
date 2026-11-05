@@ -14,6 +14,7 @@ import {
   IconPackage,
   IconUser,
 } from "./icons";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 /**
  * Les 5 entrées de l'espace client — Accueil, Commandes, Discussions, Affiliation, Compte.
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { href: "/espace-client", label: "Accueil", icon: IconHome, exact: true },
   { href: "/espace-client/commandes", label: "Commandes", icon: IconPackage, exact: false },
   { href: "/espace-client/discussions", label: "Discussions", icon: IconChat, exact: false },
+  { href: "/espace-client/affiliation", label: "Affiliation", icon: IconGift, exact: false },
   { href: "/espace-client/compte", label: "Mon compte", icon: IconUser, exact: false },
 ];
 
@@ -96,19 +98,15 @@ export default function ClientShell({ children }: { children: ReactNode }) {
       {/* ——— Topbar ——— */}
       <header className="sticky top-0 z-50 border-b border-midnight-950/8 bg-white/85 backdrop-blur-md">
         <div className="flex h-16 w-full items-center justify-between gap-4 px-4 md:px-6">
-          {/* Logo — le texte de marque ne s'affiche qu'à partir de lg pour
-              laisser la place à la navigation dès md (pas de débordement). */}
-          <Link href="/espace-client" className="flex shrink-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-midnight-950 font-display text-sm font-bold text-gold-300">
-              ZS
-            </span>
-            <span className="hidden flex-col leading-tight lg:flex">
-              <span className="font-display text-[15px] font-bold tracking-tight text-midnight-950">
-                ZennShop
-              </span>
-              <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-gold-700">
-                Espace client
-              </span>
+          {/* Logo horizontal officiel Z-Chariot Express */}
+          <Link href="/espace-client" className="group flex shrink-0 items-center gap-2.5">
+            <ZennShopLogo
+              variant="horizontal"
+              tone="light"
+              className="h-8 w-auto sm:h-9 transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+            <span className="hidden rounded-full border border-gold-400/40 bg-gold-wash px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-gold-700 xl:inline-block">
+              Espace client
             </span>
           </Link>
 
@@ -203,7 +201,7 @@ export default function ClientShell({ children }: { children: ReactNode }) {
         aria-label="Navigation mobile"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-midnight-950/8 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
-        <div className="mx-auto grid max-w-md grid-cols-4">
+        <div className="mx-auto grid max-w-md grid-cols-5">
           {MOBILE_NAV.map((item) => {
             const active = item.exact
               ? pathname === item.href

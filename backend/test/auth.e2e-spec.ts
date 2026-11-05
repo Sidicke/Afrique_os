@@ -46,7 +46,7 @@ describe('Auth (e2e)', () => {
         shopName: `Boutique E2E ${unique}`,
         email: `vendeur-${unique}@test.com`,
         phone: '+2250700000000',
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(201);
     expect(res.body.user.role).toBe('VENDEUR');
@@ -61,7 +61,7 @@ describe('Auth (e2e)', () => {
         name: 'Doublon',
         shopName: 'Doublon Shop',
         email: `vendeur-${unique}@test.com`,
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(409);
   });

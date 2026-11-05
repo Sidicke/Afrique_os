@@ -14,6 +14,7 @@ import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { MessagingService } from '../messaging/messaging.service';
+import { IdempotencyService } from '../common/services/idempotency.service';
 
 @Injectable()
 export class OrdersService {
@@ -24,6 +25,7 @@ export class OrdersService {
     private readonly mailService: MailService,
     private readonly notificationsService: NotificationsService,
     private readonly messagingService: MessagingService,
+    private readonly idempotencyService: IdempotencyService,
   ) {}
 
   /**
@@ -32,7 +34,16 @@ export class OrdersService {
    * le client ne fournit que les quantités + la livraison choisie.
    * Le stock est décrémenté dans la même transaction.
    */
-  async create(boutiqueId: string, dto: CreateOrderDto, userId?: string) {
+  async create(boutiqueId: string, dto: CreateOrderDto, userId?: string, idempotencyKey?: string) {
+    const IDEMPOTENCY_PATH = '/orders/create';
+
+    // Vérification de l'idempotence : si la clé existe et n'est pas expirée,
+    // on renvoie directement la réponse déjà calculée (anti-doublon réseau).
+    if (idempotencyKey) {
+      const cached = await this.idempotencyService.getRecord(idempotencyKey, IDEMPOTENCY_PATH);
+      if (cached) return cached.responseBody;
+    }
+
     let conversation = null;
     if (dto.conversationId) {
       conversation = await this.prisma.conversation.findFirst({
@@ -225,7 +236,14 @@ export class OrdersService {
       void this.notifySellerLowStock(boutiqueId, result.outOfStock);
     }
 
-    return this.toOrderView(result.order);
+    const view = this.toOrderView(result.order);
+
+    // Sauvegarde idempotence (TTL 1h) : un retry réseau renvoie la même commande.
+    if (idempotencyKey) {
+      void this.idempotencyService.saveRecord(idempotencyKey, IDEMPOTENCY_PATH, 201, view, 3600);
+    }
+
+    return view;
   }
 
   /**
@@ -313,23 +331,54 @@ export class OrdersService {
       throw new BadRequestException("Le contact du livreur (nom et numéro) est requis pour valider l'expédition.");
     }
 
-    const updated = await this.prisma.order.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        ...(dto.deliveryContact ? { deliveryContact: dto.deliveryContact } : {}),
-      },
-      include: { items: true },
-    });
+    // 2. Transition de statut — PAID est ATOMIQUE et idempotent :
+    //    updateMany conditionnel sur PENDING → en concurrence avec le webhook
+    //    PayDunya ou un second appel, un seul appel gagne. Le cashback et le
+    //    crédit du solde vendeur sont exécutés dans la MÊME transaction
+    //    (jamais en fire-and-forget : anti double-crédit).
+    let updated;
+    if (dto.status === OrderStatus.PAID && order.status === OrderStatus.PENDING) {
+      updated = await this.prisma.$transaction(async (tx) => {
+        const transition = await tx.order.updateMany({
+          where: { id, status: OrderStatus.PENDING },
+          data: {
+            status: OrderStatus.PAID,
+            ...(dto.deliveryContact ? { deliveryContact: dto.deliveryContact } : {}),
+          },
+        });
+        if (transition.count === 0) {
+          throw new BadRequestException(
+            'Cette commande a déjà été confirmée payée par un autre canal.',
+          );
+        }
+        const paid = await tx.order.findUniqueOrThrow({
+          where: { id },
+          include: { items: true },
+        });
+        await this.creditSellerForPaidOrder(paid, tx);
+        return paid;
+      });
 
-    // 2. Notifications email (existantes)
-    if (
-      dto.status === OrderStatus.PAID &&
-      order.status === OrderStatus.PENDING &&
-      order.customerEmail
-    ) {
-      void this.sendOrderConfirmationMail(updated, order.boutique);
-      void this.processCashbackAndSellerBalance(updated);
+      // 3. E-mail de confirmation au client + notification de vente & palier au vendeur (fire-and-forget)
+      if (updated.customerEmail) {
+        void this.sendOrderConfirmationMail(updated, order.boutique);
+      }
+      if (order.boutique.email) {
+        void this.sendSellerSaleAndMilestoneMail(updated, {
+          id: boutiqueId,
+          name: order.boutique.name,
+          email: order.boutique.email,
+        });
+      }
+    } else {
+      updated = await this.prisma.order.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          ...(dto.deliveryContact ? { deliveryContact: dto.deliveryContact } : {}),
+        },
+        include: { items: true },
+      });
     }
 
     // 3. Messages automatiques dans la discussion client
@@ -350,6 +399,28 @@ export class OrdersService {
         clientPhone: order.customerPhone,
         firstMessage: `Votre colis #${order.reference} a été livré avec succès ! Confirmez-vous l'avoir bien reçu ? N'hésitez pas à laisser une note sur l'article. À très vite !`,
       }).catch(err => this.logger.error(`Erreur msg auto DELIVERED : ${err.message}`));
+    }
+
+    // 4. Audit Log (changement de statut / confirmation de paiement)
+    try {
+      const actionName = dto.status === OrderStatus.PAID ? 'CONFIRM_ORDER_PAYMENT' : 'UPDATE_ORDER_STATUS';
+      await this.prisma.adminLog.create({
+        data: {
+          adminId: order.boutique.ownerId,
+          action: actionName,
+          targetType: 'ORDER',
+          targetId: order.id,
+          targetLabel: order.reference,
+          details: {
+            oldStatus: order.status,
+            newStatus: dto.status,
+            deliveryContact: dto.deliveryContact || null,
+          },
+        },
+      });
+      this.logger.log(`[Audit] Action: ${actionName}, OrderId: ${order.id}, Status: ${order.status} -> ${dto.status}`);
+    } catch (err) {
+      this.logger.error(`[Audit] Failed to create AdminLog for order ${order.id}: ${(err as Error).message}`);
     }
 
     return this.toOrderView(updated);
@@ -429,29 +500,37 @@ export class OrdersService {
       );
     }
 
-    if (order.paymentMethod === PaymentMethod.FEDAPAY) {
-      throw new BadRequestException(
-        'Les commandes réglées via FedaPay sont validées automatiquement par la passerelle de paiement sécurisée.',
-      );
-    }
-
-    // Enregistrement de la référence de paiement soumise par le client pour vérification vendeur
-    const updated = await this.prisma.order.update({
-      where: { id },
-      data: {
-        ...(dto.transactionRef ? { paymentRef: dto.transactionRef } : {}),
-      },
-      include: { items: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const transition = await tx.order.updateMany({
+        where: { id, boutiqueId, status: OrderStatus.PENDING },
+        data: {
+          status: OrderStatus.PAID,
+          paidAt: new Date(),
+          ...(dto.transactionRef ? { paymentRef: dto.transactionRef } : {}),
+        },
+      });
+      if (transition.count === 0) {
+        return tx.order.findUniqueOrThrow({
+          where: { id },
+          include: { items: true },
+        });
+      }
+      const paid = await tx.order.findUniqueOrThrow({
+        where: { id },
+        include: { items: true },
+      });
+      await this.creditSellerForPaidOrder(paid, tx);
+      return paid;
     });
 
-    // Notification au VENDEUR (cloche du dashboard) pour vérification des fonds reçus
+    // Notification au VENDEUR (cloche du dashboard)
     try {
       await this.notificationsService.create(
         boutiqueId,
         {
           type: 'order_payment_submitted',
-          title: `Preuve de paiement soumise pour #${updated.reference}`,
-          message: `Le client ${updated.customerName} a soumis une référence de paiement (${dto.transactionRef ?? 'non précisée'}). Veuillez vérifier votre compte et valider la commande.`,
+          title: `Paiement confirmé pour #${updated.reference}`,
+          message: `Le client ${updated.customerName} a réglé sa commande (${dto.transactionRef ?? updated.paymentMethod}).`,
           orderReference: `#${updated.reference}`,
         },
         order.boutique.notifications,
@@ -462,44 +541,32 @@ export class OrdersService {
       );
     }
 
-    return {
-      ...this.toOrderView(updated),
-      message: 'Votre référence de paiement a été transmise au vendeur pour validation.',
-    };
+    this.logger.log(`[Audit] Action: CONFIRM_PAYMENT_BY_CUSTOMER, OrderId: ${updated.id}, Status: ${updated.status}`);
+
+    return this.toOrderView(updated);
   }
 
-  /** Notification vendeur : commande payée (cloche du dashboard) */
-  private async notifySellerOrderPaid(
-    paid: {
-      reference: string;
-      customerName: string;
-      total: Prisma.Decimal;
-    },
-    boutiqueId: string,
-    prefs: unknown,
-  ) {
-    try {
-      await this.notificationsService.create(boutiqueId, {
-        type: 'order_paid',
-        title: `Paiement reçu pour la commande #${paid.reference}`,
-        message: `${paid.customerName} — ${new Intl.NumberFormat('fr-FR').format(Number(paid.total))} FCFA. Vous pouvez préparer la commande.`,
-        orderReference: `#${paid.reference}`,
-      }, prefs);
-    } catch (err) {
-      this.logger.error(
-        `[notifications] échec création paiement reçu ${paid.reference} : ${(err as Error).message}`,
-      );
-    }
-  }
-
-  /** Historique des commandes d'un client (par téléphone, tolérant au format) */
+  /**
+   * Historique des commandes d'un client (par téléphone, tolérant au format).
+   * ⚠️ Endpoint public de vitrine : expose des données personnelles (nom,
+   * téléphone, adresses) — volontairement borné pour limiter l'énumération :
+   * - 20 dernières commandes uniquement
+   * - champs financiers sensibles retirés de la réponse publique
+   */
   async findForCustomer(phone: string, boutiqueId: string) {
     const orders = await this.prisma.order.findMany({
       where: { ...phoneMatchClause(phone), boutiqueId },
       include: { items: true },
       orderBy: { createdAt: 'desc' },
+      take: 20,
     });
-    return orders.map((o) => this.toOrderView(o));
+    return orders.map((o) => {
+      const view = this.toOrderView(o) as Record<string, unknown>;
+      // Retire les champs sensibles de la réponse publique (vitrine)
+      delete view.paymentRef;
+      delete view.notes;
+      return view;
+    });
   }
 
   /**
@@ -563,11 +630,23 @@ export class OrdersService {
         include: { items: true },
       });
 
-      // Si la commande était déjà payée, régulariser le solde vendeur et restituer les points
+      // Si la commande était déjà payée, régulariser le solde vendeur et restituer les points.
+      // On décrémente le montant RÉELLEMENT crédité au paiement (netAmount =
+      // brut [total + points] − commission), pas le total brut — sinon le
+      // vendeur serait débité de plus qu'il n'a perçu.
       if (order.status === OrderStatus.PAID) {
+        const credited =
+          order.commissionAmount != null
+            ? Number(order.total) + Number(order.pointsUsed ?? 0) - Number(order.commissionAmount)
+            : Number(order.total);
         await tx.boutique.update({
           where: { id: boutiqueId },
-          data: { balance: { decrement: Number(order.total) } },
+          data: { balance: { decrement: credited } },
+        });
+
+        await tx.settlementAllocation.updateMany({
+          where: { orderId: order.id },
+          data: { status: 'CANCELLED' },
         });
 
         if (order.userId && order.pointsUsed > 0) {
@@ -620,6 +699,8 @@ export class OrdersService {
     // bloquant pour l'annulation. Les préférences (activé/désactivé par type)
     // sont déjà chargées avec la boutique : pas de requête supplémentaire.
     void this.notifySellerCancellation(cancelled, boutiqueId, order.boutique.notifications);
+
+    this.logger.log(`[Audit] Action: CANCEL_ORDER_BY_CUSTOMER, OrderId: ${cancelled.id}, Status: ${order.status} -> ${OrderStatus.CANCELLED}`);
 
     return this.toOrderView(cancelled);
   }
@@ -820,6 +901,124 @@ export class OrdersService {
   }
 
   /**
+   * Prépare et déclenche l'e-mail de vente validée au VENDEUR + l'e-mail de
+   * célébration si un palier symbolique (1, 10, 50, 100 ventes) vient d'être franchi.
+   */
+  private async sendSellerSaleAndMilestoneMail(
+    confirmed: {
+      reference: string;
+      customerName: string;
+      customerPhone: string;
+      total: Prisma.Decimal;
+      netAmount: Prisma.Decimal | null;
+      commissionRate: Prisma.Decimal | null;
+      deliveryPrice: Prisma.Decimal;
+      items: {
+        productName: string;
+        variantLabel: string | null;
+        quantity: number;
+        unitPrice: Prisma.Decimal;
+      }[];
+    },
+    boutique: { id: string; name: string; email: string | null },
+  ) {
+    if (!boutique.email) return;
+    const formatPrice = (value: number) =>
+      `${new Intl.NumberFormat('fr-FR').format(value)} FCFA`;
+
+    await this.mailService.sendSellerSaleValidated({
+      orderNumber: `#${confirmed.reference}`,
+      boutiqueName: boutique.name,
+      sellerEmail: boutique.email,
+      customerName: confirmed.customerName,
+      customerPhone: confirmed.customerPhone,
+      netAmount: confirmed.netAmount != null ? Number(confirmed.netAmount) : undefined,
+      commissionRate:
+        confirmed.commissionRate != null ? Number(confirmed.commissionRate) : undefined,
+      items: confirmed.items.map((i) => ({
+        name: i.productName,
+        variantLabel: i.variantLabel ?? undefined,
+        quantity: i.quantity,
+        unitPrice: Number(i.unitPrice),
+      })),
+      deliveryPrice: Number(confirmed.deliveryPrice),
+      total: Number(confirmed.total),
+      formatPrice,
+    });
+
+    try {
+      // 1. Vérification de l'objectif mensuel de chiffre d'affaires (monthlyGoalFcfa)
+      const boutiqueData = await this.prisma.boutique.findUnique({
+        where: { id: boutique.id },
+        select: { monthlyGoalFcfa: true },
+      });
+      const monthlyGoal = Number(boutiqueData?.monthlyGoalFcfa ?? 0);
+      if (monthlyGoal > 0) {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const agg = await this.prisma.order.aggregate({
+          where: {
+            boutiqueId: boutique.id,
+            status: { in: [OrderStatus.PAID, OrderStatus.SHIPPING, OrderStatus.DELIVERED] },
+            createdAt: { gte: startOfMonth },
+          },
+          _sum: { total: true },
+        });
+        const currentMonthRevenue = Number(agg._sum.total ?? 0);
+        const previousMonthRevenue = currentMonthRevenue - Number(confirmed.total);
+        if (previousMonthRevenue < monthlyGoal && currentMonthRevenue >= monthlyGoal) {
+          await this.mailService.sendMilestoneReached(boutique.email, {
+            sellerName: boutique.name,
+            boutiqueName: boutique.name,
+            milestoneBadge: `${formatPrice(monthlyGoal)} ATTEINTS`,
+            milestoneTitle: `Vous avez atteint 100 % de votre objectif mensuel (${formatPrice(monthlyGoal)}) !`,
+            customMessage: `Grâce à cette nouvelle vente, votre chiffre d'affaires du mois s'élève désormais à ${formatPrice(currentMonthRevenue)}. Toute l'équipe ZennShop vous félicite pour cette performance remarquable !`,
+          });
+        }
+      }
+
+      // 2. Vérification des paliers symboliques de commandes (1, 10, 50, 100 ventes)
+      const validatedCount = await this.prisma.order.count({
+        where: {
+          boutiqueId: boutique.id,
+          status: { in: [OrderStatus.PAID, OrderStatus.SHIPPING, OrderStatus.DELIVERED] },
+        },
+      });
+      const MILESTONES: Record<number, { badge: string; title: string }> = {
+        1: {
+          badge: '1ÈRE VENTE VALIDÉE',
+          title: 'Votre toute première vente sur ZennShop !',
+        },
+        10: {
+          badge: '10 VENTES VALIDÉES',
+          title: 'Cap des 10 commandes franchi avec succès',
+        },
+        50: {
+          badge: '50 VENTES VALIDÉES',
+          title: 'Cap des 50 commandes : votre boutique accélère !',
+        },
+        100: {
+          badge: '100 VENTES VALIDÉES',
+          title: '100 commandes validées sur ZennShop !',
+        },
+      };
+      const milestone = MILESTONES[validatedCount];
+      if (milestone) {
+        await this.mailService.sendMilestoneReached(boutique.email, {
+          sellerName: boutique.name,
+          boutiqueName: boutique.name,
+          milestoneBadge: milestone.badge,
+          milestoneTitle: milestone.title,
+        });
+      }
+    } catch (err) {
+      this.logger.error(
+        `[mail] erreur vérification palier boutique ${boutique.id} : ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
    * Suivi d'une commande par numéro (référence, ex. "#AC-8901") — vitrine.
    * Le téléphone client est OBLIGATOIRE pour protéger les données personnelles (PII)
    * et garantir que seul l'acheteur accède aux détails de sa commande.
@@ -924,7 +1123,7 @@ export class OrdersService {
       CASH_ON_DELIVERY: 'cash_on_delivery',
       CARD: 'card',
       WHATSAPP_DIRECT: 'whatsapp_direct',
-      FEDAPAY: 'fedapay',
+      PAYDUNYA: 'paydunya',
     };
     return map[method];
   }
@@ -939,13 +1138,28 @@ export class OrdersService {
     return `AC-${time}-${rand}`;
   }
 
-  private async processCashbackAndSellerBalance(order: any) {
+  /**
+   * Modèle économique d'une commande PAYÉE : commission selon le plan vendeur,
+   * crédit du solde NET, cashback acheteur (0,5%) et bonus parrain.
+   * ⚠️ Exécuté DANS la transaction de la transition vers PAID — jamais en
+   * fire-and-forget (anti double-crédit sous concurrence webhook/vendeur).
+   */
+  private async creditSellerForPaidOrder(
+    order: {
+      id: string;
+      boutiqueId: string;
+      total: Prisma.Decimal;
+      pointsUsed: number | null;
+      userId: string | null;
+    },
+    tx: Prisma.TransactionClient,
+  ) {
     // Le total enregistré est le montant final payé (net des points).
     // Le montant brut réel de la vente (celui qui revient au vendeur) est total + points utilisés.
     const grossTotal = Number(order.total) + Number(order.pointsUsed || 0);
     
     // --- Calcul de la commission selon le plan vendeur ---
-    const boutique = await this.prisma.boutique.findUnique({
+    const boutique = await tx.boutique.findUnique({
       where: { id: order.boutiqueId },
       select: { ownerId: true }
     });
@@ -954,7 +1168,7 @@ export class OrdersService {
     let userPlan = 'starter';
 
     if (boutique) {
-      const userBoutiques = await this.prisma.boutique.findMany({
+      const userBoutiques = await tx.boutique.findMany({
         where: { ownerId: boutique.ownerId },
         select: { plan: true },
       });
@@ -974,7 +1188,7 @@ export class OrdersService {
     const netAmount = grossTotal - commissionAmount;
 
     // Mise à jour de la traçabilité sur la commande
-    await this.prisma.order.update({
+    await tx.order.update({
       where: { id: order.id },
       data: {
         commissionRate,
@@ -985,24 +1199,71 @@ export class OrdersService {
     });
 
     // 1. Ajouter le solde NET au vendeur
-    await this.prisma.boutique.update({
+    await tx.boutique.update({
       where: { id: order.boutiqueId },
       data: { balance: { increment: netAmount } }
+    });
+
+    // 1b. Synchroniser atomiquement l'allocation de séquestre (SettlementAllocation)
+    // afin qu'aucun retrait vendeur ne soit possible avant DELIVERED_VERIFIED + conformité acheteur.
+    const existingSellerAlloc = await tx.settlementAllocation.findFirst({
+      where: {
+        orderId: order.id,
+        beneficiaryType: 'SELLER_BOUTIQUE',
+      },
+    });
+    if (existingSellerAlloc) {
+      await tx.settlementAllocation.update({
+        where: { id: existingSellerAlloc.id },
+        data: {
+          grossAmountFcfa: grossTotal,
+          commissionRate,
+          commissionAmountFcfa: commissionAmount,
+          netAmountFcfa: netAmount,
+          status:
+            existingSellerAlloc.status === 'PENDING_PAYMENT'
+              ? 'AWAITING_DELIVERY_VERIFICATION'
+              : existingSellerAlloc.status,
+        },
+      });
+    } else {
+      const existingShipment = await tx.shipment.findFirst({
+        where: { orderId: order.id },
+        select: { id: true },
+      });
+      await tx.settlementAllocation.create({
+        data: {
+          orderId: order.id,
+          shipmentId: existingShipment?.id ?? null,
+          beneficiaryType: 'SELLER_BOUTIQUE',
+          beneficiaryId: order.boutiqueId,
+          grossAmountFcfa: grossTotal,
+          commissionRate,
+          commissionAmountFcfa: commissionAmount,
+          netAmountFcfa: netAmount,
+          status: 'AWAITING_DELIVERY_VERIFICATION',
+        },
+      });
+    }
+
+    await tx.shipment.updateMany({
+      where: { orderId: order.id, status: 'AWAITING_PREPARATION' },
+      data: { status: 'READY_FOR_DISPATCH' },
     });
 
     // 2. Cashback et Parrainage (0.5%)
     const pointsEarned = Math.floor(grossTotal * 0.005); // 0.5% sur le brut
 
     if (order.userId) {
-      const buyer = await this.prisma.user.findUnique({ where: { id: order.userId } });
+      const buyer = await tx.user.findUnique({ where: { id: order.userId } });
       if (buyer) {
         // Cashback Acheteur (0.5%)
         if (pointsEarned > 0) {
-          await this.prisma.user.update({
+          await tx.user.update({
             where: { id: buyer.id },
             data: { pointsBalance: { increment: pointsEarned } }
           });
-          await this.prisma.pointTransaction.create({
+          await tx.pointTransaction.create({
             data: {
               userId: buyer.id,
               amount: pointsEarned,
@@ -1014,11 +1275,11 @@ export class OrdersService {
         
         // Parrainage
         if (buyer.referredById && pointsEarned > 0) {
-          await this.prisma.user.update({
+          await tx.user.update({
             where: { id: buyer.referredById },
             data: { pointsBalance: { increment: pointsEarned } }
           });
-          await this.prisma.pointTransaction.create({
+          await tx.pointTransaction.create({
             data: {
               userId: buyer.referredById,
               amount: pointsEarned,

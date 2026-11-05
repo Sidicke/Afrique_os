@@ -14,6 +14,7 @@ import {
   PLAN_PRICE_LINE,
 } from "@/services/dashboardService";
 import type { OrderStatus } from "@/types/dashboard";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -243,18 +244,15 @@ export default function DashboardSidebar({ mobileOpen = false, onCloseMobile }: 
       {/* Brand Header — épinglé en haut (ne défile pas) */}
       <div className="shrink-0 border-b border-line px-5 pb-5 pt-5">
         <div className="flex items-center justify-between">
-          <Link href="/espace-vendeur" className="group flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-soft bg-gold-wash font-display text-sm font-bold text-gold-strong transition-colors group-hover:bg-gold-mid group-hover:text-white">
-              AC
+          <Link href="/espace-vendeur" className="group flex flex-col gap-1">
+            <ZennShopLogo
+              variant="horizontal"
+              tone="light"
+              className="h-9 w-auto transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+            <span className="pl-1 font-mono text-[10px] uppercase tracking-widest text-ink-400">
+              Espace Vendeur
             </span>
-            <div className="flex flex-col">
-              <span className="font-display text-sm font-bold tracking-wide text-ink-950">
-                ZennShop
-              </span>
-              <span className="font-mono text-[10px] uppercase tracking-widest text-ink-400">
-                Espace Vendeur
-              </span>
-            </div>
           </Link>
 
           {onCloseMobile && (

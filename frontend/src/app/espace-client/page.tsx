@@ -50,25 +50,11 @@ function LastCartCard() {
         <p className="text-[11px] font-medium text-ink-600 mb-1.5 line-clamp-1">
           {cartState.count} article{cartState.count > 1 ? "s" : ""} chez <span className="capitalize">{cartState.boutiqueSlug.replace(/-/g, ' ')}</span>
         </p>
-        <Link href={`/b/${cartState.boutiqueSlug}`} className="text-[11px] font-bold text-gold-700 hover:text-terracotta transition-colors inline-flex items-center gap-1">
+        <Link href={`/b/${cartState.boutiqueSlug}?checkout=1`} className="text-[11px] font-bold text-gold-700 hover:text-terracotta transition-colors inline-flex items-center gap-1">
           Reprendre ma commande 
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </Link>
       </div>
-
-      {/* ——— Le marketplace — accueil commercial complet (simplifié pour le client) ——— */}
-      {/* Espace client connecté : pas de CTA « Créer une boutique 30 jours gratuits » et pas de footer public */}
-      <div className="mt-12">
-        <MarketplaceHome hideSellerBanner />
-      </div>
-
-
-      {/* ——— Le marketplace — accueil commercial complet (simplifié pour le client) ——— */}
-      {/* Espace client connecté : pas de CTA « Créer une boutique 30 jours gratuits » et pas de footer public */}
-      <div className="mt-12">
-        <MarketplaceHome hideSellerBanner />
-      </div>
-
     </div>
   );
 }
@@ -125,10 +111,6 @@ export default function EspaceClientHome() {
           <LastCartCard />
         </div>
       </section>
-
-      
-      
-
 
       {/* ——— Le marketplace — accueil commercial complet (simplifié pour le client) ——— */}
       {/* Espace client connecté : pas de CTA « Créer une boutique 30 jours gratuits » et pas de footer public */}

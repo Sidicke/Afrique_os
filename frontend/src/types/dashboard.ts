@@ -4,7 +4,7 @@
  */
 
 export type OrderStatus = "pending" | "paid" | "shipping" | "delivered" | "cancelled";
-export type PaymentMethod = "MOBILE_MONEY" | "CASH_ON_DELIVERY" | "CARD" | "WHATSAPP_DIRECT" | "FEDAPAY";
+export type PaymentMethod = "MOBILE_MONEY" | "CASH_ON_DELIVERY" | "CARD" | "WHATSAPP_DIRECT" | "PAYDUNYA";
 
 export interface Order {
   id: string;

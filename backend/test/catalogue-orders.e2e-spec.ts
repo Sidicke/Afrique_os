@@ -227,16 +227,16 @@ describe('Catalogue & Commandes (e2e)', () => {
         .expect(201);
       const ref = (created.body.orderNumber as string).replace('#', '');
 
-      // Recherche par référence seule
-      const found = await request(app.getHttpServer())
+      // Recherche par référence seule (sans téléphone) → 400 (protection PII)
+      await request(app.getHttpServer())
         .get(`/api/v1/orders/boutique/${boutiqueId}/reference/${ref}`)
-        .expect(200);
-      expect(found.body.id).toBe(created.body.id);
-      expect(found.body.orderNumber).toBe(created.body.orderNumber);
+        .expect(400);
 
-      // Tolérant au '#' initial et à la casse
+      // Recherche avec téléphone + tolérant au '#' initial et à la casse
       const foundLoose = await request(app.getHttpServer())
-        .get(`/api/v1/orders/boutique/${boutiqueId}/reference/%23${ref.toLowerCase()}`)
+        .get(
+          `/api/v1/orders/boutique/${boutiqueId}/reference/%23${ref.toLowerCase()}?phone=${encodeURIComponent('+225 07 00 00 00 66')}`,
+        )
         .expect(200);
       expect(foundLoose.body.id).toBe(created.body.id);
 
@@ -254,7 +254,7 @@ describe('Catalogue & Commandes (e2e)', () => {
 
       // Référence inconnue → 404
       await request(app.getHttpServer())
-        .get(`/api/v1/orders/boutique/${boutiqueId}/reference/AC-INCONNU`)
+        .get(`/api/v1/orders/boutique/${boutiqueId}/reference/AC-INCONNU?phone=${encodeURIComponent('+2250700000066')}`)
         .expect(404);
     });
 
@@ -469,7 +469,7 @@ describe('Catalogue & Commandes (e2e)', () => {
       const updated = await request(app.getHttpServer())
         .patch(`/api/v1/orders/boutique/${boutiqueId}/${orderId}/status`)
         .set('Authorization', `Bearer ${sellerToken}`)
-        .send({ status: 'SHIPPING' })
+        .send({ status: 'SHIPPING', deliveryContact: 'Livreur Express (+2290197001122)' })
         .expect(200);
       expect(updated.body.status).toBe('shipping');
     });
@@ -482,13 +482,13 @@ describe('Catalogue & Commandes (e2e)', () => {
           name: 'Autre',
           shopName: `Boutique Autre ${Date.now()}`,
           email: otherEmail,
-          password: 'password123',
+          password: 'Password123!',
         })
         .expect(201);
       const otherToken = (
         await request(app.getHttpServer())
           .post('/api/v1/auth/login')
-          .send({ email: otherEmail, password: 'password123' })
+          .send({ email: otherEmail, password: 'Password123!' })
       ).body.accessToken as string;
       await request(app.getHttpServer())
         .get(`/api/v1/orders/boutique/${boutiqueId}`)

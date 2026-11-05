@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import Container from "@/components/ui/Container";
 import { useTranslation } from "@/lib/i18n";
 import { PreferenceSelector } from "@/components/shared/PreferenceSelector";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 // Canal de contact officiel
 const SUPPORT_EMAIL = "contact@zennshop.com";
@@ -79,15 +80,14 @@ export default function Footer() {
           <div className="lg:col-span-4">
             <Link
               href="/"
-              className="group flex w-fit items-center gap-2.5"
+              className="group inline-flex w-fit items-center"
               aria-label="ZennShop"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-400/40 bg-gold-400/10 font-display text-sm font-bold text-gold-300 transition-all duration-300 group-hover:bg-gold-400 group-hover:text-midnight-950 group-hover:shadow-lg group-hover:shadow-gold-400/25">
-                ZS
-              </span>
-              <span className="font-display text-base font-semibold tracking-wide text-ivory-50">
-                Zenn<span className="text-gold-300">Shop</span>
-              </span>
+              <ZennShopLogo
+                variant="horizontal"
+                tone="dark"
+                className="h-10 w-auto sm:h-11 transition-transform duration-300 group-hover:scale-[1.02]"
+              />
             </Link>
 
             <p className="mt-6 max-w-sm text-base leading-relaxed text-ivory-50/55">

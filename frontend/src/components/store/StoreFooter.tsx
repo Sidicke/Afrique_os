@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { IconTwitter, IconFacebook, IconLinkedin, IconInstagram, IconMail } from "./icons";
 import { useShopConfig } from "@/lib/useShopConfig";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 export function StoreFooter() {
   const config = useShopConfig();
@@ -79,8 +80,11 @@ export function StoreFooter() {
           <p className="text-gray-500 text-sm">
             &copy; {new Date().getFullYear()} <span className="text-gold-600 font-medium">{config.name}</span>. Tous droits réservés.
           </p>
-          <div className="flex items-center gap-6 text-sm">
-            <Link href="/" className="text-gray-500 hover:text-midnight-950 transition-colors">Plateforme</Link>
+          <div className="flex flex-wrap items-center justify-center gap-6 text-sm">
+            <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-midnight-950 transition-colors" aria-label="Propulsé par ZennShop">
+              <span className="text-xs text-gray-400">Propulsé par</span>
+              <ZennShopLogo variant="horizontal" tone="light" className="h-6 w-auto" />
+            </Link>
             <Link href="/marketplace" className="text-gray-500 hover:text-midnight-950 transition-colors">Le marketplace</Link>
           </div>
         </div>

@@ -35,13 +35,13 @@ describe('Boutiques (e2e)', () => {
         name: 'Propriétaire',
         shopName: `Boutique Owner ${unique}`,
         email: `owner-${unique}@test.com`,
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(201);
     ownerToken = (
       await request(app.getHttpServer())
         .post('/api/v1/auth/login')
-        .send({ email: `owner-${unique}@test.com`, password: 'password123' })
+        .send({ email: `owner-${unique}@test.com`, password: 'Password123!' })
     ).body.accessToken as string;
 
     await request(app.getHttpServer())
@@ -50,13 +50,13 @@ describe('Boutiques (e2e)', () => {
         name: 'Intrus',
         shopName: `Boutique Intrus ${unique}`,
         email: `intrus-${unique}@test.com`,
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(201);
     intruderToken = (
       await request(app.getHttpServer())
         .post('/api/v1/auth/login')
-        .send({ email: `intrus-${unique}@test.com`, password: 'password123' })
+        .send({ email: `intrus-${unique}@test.com`, password: 'Password123!' })
     ).body.accessToken as string;
   });
 
@@ -74,12 +74,12 @@ describe('Boutiques (e2e)', () => {
     boutiqueId = res.body[0].id;
   });
 
-  it('un vendeur peut créer une boutique supplémentaire', async () => {
+  it('un vendeur en plan starter est limité à 1 boutique → 403', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/boutiques')
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ name: `Boutique Créée ${unique}` })
-      .expect(201);
+      .expect(403);
   });
 
   it('met à jour sa boutique (propriétaire) → 200', async () => {

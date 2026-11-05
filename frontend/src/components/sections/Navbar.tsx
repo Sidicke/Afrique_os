@@ -12,6 +12,7 @@ import { IconSearch } from "@/components/client/icons";
 import SearchAutocomplete from "@/components/search/SearchAutocomplete";
 import { useTranslation } from "@/lib/i18n";
 import { PreferenceSelector } from "@/components/shared/PreferenceSelector";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 export default function Navbar() {
   const { t } = useTranslation();
@@ -83,18 +84,14 @@ export default function Navbar() {
         {/* Logo */}
         <Link
           href="/"
-          className="group flex items-center gap-2.5"
+          className="group flex shrink-0 items-center"
           aria-label="ZennShop"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-gold-400/40 bg-gold-400/10 font-display text-sm font-bold text-gold-300 transition-colors duration-300 group-hover:bg-gold-400 group-hover:text-midnight-950">
-            ZS
-          </span>
-          <span className={cn(
-            "hidden font-display text-sm font-semibold tracking-wide sm:block",
-            isSolidDark ? "text-ivory-50 drop-shadow-sm" : "text-midnight-950"
-          )}>
-            Zenn<span className={isSolidDark ? "text-gold-300" : "text-gold-strong"}>Shop</span>
-          </span>
+          <ZennShopLogo
+            variant="horizontal"
+            tone="dark"
+            className="h-8 w-auto sm:h-10 transition-transform duration-300 group-hover:scale-[1.02]"
+          />
         </Link>
 
         {/* Navigation ou Barre de recherche desktop */}

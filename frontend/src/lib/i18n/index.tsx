@@ -48,10 +48,8 @@ const DICTIONARIES: Record<Language, Dictionary> = {
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>("fr");
   const [currency, setCurrencyState] = useState<Currency>("XOF");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     try {
       const storedLang = localStorage.getItem("zennshop_lang") as Language;
       if (storedLang === "fr") {

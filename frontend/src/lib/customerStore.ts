@@ -204,6 +204,9 @@ export interface PlaceOrderInput {
   address?: string;
   city?: string;
   paymentMethod: PaymentMethod;
+  /** Clé d'idempotence UUID — générée côté client à l'ouverture du checkout.
+   *  Empêche la création d'une commande double en cas de retry réseau. */
+  idempotencyKey?: string;
 }
 
 /**
@@ -358,7 +361,7 @@ export async function placeCustomerOrder(
         conversationId: input.conversationId,
         pointsToUse: input.pointsToUse,
         paymentMethod: toApiPaymentMethod(input.paymentMethod),
-      });
+      }, input.idempotencyKey);
       const record = toOrderRecord(api);
       current = { ...current, orders: [record, ...current.orders] };
       persistAndNotify();

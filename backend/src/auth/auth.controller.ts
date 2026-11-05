@@ -39,10 +39,14 @@ export class AuthController {
   @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 300000 } })
   @ApiOperation({ summary: "Inscription vendeur : crée le compte + la boutique (PENDING)" })
   async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+    // Inscription courte : on n'émet PAS de refresh token (session différée —
+    // l'utilisateur doit se connecter). Évite de stocker un hash de refresh
+    // token inutilisé qui imposerait une rotation à la première connexion.
+    const { user, boutique } = await this.authService.register(dto);
+    return { user, boutique };
   }
 
   @Public()
@@ -72,7 +76,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 300000 } })
   @ApiOperation({ summary: 'Connexion : accessToken + refresh token en cookie httpOnly' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const { accessToken, refreshToken, user } = await this.authService.login(dto);
@@ -170,12 +174,17 @@ export class AuthController {
       | 'strict'
       | 'lax'
       | 'none';
+    // Durée alignée sur la durée de vie du refresh token JWT (JWT_REFRESH_EXPIRES_IN)
+    const refreshTtl = this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d';
+    const days = Number(refreshTtl.match(/^(\d+)d$/)?.[1] ?? 7);
+    const hours = Number(refreshTtl.match(/^(\d+)h$/)?.[1] ?? 0);
+    const maxAge = (days * 24 + hours) * 60 * 60 * 1000;
     res.cookie(REFRESH_COOKIE, refreshToken, {
       httpOnly: true,
       secure,
       sameSite,
       path: '/api/v1/auth',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+      maxAge,
     });
   }
 

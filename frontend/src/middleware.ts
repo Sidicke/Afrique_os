@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
  * Middleware Next.js — Sécurité & Headers
  * Applique des en-têtes de sécurité renforcés sur toutes les requêtes.
  */
-export function middleware(request: NextRequest) {
+export function middleware(_request: NextRequest) {
   const response = NextResponse.next();
 
   // En-têtes de sécurité HTTP

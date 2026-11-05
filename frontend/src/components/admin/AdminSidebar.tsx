@@ -6,6 +6,7 @@ import { cn, initials } from "@/lib/utils";
 import { useSession } from "@/lib/useSession";
 import { logout } from "@/lib/accountStore";
 import { motion, AnimatePresence } from "framer-motion";
+import { ZennShopLogo } from "@/components/brand/ZennShopLogo";
 
 interface AdminSidebarProps {
   mobileOpen?: boolean;
@@ -149,18 +150,15 @@ export default function AdminSidebar({ mobileOpen = false, onCloseMobile }: Admi
       {/* Brand Header */}
       <div className="shrink-0 border-b border-line px-5 pb-5 pt-5">
         <div className="flex items-center justify-between">
-          <Link href="/admin" className="group flex items-center gap-3" onClick={onCloseMobile}>
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold-soft bg-midnight-950 font-display text-xs font-bold text-gold-300 transition-colors group-hover:bg-midnight-800">
-              ZS
+          <Link href="/admin" className="group flex flex-col gap-1" onClick={onCloseMobile}>
+            <ZennShopLogo
+              variant="horizontal"
+              tone="light"
+              className="h-9 w-auto transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+            <span className="pl-1 font-mono text-[10px] uppercase tracking-widest text-ink-400">
+              Administration
             </span>
-            <div className="flex flex-col">
-              <span className="font-display text-sm font-bold tracking-wide text-ink-950">
-                Zenn<span className="text-gold-600">Shop</span>
-              </span>
-              <span className="font-mono text-[10px] uppercase tracking-widest text-ink-400">
-                Administration
-              </span>
-            </div>
           </Link>
 
           {onCloseMobile && (
