@@ -127,9 +127,11 @@ Tests: 4 passed, 4 total
 | `tsc --noEmit` (frontend) | ✅ exit 0 |
 | Tests unitaires du correctif | ✅ 10/10 |
 | Tests e2e du correctif (vraie base) | ✅ 4/4 |
-| Suite unitaire complète backend | ✅ (voir §6) |
-| Build frontend | ✅ (voir §6) |
+| Suite unitaire complète backend | ✅ 62/62 (4 suites) |
+| Tests frontend (vitest) | ✅ 76/77 — le 1 échec est **pré-existant** (timeout 5000 ms sur `CartDrawer.test.tsx`), reproduit à l'identique sur `origin/main` non modifié |
+| Build frontend (`next build`) | ✅ exit 0, 30 routes générées |
 | Contre-épreuve : ancien code contre les nouveaux tests | ✅ **ne compile plus** (TS2322) — le compilateur bloque la régression |
+| Contre-épreuve : chaîne de migrations sur `origin/main` **pur** | ✅ échec **identique** à `20260916` → le défaut de la chaîne est bien pré-existant et non imputable à C1 (voir §6) |
 
 ---
 
@@ -153,6 +155,13 @@ npx prisma migrate dev         # développement (avec reset si nécessaire)
 > précède la migration `20261110` et ne touche pas `IdempotencyKey`), mais il
 > empêchera une installation depuis zéro. **À corriger dans un ticket
 > dédié.**
+>
+> *Contrôle d'imputabilité : `prisma migrate deploy` a été rejoué sur
+> `origin/main` **pur** (aucune modification C1) et échoue exactement au même
+> endroit (`20260916`, `SQLSTATE 42703`, `column "balance" does not exist`).
+> La migration C1 est donc bien atteinte — et appliquée avec succès — sur une
+> base déjà migrée, mais reste **inatteignable** sur une installation
+> from scratch tant que `20260916` n'est pas corrigée.*
 
 ### Vérifier que le correctif est bien en place
 
