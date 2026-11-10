@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ordersApi } from "@/lib/api";
+import { ordersApi, ApiError } from "@/lib/api";
 
 function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
@@ -25,7 +25,7 @@ function CheckoutSuccessContent() {
 
     let cancelled = false;
     void ordersApi
-      .confirmPayDunyaTransaction(token, orderId)
+      .confirmPayDunyaTransaction(token)
       .then((res) => {
         if (cancelled) return;
         if (res.orderId) setConfirmedOrderId(res.orderId);
@@ -37,6 +37,14 @@ function CheckoutSuccessContent() {
       })
       .catch((err) => {
         if (cancelled) return;
+        // Correctif C2 — la confirmation directe exige une session authentifiée.
+        // Un visiteur invité ne peut donc pas la déclencher : le règlement est
+        // alors assuré par la notification IPN de PayDunya. On affiche l'état
+        // « en attente » plutôt qu'une erreur, qui serait trompeuse.
+        if (err instanceof ApiError && err.status === 401) {
+          setStatus("pending");
+          return;
+        }
         setStatus("error");
         setErrorMessage(
           err instanceof Error

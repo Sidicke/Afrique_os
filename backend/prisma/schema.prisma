@@ -206,6 +206,16 @@ model Order {
   paymentMethod      PaymentMethod  @default(MOBILE_MONEY)
   pointsUsed         Int            @default(0)
   paymentRef         String?
+  // Correctif C2 — Liaison facture ↔ commande et montant facturé ATTENDU.
+  // `paydunyaToken` : token de la facture PayDunya émise pour CETTE commande
+  //   (figé à l'émission). C'est la référence serveur confrontée au token
+  //   réellement encaissé : une facture émise pour une autre commande, ou
+  //   créée depuis le dashboard PayDunya, ne peut plus solder cette commande.
+  // `paydunyaAmount` : montant facturé figé au moment de l'émission. Il est
+  //   comparé au montant effectivement encaissé (invoice.total_amount) avant
+  //   tout crédit : le règlement refuse un montant différent (fail-closed).
+  paydunyaToken      String?
+  paydunyaAmount     Decimal?       @db.Decimal(12, 2)
   paidAt             DateTime?
   cancellationReason String?
   deliveryName       String?
@@ -229,6 +239,7 @@ model Order {
 
   @@index([boutiqueId, status])
   @@index([boutiqueId, createdAt])
+  @@index([paydunyaToken])
 }
 
 model OrderItem {

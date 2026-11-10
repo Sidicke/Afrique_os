@@ -141,9 +141,13 @@ export const ordersApi = {
   /**
    * Confirmation directe d'une facture PayDunya par son token au retour du client sur `return_url`
    * (fonctionne même en `localhost` sans tunnel IPN).
+   *
+   * Correctif C2 — l'endpoint exige une session authentifiée et la commande
+   * n'est PLUS désignée par le client : le backend la déduit des données
+   * serveur de la facture. Aucun `orderId` n'est donc transmis ici — l'envoyer
+   * n'aurait aucun effet et donnerait une illusion de contrôle.
    */
-  confirmPayDunyaTransaction(token: string, orderId?: string) {
-    const qs = orderId ? `?orderId=${encodeURIComponent(orderId)}` : "";
+  confirmPayDunyaTransaction(token: string) {
     return apiFetch<{
       success: boolean;
       token: string;
@@ -152,6 +156,6 @@ export const ordersApi = {
       orderReference: string | null;
       settlementStatus: string;
       receiptUrl: string | null;
-    }>(`/payments/paydunya/confirm/${encodeURIComponent(token)}${qs}`);
+    }>(`/payments/paydunya/confirm/${encodeURIComponent(token)}`);
   },
 };

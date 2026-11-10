@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -11,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IdempotencyService } from '../common/services/idempotency.service';
 import { CreatePayDunyaTransactionDto } from './dto/create-paydunya-transaction.dto';
 import { OrderStatus, PaymentMethod, SubscriptionStatus } from '@prisma/client';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 
 export interface PayDunyaCheckoutResponse {
   success: boolean;
@@ -22,6 +24,15 @@ export interface PayDunyaCheckoutResponse {
   checkoutUrl: string;
   token: string;
 }
+
+/**
+ * CORRECTIF C2 — Tolérance de comparaison des montants (FCFA).
+ * Le franc CFA n'a pas de sous-unité, mais les montants transitent en
+ * `Decimal(12,2)` côté base et en `number` côté API : une tolérance de 1
+ * centime absorbs les écarts de représentation sans jamais masquer un
+ * sous-paiement réel (100 FCFA minimum).
+ */
+const AMOUNT_TOLERANCE = 0.01;
 
 @Injectable()
 export class PayDunyaService {
@@ -280,6 +291,20 @@ export class PayDunyaService {
       }
     }
 
+    // === CORRECTIF C2 — LIAISON FACTURE ↔ COMMANDE ET MONTANT ATTENDU ===
+    // Le token de la facture émise et le montant facturé sont figés sur la
+    // commande. C'est CETTE trace serveur qui sera confrontée, au moment du
+    // règlement, au token et au montant réellement encaissés par PayDunya.
+    // Sans elle, une facture émise pour une autre commande — ou créée depuis
+    // le dashboard PayDunya, hors de notre API — pourrait solder celle-ci.
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        paydunyaToken: result.token,
+        paydunyaAmount: result.amount,
+      },
+    });
+
     // Sauvegarde du résultat dans l'idempotence si une clé a été fournie
     if (idempotencyKey) {
       await this.idempotencyService.saveRecord(idempotencyKey, path, 201, result);
@@ -362,6 +387,18 @@ export class PayDunyaService {
 
     this.logger.log(`[PayDunya Webhook] Notification IPN reçue — statut : ${status}`);
 
+    // === CORRECTIF C2 — MONTANT ENCAISSÉ ET TOKEN DE LA FACTURE ===
+    // Le payload IPN contient le montant réellement demandé au payeur
+    // (`data.invoice.total_amount`) et le token de la facture. Ces deux
+    // données serveur sont lues ICI, pour la première fois, et seront
+    // confrontées au montant attendu et à la liaison facture ↔ commande
+    // avant tout crédit.
+    const invoiceToken = invoice?.token ?? ipnData?.token ?? parsedBody?.token;
+    const paidAmount =
+      this.extractTotalAmount(ipnData) ??
+      this.extractTotalAmount(parsedBody) ??
+      this.extractTotalAmount(invoice);
+
     // Identifiant d'événement unique strict pour l'idempotence du webhook (anti-rejeu)
     const eventId =
       invoice?.token ??
@@ -404,23 +441,37 @@ export class PayDunyaService {
         );
         responseResult = { received: true, status: 'subscription_activated' };
       } else {
-        const orderId = customData.orderId ?? invoice?.reference_id;
-        const orderRef = customData.orderReference ?? invoice?.reference;
-        const transactionId = String(eventId ?? 'PAYDUNYA_TX');
+        // === CORRECTIF C2 — IDENTIFICATION DE LA COMMANDE ===
+        // La commande est identifiée UNIQUEMENT par les données que NOUS avons
+        // posées dans `custom_data` à l'émission de la facture. Les
+        // alternatives précédentes (`invoice.reference_id`,
+        // `invoice.reference`) sont retirées : elles sont alimentées par une
+        // facture et pourraient être renseignées par un tiers sur une facture
+        // créée hors de notre API — une simple collision de référence
+        // suffirait alors à viser une commande.
+        const orderId = customData.orderId ? String(customData.orderId) : undefined;
+        const orderRef = customData.orderReference
+          ? String(customData.orderReference)
+          : undefined;
 
         if (!orderId && !orderRef) {
-          this.logger.warn(
-            '[PayDunya Webhook] Aucun orderId ni orderReference trouvé dans custom_data.',
+          this.logger.error(
+            '[PayDunya Webhook] Aucun orderId ni orderReference dans les custom_data de la facture — règlement refusé.',
           );
-        } else {
-          const settleStatus = await this.settlePaidOrderViaPayDunya(
-            orderId,
-            orderRef,
-            transactionId,
+          throw new BadRequestException(
+            'Facture PayDunya sans référence de commande exploitable — règlement refusé.',
           );
-          if (settleStatus) {
-            responseResult = { received: true, status: settleStatus };
-          }
+        }
+
+        const settleStatus = await this.settlePaidOrderViaPayDunya({
+          token: invoiceToken ? String(invoiceToken) : undefined,
+          transactionId: String(invoiceToken ?? eventId ?? 'PAYDUNYA_TX'),
+          orderId,
+          orderRef,
+          paidAmount,
+        });
+        if (settleStatus) {
+          responseResult = { received: true, status: settleStatus };
         }
       }
     }
@@ -438,8 +489,16 @@ export class PayDunyaService {
    * Confirmation directe d'une facture PayDunya via son token (`GET /checkout-invoice/confirm/:token`).
    * Idéal au retour du client sur `return_url` (notamment en `localhost` sans tunnel IPN)
    * ou en double vérification serveur-à-serveur.
+   *
+   * CORRECTIF C2 — Cette méthode est désormais un point de règlement SÉCURISÉ :
+   *  - la commande n'est PLUS déduite d'un `?orderId=` fourni par l'appelant ;
+   *    elle provient des DONNÉES SERVEUR de la facture (`custom_data`) ;
+   *  - le token doit être celui que nous avons émis pour CETTE commande ;
+   *  - le montant encaissé (`invoice.total_amount`) doit être EXACTEMENT le
+   *    montant facturé ;
+   *  - l'appelant doit être authentifié ET propriétaire de la commande.
    */
-  async confirmTransactionByToken(token: string, fallbackOrderId?: string) {
+  async confirmTransactionByToken(token: string, requester: AuthenticatedUser) {
     const cleanToken = token?.trim();
     if (!cleanToken) {
       throw new BadRequestException('Token de facture PayDunya requis.');
@@ -520,8 +579,22 @@ export class PayDunyaService {
 
     const invoiceStatus = String(data.status ?? 'pending');
     const customData = data.custom_data ?? data.invoice?.custom_data ?? {};
-    const orderId = customData.orderId ?? fallbackOrderId;
-    const orderRef = customData.orderReference;
+
+    // === CORRECTIF C2 — MONTANT RÉELLEMENT ENCAISSÉ ===
+    // La réponse `confirm` de PayDunya porte le montant de la facture
+    // (`invoice.total_amount`). Il est lu ICI — il ne l'était jamais — et sera
+    // comparé au montant facturé attendu avant tout crédit.
+    const paidAmount = this.extractTotalAmount(data);
+
+    // === CORRECTIF C2 — SUPPRESSION DU `?orderId=` ===
+    // La commande ne provient PLUS d'un paramètre fourni par l'appelant :
+    // elle est déduite des DONNÉES SERVEUR de la facture (les `custom_data`
+    // que nous avons posés à l'émission). Un token devinable ne peut donc
+    // plus désigner une commande arbitraire.
+    const orderId = customData.orderId ? String(customData.orderId) : undefined;
+    const orderRef = customData.orderReference
+      ? String(customData.orderReference)
+      : undefined;
 
     let settlementResult: string | null = null;
     if (
@@ -530,17 +603,35 @@ export class PayDunyaService {
       customData.userId &&
       customData.planSlug
     ) {
+      // CORRECTIF C2 — Contrôle de propriété : l'abonnement ne peut être
+      // activé que par le compte concerné.
+      if (String(customData.userId) !== requester.id) {
+        throw new ForbiddenException(
+          "Vous n'êtes pas autorisé à confirmer le paiement de cet abonnement.",
+        );
+      }
       await this.settleSubscriptionViaPayDunya(
         String(customData.userId),
         String(customData.planSlug),
       );
       settlementResult = 'subscription_activated';
-    } else if (invoiceStatus === 'completed' && (orderId || orderRef)) {
-      settlementResult = await this.settlePaidOrderViaPayDunya(
+    } else if (invoiceStatus === 'completed') {
+      if (!orderId && !orderRef) {
+        this.logger.error(
+          `[PayDunya] Facture ${cleanToken} sans référence de commande exploitable — règlement refusé.`,
+        );
+        throw new BadRequestException(
+          'Facture PayDunya sans référence de commande exploitable — règlement refusé.',
+        );
+      }
+      settlementResult = await this.settlePaidOrderViaPayDunya({
+        token: cleanToken,
+        transactionId: cleanToken,
         orderId,
         orderRef,
-        cleanToken,
-      );
+        paidAmount,
+        requester,
+      });
     }
 
     return {
@@ -622,20 +713,63 @@ export class PayDunyaService {
    * Transaction atomique partagée entre le Webhook IPN et la confirmation directe par Token :
    * passe la commande en PAID, calcule la commission selon le plan vendeur, crédite le solde net,
    * verrouille l'allocation de séquestre (SettlementAllocation) et attribue le cashback/parrainage.
+   *
+   * CORRECTIF C2 — Avant tout crédit, la facture est RÉCONCILIÉE avec la commande :
+   * propriété de la commande, liaison facture ↔ commande, montant encaissé vs
+   * montant facturé. Toute anomalie interrompt le règlement (fail-closed) :
+   * aucun euro n'est crédité sur la base d'une facture non vérifiée.
    */
-  private async settlePaidOrderViaPayDunya(
-    orderId?: string,
-    orderRef?: string,
-    transactionId = 'PAYDUNYA_TX',
-  ): Promise<'order_paid_success' | 'order_already_paid' | null> {
+  private async settlePaidOrderViaPayDunya(params: {
+    token?: string;
+    transactionId?: string;
+    orderId?: string;
+    orderRef?: string;
+    paidAmount: number | null;
+    requester?: AuthenticatedUser;
+  }): Promise<'order_paid_success' | 'order_already_paid' | null> {
+    const {
+      token,
+      transactionId = 'PAYDUNYA_TX',
+      orderId,
+      orderRef,
+      paidAmount,
+      requester,
+    } = params;
+
+    if (!orderId && !orderRef) {
+      this.logger.error(
+        '[PayDunya] Règlement refusé : aucune commande identifiable dans les données de la facture.',
+      );
+      return null;
+    }
+
     const order = await this.prisma.order.findFirst({
-      where: orderId ? { id: orderId } : { reference: orderRef },
+      where: orderId ? { id: orderId } : { reference: orderRef! },
       include: { boutique: true },
     });
 
     if (!order) {
+      this.logger.error(
+        `[PayDunya] Règlement refusé : aucune commande ne correspond à la facture reçue (orderId=${orderId ?? '-'}, orderRef=${orderRef ?? '-'}).`,
+      );
       return null;
     }
+
+    // --- CORRECTIF C2 — CONTRÔLE DE PROPRIÉTÉ ---
+    // Placé AVANT la réconciliation : un appelant non propriétaire ne doit pas
+    // pouvoir apprendre quoi que ce soit sur la commande (montant, état) en
+    // provoquant un message d'erreur détaillé.
+    if (requester && !this.isOrderOwnedBy(order, requester.id)) {
+      this.logger.warn(
+        `[PayDunya] Règlement refusé : l'utilisateur ${requester.id} ne possède pas la commande #${order.reference}.`,
+      );
+      throw new ForbiddenException(
+        `Vous n'êtes pas autorisé à confirmer le paiement de la commande #${order.reference}.`,
+      );
+    }
+
+    // --- CORRECTIF C2 — RÉCONCILIATION FACTURE ↔ COMMANDE ---
+    this.assertInvoiceMatchesOrder(order, token, paidAmount);
 
     if (order.status === OrderStatus.PAID) {
       this.logger.log(
@@ -797,6 +931,152 @@ export class PayDunyaService {
       `[PayDunya] Commande #${order.reference} marquée comme PAYÉE via PayDunya.`,
     );
     return 'order_paid_success';
+  }
+
+  /**
+   * CORRECTIF C2 — Réconciliation de la facture PayDunya avec la commande attendue.
+   *
+   * Tous les contrôles sont FAIL-CLOSED : dès qu'un contrôle ne peut pas être
+   * satisfait, une BadRequestException est levée et AUCUN crédit n'a lieu.
+   *
+   *  1. MONTANT — le montant encaissé (`invoice.total_amount`) doit être connu
+   *     et être EXACTEMENT le montant facturé (`Order.paydunyaAmount`, figé à
+   *     l'émission de la facture).
+   *  2. COHÉRENCE — le total de la commande ne doit pas avoir bougé depuis
+   *     l'émission : sinon l'écart entre la facture et la commande serait
+   *     absorbé silencieusement par la boutique.
+   *  3. LIAISON — le token encaissé doit être celui que NOUS avons émis pour
+   *     CETTE commande (`Order.paydunyaToken`). Une facture émise pour une
+   *     autre commande, ou créée depuis le dashboard PayDunya, est rejetée.
+   */
+  private assertInvoiceMatchesOrder(
+    order: {
+      id: string;
+      reference: string;
+      total: unknown;
+      paydunyaToken: string | null;
+      paydunyaAmount: unknown;
+    },
+    invoiceToken: string | undefined,
+    paidAmount: number | null,
+  ): void {
+    // (1) Le montant encaissé doit être connu.
+    if (paidAmount === null || !Number.isFinite(paidAmount)) {
+      this.logger.error(
+        `[PayDunya] Règlement refusé pour la commande #${order.reference} : montant de la facture introuvable dans la réponse PayDunya.`,
+      );
+      throw new BadRequestException(
+        'Montant de la facture PayDunya introuvable — règlement refusé.',
+      );
+    }
+
+    // Le montant attendu = montant figé à l'émission de la facture.
+    const expectedAmount =
+      order.paydunyaAmount !== null && order.paydunyaAmount !== undefined
+        ? Number(order.paydunyaAmount)
+        : Number(order.total);
+
+    if (!Number.isFinite(expectedAmount)) {
+      this.logger.error(
+        `[PayDunya] Règlement refusé pour la commande #${order.reference} : montant attendu illisible.`,
+      );
+      throw new BadRequestException(
+        'Montant attendu de la commande illisible — règlement refusé.',
+      );
+    }
+
+    // Le montant encaissé doit être EXACTEMENT le montant facturé.
+    if (Math.abs(paidAmount - expectedAmount) > AMOUNT_TOLERANCE) {
+      this.logger.error(
+        `[PayDunya] MONTANT INCOHÉRENT — commande #${order.reference} : ${expectedAmount} FCFA facturés, ${paidAmount} FCFA encaissés. Règlement refusé.`,
+      );
+      throw new BadRequestException(
+        `Montant incohérent : ${expectedAmount} FCFA facturés, ${paidAmount} FCFA encaissés. Règlement refusé.`,
+      );
+    }
+
+    // (2) Le total de la commande doit être resté identique à l'émission de
+    //     la facture (sinon l'écart serait absorbé par la boutique).
+    const orderTotal = Number(order.total);
+    if (
+      !Number.isFinite(orderTotal) ||
+      Math.abs(orderTotal - expectedAmount) > AMOUNT_TOLERANCE
+    ) {
+      this.logger.error(
+        `[PayDunya] Règlement refusé pour la commande #${order.reference} : le total de la commande (${orderTotal}) a été modifié après l'émission de la facture (${expectedAmount}).`,
+      );
+      throw new BadRequestException(
+        'Le total de la commande a été modifié après l’émission de la facture — règlement refusé.',
+      );
+    }
+
+    // (3) La facture doit être celle que NOUS avons émise pour CETTE commande.
+    if (invoiceToken) {
+      if (!order.paydunyaToken) {
+        this.logger.error(
+          `[PayDunya] Règlement refusé pour la commande #${order.reference} : aucune facture PayDunya enregistrée pour cette commande.`,
+        );
+        throw new BadRequestException(
+          'Aucune facture PayDunya enregistrée pour cette commande — règlement refusé.',
+        );
+      }
+      if (order.paydunyaToken !== invoiceToken) {
+        this.logger.error(
+          `[PayDunya] Règlement refusé pour la commande #${order.reference} : la facture ${invoiceToken} n'est pas celle émise pour cette commande (facture enregistrée : ${order.paydunyaToken}).`,
+        );
+        throw new BadRequestException(
+          'Facture non rattachée à cette commande — règlement refusé.',
+        );
+      }
+    } else {
+      // Le token de facture n'est pas transporté par le payload : la liaison
+      // facture ↔ commande ne peut pas être vérifiée. Le contrôle du montant
+      // reste appliqué — on ne dégrade que la défense en profondeur.
+      this.logger.warn(
+        `[PayDunya] Token de facture absent du payload PayDunya pour la commande #${order.reference} : la liaison facture ↔ commande n'a pas pu être vérifiée (contrôle du montant toujours appliqué).`,
+      );
+    }
+  }
+
+  /**
+   * CORRECTIF C2 — Le demandeur est-il autorisé à déclencher le règlement de
+   * cette commande ? Client de la commande ou propriétaire de la boutique.
+   */
+  private isOrderOwnedBy(
+    order: { userId?: string | null; boutique?: { ownerId?: string | null } | null },
+    userId: string,
+  ): boolean {
+    return order.userId === userId || order.boutique?.ownerId === userId;
+  }
+
+  /**
+   * CORRECTIF C2 — Extrait le montant total d'une charge utile PayDunya.
+   *
+   * Le montant est présent dans la réponse IPN (`data.invoice.total_amount`)
+   * comme dans la réponse `confirm` (`invoice.total_amount`). Selon le
+   * sérialiseur, il arrive en nombre (JSON) ou en chaîne : les deux formes
+   * sont acceptées. Retourne `null` si aucun montant exploitable n'est
+   * présent — l'appelant doit alors REFUSER le règlement (fail-closed),
+   * jamais présumer le montant attendu.
+   */
+  private extractTotalAmount(payload: any): number | null {
+    const candidates = [
+      payload?.invoice?.total_amount,
+      payload?.total_amount,
+      payload?.invoice?.invoice?.total_amount,
+      payload?.invoice?.amount,
+      payload?.amount,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate !== 'number' && typeof candidate !== 'string') continue;
+      const raw = typeof candidate === 'string' ? candidate.trim() : candidate;
+      if (raw === '') continue;
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+
+    return null;
   }
 
   /**

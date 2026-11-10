@@ -183,15 +183,17 @@ export default function CartDrawer() {
   }, [isOpen]);
 
   // Vérification automatique au retour de PayDunya Checkout (?token=... dans l'URL)
+  // Correctif C2 — le `?paydunya_order=` n'est PLUS transmis au backend : la
+  // commande est déduite côté serveur des données de la facture. Le paramètre
+  // est simplement nettoyé de l'URL.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
-    const paydunyaOrderId = params.get("paydunya_order") ?? undefined;
     if (!token) return;
 
     void ordersApi
-      .confirmPayDunyaTransaction(token, paydunyaOrderId)
+      .confirmPayDunyaTransaction(token)
       .then(() => {
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete("token");

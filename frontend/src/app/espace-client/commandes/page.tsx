@@ -77,15 +77,16 @@ export default function MesCommandesPage() {
   }, [load]);
 
   // Confirmation automatique au retour de PayDunya Checkout (?token=...)
+  // Correctif C2 — le `?paydunya_order=` n'est PLUS transmis au backend : la
+  // commande est déduite côté serveur des données de la facture.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
-    const paydunyaOrderId = params.get("paydunya_order") ?? undefined;
     if (!token) return;
 
     void ordersApi
-      .confirmPayDunyaTransaction(token, paydunyaOrderId)
+      .confirmPayDunyaTransaction(token)
       .then((res) => {
         if (res.paydunyaStatus === "completed" || res.settlementStatus === "settled") {
           setNotice("Paiement PayDunya confirmé avec succès ! Votre commande est payée.");
