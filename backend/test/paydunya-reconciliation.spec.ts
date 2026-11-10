@@ -76,6 +76,24 @@ function paydunyaConfirmResponse(overrides: Record<string, any> = {}) {
 }
 
 function createHarness(orders: any[]) {
+  /**
+   * Correctif C3 — Stub du grand livre. Le test porte sur la réconciliation
+   * facture ↔ commande (C2) : le grand livre est ici réduit à son effet sur le
+   * solde de la boutique. La vérification complète du grand livre (partie
+   * double, Payment, idempotence métier) est couverte par
+   * `backend/test/ledger-reconciliation.e2e-spec.ts`.
+   */
+  const ledgerStub = {
+    creditBoutique: async (tx: any, boutiqueId: string, amount: number) => {
+      await tx.boutique.update({
+        where: { id: boutiqueId },
+        data: { balance: { increment: amount } },
+      });
+    },
+    debitBoutique: async () => undefined,
+    postJournal: async () => ({ journalId: 'JRN_test', paymentId: null }),
+  };
+
   const prisma: any = {
     order: {
       findFirst: jest.fn(async ({ where }: any) => {
@@ -86,6 +104,12 @@ function createHarness(orders: any[]) {
       }),
       updateMany: jest.fn(async () => ({ count: 1 })),
       update: jest.fn(async () => ({})),
+    },
+    // Correctif C3 — garde d'idempotence métier : aucun règlement déjà
+    // enregistré dans ce test.
+    payment: {
+      findUnique: jest.fn(async () => null),
+      create: jest.fn(async () => ({ id: 'payment_test' })),
     },
     boutique: {
       update: jest.fn(async () => ({})),
@@ -119,6 +143,7 @@ function createHarness(orders: any[]) {
     prisma as any,
     configService as any,
     idempotencyService as any,
+    ledgerStub as any,
   );
 
   return { service, prisma };

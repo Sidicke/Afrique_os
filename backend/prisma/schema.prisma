@@ -98,6 +98,8 @@ model Boutique {
   shipments             Shipment[]
   deliveryMissions      DeliveryMission[]
   deliveryDisputes      DeliveryDispute[]
+  payments              Payment[]
+  ledgerAccounts        LedgerAccount[]
 
   @@index([ownerId])
   @@index([status])
@@ -236,6 +238,7 @@ model Order {
   shipments          Shipment[]
   settlements        SettlementAllocation[]
   deliveryDisputes   DeliveryDispute[]
+  payments           Payment[]
 
   @@index([boutiqueId, status])
   @@index([boutiqueId, createdAt])
@@ -523,6 +526,133 @@ model IdempotencyKey {
   @@unique([key, path], name: "key_path")
   @@index([key])
   @@index([expiresAt])
+}
+
+/// *
+/// * Correctif C3 — MODÈLE DE DONNÉES DE PAIEMENT
+/// * ---------------------------------------------------------------------------
+/// * Avant ce correctif, l'argent de la plateforme n'existait QUE comme :
+/// *   - `Boutique.balance` (un simple compteur muté par increment/decrement) ;
+/// *   - `Order.paymentRef` (texte libre, non unique, sans index) ;
+/// *   - `SettlementAllocation` (allocation de séquestre).
+/// *
+/// * Conséquences (audit C3) : aucune preuve d'auditabilité (« d'où viennent
+/// * ces 500 000 FCFA sur le solde de cette boutique ? »), aucun rapprochement
+/// * possible, et le double crédit ne pouvait être que DÉDUIT du code, jamais
+/// * PROUVÉ.
+/// *
+/// * `Payment` est une table APPEND-ONLY alimentée à chaque événement
+/// * financier. La contrainte `@@unique([provider, providerRef, kind])` en fait
+/// * la SOURCE DE VÉRITÉ D'IDEMPOTENCE au niveau métier : bien plus robuste
+/// * qu'une clé d'idempotence HTTP, qui est falsifiable par le client. Deux
+/// * règlements de la même facture viole la contrainte en base — le double
+/// * crédit devient impossible, et pas seulement improbable.
+/// *
+enum PaymentKind {
+  CAPTURE // Encaissement d'une commande auprès du PSP
+  REFUND // Remboursement au client
+  PAYOUT // Sortie d'argent vers une boutique (retrait)
+  COMMISSION // Commission plateforme (traçabilité)
+  CASHBACK // Points de fidélité servis
+}
+
+enum PaymentDirection {
+  IN // Argent entrant
+  OUT // Argent sortant
+}
+
+enum PaymentStatus {
+  RECORDED // Écrit dans le grand livre
+  RECONCILED // Rapproché avec le relevé PSP
+  DISPUTED // Signale une anomalie de rapprochement
+}
+
+model Payment {
+  id          String           @id @default(cuid())
+  provider    String           @default("PAYDUNYA")
+  providerRef String
+  kind        PaymentKind
+  direction   PaymentDirection
+  orderId     String?
+  boutiqueId  String?
+  grossAmount Decimal          @db.Decimal(14, 2)
+  netAmount   Decimal          @db.Decimal(14, 2)
+  currency    String           @default("XOF")
+  status      PaymentStatus    @default(RECORDED)
+  createdAt   DateTime         @default(now())
+
+  order        Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  boutique     Boutique?      @relation(fields: [boutiqueId], references: [id], onDelete: SetNull)
+  ledgerEntries LedgerEntry[]
+
+  // ⭐ Source de vérité d'idempotence métier : un règlement par (PSP, référence, nature).
+  @@unique([provider, providerRef, kind], name: "provider_ref_kind")
+  @@index([orderId])
+  @@index([boutiqueId, createdAt])
+  @@index([kind, createdAt])
+}
+
+/// *
+/// * Correctif C3 — COMPTABILITÉ EN PARTIE DOUBLE
+/// * ---------------------------------------------------------------------------
+/// * `LedgerAccount` : un compte comptable (compte de fonds, compte boutique,
+/// * compte de produits…). `BOUTIQUE:<id>` porte la dette de la plateforme
+/// * envers le vendeur : son solde doit être IDENTIQUE à `Boutique.balance`.
+/// *
+/// * `LedgerEntry` : une ligne d'écriture APPEND-ONLY. Toutes les lignes d'un
+/// * même `journalId` forment une écriture en partie double équilibrée
+/// * (total débit = total crédit) — garantie vérifiée par le LedgerService
+/// * avant écriture, et non seulement par convention.
+/// *
+enum LedgerAccountType {
+  ESCROW // Fonds collectés auprès des clients, détenus par la plateforme
+  BOUTIQUE // Dette de la plateforme envers une boutique
+  REVENUE // Produits de la plateforme (commissions)
+  LOYALTY // Financement du programme de fidélité
+  CUSTOMER // Dette de la plateforme envers ses clients (remboursements dus)
+  PAYOUT // Retraits dus aux vendeurs, en cours de traitement
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+model LedgerAccount {
+  id         String            @id @default(cuid())
+  code       String            @unique
+  type       LedgerAccountType
+  boutiqueId String?
+  balance    Decimal           @db.Decimal(14, 2) @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  boutique Boutique?     @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  entries  LedgerEntry[]
+
+  @@index([boutiqueId])
+  @@index([type])
+}
+
+model LedgerEntry {
+  id          String          @id @default(cuid())
+  journalId   String
+  accountId   String
+  direction   LedgerDirection
+  amount      Decimal         @db.Decimal(14, 2)
+  currency    String          @default("XOF")
+  description String
+  paymentId   String?
+  orderId     String?
+  createdAt   DateTime        @default(now())
+
+  account LedgerAccount @relation(fields: [accountId], references: [id])
+  payment Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt])
+  @@index([journalId])
+  @@index([paymentId])
+  @@index([orderId])
 }
 
 /// *

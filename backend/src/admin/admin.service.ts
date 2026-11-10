@@ -17,6 +17,12 @@ import {
 import { BoutiquesService } from '../boutiques/boutiques.service';
 import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LedgerAccounts, LedgerService } from '../common/services/ledger.service';
+import {
+  LedgerDirection,
+  PaymentDirection,
+  PaymentKind,
+} from '@prisma/client';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { OrderStatusDto } from './dto/order-status.dto';
@@ -87,6 +93,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly boutiquesService: BoutiquesService,
     private readonly ordersService: OrdersService,
+    private readonly ledgerService: LedgerService,
   ) {}
 
   /* ================================================================
@@ -842,10 +849,34 @@ export class AdminService {
 
       // Si la commande était déjà payée, régulariser le solde vendeur et restituer les points
       if (order.status === OrderStatus.PAID) {
-        await tx.boutique.update({
-          where: { id: order.boutiqueId },
-          data: { balance: { decrement: Number(order.total) } },
-        });
+        const refundedTotal = Number(order.total);
+        // === CORRECTIF C3 — DÉBIT DU SOLDLE + ÉCRITURE COMPTABLE ===
+        // Une commande de montant nul ne produit aucun mouvement : on n'écrit
+        // alors ni ligne comptable ni paiement (une écriture à 0 n'a pas de
+        // sens dans un journal en partie double).
+        if (refundedTotal > 0) {
+          await this.ledgerService.debitBoutique(tx, order.boutiqueId, refundedTotal, {
+            counterpart: [
+              {
+                accountCode: LedgerAccounts.CUSTOMER,
+                direction: LedgerDirection.CREDIT,
+                amount: refundedTotal,
+              },
+            ],
+            description: `Annulation administrative — commande #${order.reference}`,
+            orderId: order.id,
+            payment: {
+              provider: 'PLATFORM',
+              providerRef: `ADMIN-CANCEL-${order.id}`,
+              kind: PaymentKind.REFUND,
+              direction: PaymentDirection.OUT,
+              grossAmount: refundedTotal,
+              netAmount: refundedTotal,
+              orderId: order.id,
+              boutiqueId: order.boutiqueId,
+            },
+          });
+        }
 
         if (order.userId && order.pointsUsed > 0) {
           await tx.user.update({

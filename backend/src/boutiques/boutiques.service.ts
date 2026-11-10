@@ -6,8 +6,16 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BoutiqueStatus, SubscriptionStatus, VerificationStatus } from '@prisma/client';
+import {
+  BoutiqueStatus,
+  LedgerDirection,
+  PaymentDirection,
+  PaymentKind,
+  SubscriptionStatus,
+  VerificationStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { LedgerAccounts, LedgerService } from '../common/services/ledger.service';
 import { CreateBoutiqueDto } from './dto/create-boutique.dto';
 import { UpdateBoutiqueDto } from './dto/update-boutique.dto';
 import { InviteTeamMemberDto, UpdateTeamMemberDto } from './dto/team-member.dto';
@@ -131,32 +139,52 @@ export class BoutiquesService {
         );
       }
 
-      // Débit atomique conditionnel anti-race condition
-      const updated = await tx.boutique.updateMany({
-        where: {
-          id: boutiqueId,
-          status: BoutiqueStatus.ACTIVE,
-          balance: { gte: amount + heldAmount },
-        },
-        data: { balance: { decrement: amount } },
-      });
-
-      if (updated.count === 0) {
-        throw new BadRequestException('Solde disponible insuffisant pour ce retrait');
-      }
-
-      return tx.withdrawalRequest.create({
+      // === CORRECTIF C3 — SORTIE D'ARGENT : DÉBIT DU SOLDLE + ÉCRITURE ===
+      // La demande de retrait est enregistrée d'abord, afin que son
+      // identifiant serve de référence serveur (unique) au `Payment` PAYOUT.
+      // Le débit du solde et l'écriture comptable partent dans la MÊME
+      // transaction : si le solde est insuffisant, tout est annulé.
+      const withdrawal = await tx.withdrawalRequest.create({
         data: {
           boutiqueId,
           amount,
           paymentInfo: paymentInfo.trim(),
         },
       });
+
+      await this.ledgerService.debitBoutique(tx, boutiqueId, amount, {
+        counterpart: [
+          {
+            accountCode: LedgerAccounts.PAYOUT,
+            direction: LedgerDirection.CREDIT,
+            amount,
+          },
+        ],
+        description: `Demande de retrait — boutique ${boutique.name}`,
+        // Débit atomique conditionnel anti-race condition : le solde doit
+        // couvrir le retrait ET les fonds bloqués (séquestre).
+        guardBalance: true,
+        reservedAmount: heldAmount,
+        where: { status: BoutiqueStatus.ACTIVE },
+        insufficientFundsMessage: 'Solde disponible insuffisant pour ce retrait',
+        payment: {
+          provider: 'PLATFORM',
+          providerRef: `PAYOUT-${withdrawal.id}`,
+          kind: PaymentKind.PAYOUT,
+          direction: PaymentDirection.OUT,
+          grossAmount: amount,
+          netAmount: amount,
+          boutiqueId,
+        },
+      });
+
+      return withdrawal;
     });
   }
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly ledgerService: LedgerService,
   ) {}
 
   /** Création d'une boutique (toujours PENDING, vérifiée par un admin ensuite) */

@@ -25,9 +25,12 @@ import {
   DisputeScope,
   EvidenceStatus,
   HandoverStep,
+  LedgerDirection,
   MessageSender,
   OrderStatus,
   PackageSize,
+  PaymentDirection,
+  PaymentKind,
   PaymentMethod,
   Prisma,
   SettlementBeneficiaryType,
@@ -38,6 +41,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MessageCrypto } from '../common/crypto/message-crypto';
+import { LedgerAccounts, LedgerService } from '../common/services/ledger.service';
 import {
   BENIN_COMMUNES_DATA,
   BENIN_DEPARTMENTS,
@@ -94,7 +98,10 @@ const CONFORMITY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 heures
 export class DeliveryService implements OnModuleInit {
   private readonly logger = new Logger(DeliveryService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledgerService: LedgerService,
+  ) {}
 
   async onModuleInit() {
     try {
@@ -2699,10 +2706,31 @@ export class DeliveryService implements OnModuleInit {
         for (const alloc of heldSellerAllocs) {
           const refundDeduction = Number(alloc.netAmountFcfa || 0);
           if (refundDeduction > 0 && alloc.beneficiaryId) {
-            await tx.boutique.update({
-              where: { id: alloc.beneficiaryId },
-              data: { balance: { decrement: refundDeduction } },
-            });
+            // === CORRECTIF C3 — DÉBIT DU SOLDLE + ÉCRITURE COMPTABLE ===
+            await this.ledgerService.debitBoutique(
+              tx,
+              alloc.beneficiaryId,
+              refundDeduction,
+              {
+                counterpart: [
+                  {
+                    accountCode: LedgerAccounts.CUSTOMER,
+                    direction: LedgerDirection.CREDIT,
+                    amount: refundDeduction,
+                  },
+                ],
+                description: `Litige — remboursement acheteur (dispute ${dispute.id})`,
+                payment: {
+                  provider: 'PLATFORM',
+                  providerRef: `DISPUTE-REFUND-${dispute.id}-${alloc.id}`,
+                  kind: PaymentKind.REFUND,
+                  direction: PaymentDirection.OUT,
+                  grossAmount: refundDeduction,
+                  netAmount: refundDeduction,
+                  boutiqueId: alloc.beneficiaryId,
+                },
+              },
+            );
           }
         }
       } else if (

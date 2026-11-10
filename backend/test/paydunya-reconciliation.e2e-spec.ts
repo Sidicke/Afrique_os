@@ -192,6 +192,40 @@ describe('🛡️ Correctif C2 — Réconciliation facture ↔ commande (E2E)', 
       where: { orderReference: { contains: `AC-C2-${unique}` } },
     });
     await prisma.idempotencyKey.deleteMany({ where: { key: `paydunya_webhook_c2_${unique}` } });
+    // Correctif C3 — traces comptables produites par les règlements de ce test.
+    // Les écritures sont supprimées AVANT leur compte (clé étrangère), et
+    // l'ensemble des lignes du journal est visé (et pas seulement celles
+    // rattachées aux commandes listées : le règlement de la commande de
+    // l'intrus écrit aussi sur le même compte boutique).
+    const boutiqueAccount = await prisma.ledgerAccount.findUnique({
+      where: { code: `BOUTIQUE:${boutiqueId}` },
+      select: { id: true },
+    });
+    await prisma.ledgerEntry.deleteMany({
+      where: {
+        OR: [
+          { accountId: boutiqueAccount?.id ?? '__inexistant__' },
+          { orderId: { in: [orderClient.id, orderUnderpaid.id, orderAttacker.id] } },
+        ],
+      },
+    });
+    await prisma.payment.deleteMany({ where: { boutiqueId } });
+    await prisma.ledgerAccount.deleteMany({ where: { code: `BOUTIQUE:${boutiqueId}` } });
+    // Comptes de la plateforme partagés : on remet leur solde à zéro.
+    await prisma.ledgerAccount.updateMany({
+      where: {
+        code: {
+          in: [
+            'PLATFORM_ESCROW',
+            'PLATFORM_REVENUE',
+            'PLATFORM_LOYALTY',
+            'PLATFORM_CUSTOMER',
+            'PLATFORM_PAYOUT',
+          ],
+        },
+      },
+      data: { balance: 0 },
+    });
     // Comptes de test (la cascade User → Boutique nettoie la boutique).
     await prisma.user.deleteMany({ where: { email: { contains: `-c2-${unique}@test.com` } } });
     await app.close();

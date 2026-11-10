@@ -25,6 +25,17 @@ import {
 import { DeliveryService } from '../src/delivery/delivery.service';
 import { MessageCrypto } from '../src/common/crypto/message-crypto';
 
+/**
+ * Correctif C3 — Stub du grand livre pour les tests unitaires de livraison.
+ * Ces tests n'exercent pas les chemins de règlement (encaissement, litige) :
+ * le mouvement de solde y est neutralisé. Les vérifications du grand livre
+ * sont couvertes par `backend/test/ledger-reconciliation.e2e-spec.ts`.
+ */
+const ledgerStub = {
+  creditBoutique: async () => undefined,
+  debitBoutique: async () => undefined,
+} as any;
+
 describe('DeliveryService — Intégration du système de livraison ZennShop (15 Règles Métier)', () => {
   beforeAll(() => {
     process.env.MESSAGE_ENCRYPTION_KEY =
@@ -671,7 +682,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
 
   it('1. Qualifie explicitement la précision des adresses béninoises (EXACT_GPS, PIN_CONFIRMED, LANDMARK_TEXT)', async () => {
     const prisma = createInMemoryPrisma();
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const exact = await service.createAddressSnapshot({
       department: 'Littoral',
@@ -711,7 +722,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('2. Calcule les tarifs par zone Bénin et évite toute double facturation avec les deliveryPacks vendeur', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     // Livraison intra-urbaine Cotonou -> Cotonou
     const quoteLocal = await service.calculateQuote({
@@ -750,7 +761,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('3. Règles 1 & 2 : Crée un Shipment distinct de Order avec 3 segments (DeliveryLeg) pour une livraison interurbaine et sépare le produit des frais de livraison', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shipment = await service.createOrGetShipmentForOrder({
       orderId: 'order_1',
@@ -784,7 +795,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('4. Règles 4, 5 & 6 : Bloque strictement tout livreur d’agence ou livreur non vérifié sur les missions publiques', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shipment = await service.createOrGetShipmentForOrder({ orderId: 'order_1' });
     const dispatched = await service.dispatchShipment(shipment.id, 'seller_user_1', {
@@ -845,7 +856,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('5. Règle 3 : Garantit l’exclusivité atomique sous concurrence (10 livreurs indépendants acceptent la même mission -> 1 seul gagnant, 9 rejets)', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shipment = await service.createOrGetShipmentForOrder({ orderId: 'order_1' });
     const { mission } = await service.dispatchShipment(shipment.id, 'seller_user_1', {
@@ -883,7 +894,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('6. Règle 8 & Détachement : Le souhait de livreur particulier par le vendeur requiert l’approbation de l’agence, et un livreur en mission active ne peut être détaché', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const agency = await service.registerAgency('agency_owner_1', {
       name: 'ZennExpress Agence Cotonou',
@@ -937,7 +948,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('7. Règles 9, 10, 11 & Section 5 : La déclaration seule du livreur ne valide pas la livraison ; le code client à usage unique valide la remise, révoque immédiatement le chat Client-Livreur, et ouvre la fenêtre de conformité produit', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shipment = await service.createOrGetShipmentForOrder({ orderId: 'order_1' });
     const { mission } = await service.dispatchShipment(shipment.id, 'seller_user_1', {
@@ -1023,7 +1034,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('8. Règles 12 & 13 : Un litige PRODUCT_ONLY bloque uniquement les fonds du vendeur sans pénaliser le livreur ayant livré avec code valide', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shipment = await service.createOrGetShipmentForOrder({ orderId: 'order_1' });
     const { mission } = await service.dispatchShipment(shipment.id, 'seller_user_1', {
@@ -1074,7 +1085,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('9. Section 5 : Réactive le fil de discussion existant si le même livreur effectue ultérieurement une nouvelle livraison pour le même client', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const courier = await service.registerCourierProfile('indep_same', {
       displayName: 'Fidèle Livreur',
@@ -1142,7 +1153,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('10. Section 8 : Gère le transit interurbain avec remise à un chauffeur occasionnel sans compte obligatoire et arrivée en gare', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shp = await service.createOrGetShipmentForOrder({
       orderId: 'order_1',
@@ -1193,7 +1204,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('11. Sécurité : Verrouille temporairement la vérification par code après 5 tentatives erronées (anti-brute-force)', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shp = await service.createOrGetShipmentForOrder({ orderId: 'order_1' });
 
@@ -1214,7 +1225,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('12. Décision D2 : Bloque strictement le paiement à la livraison (COD) et les commandes non prépayées pour les missions publiques et interurbaines', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     // Commande en CASH_ON_DELIVERY
     prisma._state.orders.set('order_cod', {
@@ -1266,7 +1277,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('13. Décision D3 : Applique des taux de commission configurables distincts (Agence vs Indépendant vs Livreur Vendeur 0%) sans rétroactivité sur les missions déjà contractualisées', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     // Configuration initiale par défaut : 10% indépendant, 10% agence, 0% livreur personnel vendeur
     const defaultCfg = await service.getDeliveryPlatformConfig();
@@ -1318,7 +1329,7 @@ describe('DeliveryService — Intégration du système de livraison ZennShop (15
   it('14. Décisions D1 & D4 : Libère les fonds vendeur après expiration du délai configurable uniquement sans litige/remboursement, préserve les droits légaux et exige la validation manuelle Admin pour le décaissement', async () => {
     const prisma = createInMemoryPrisma();
     setupDefaultOrderAndBoutique(prisma);
-    const service = new DeliveryService(prisma);
+    const service = new DeliveryService(prisma, ledgerStub);
 
     const shp = await service.createOrGetShipmentForOrder({ orderId: 'order_1' });
     await service.verifyDeliveryByBuyerCode(shp.id, 'courier_1', {

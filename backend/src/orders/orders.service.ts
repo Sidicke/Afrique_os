@@ -4,7 +4,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
+import {
+  LedgerDirection,
+  OrderStatus,
+  PaymentDirection,
+  PaymentKind,
+  PaymentMethod,
+  Prisma,
+} from '@prisma/client';
 import { phoneMatchClause } from '../common/utils/normalize-phone.util';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -15,6 +22,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { MessagingService } from '../messaging/messaging.service';
 import { IdempotencyService } from '../common/services/idempotency.service';
+import { LedgerAccounts, LedgerService } from '../common/services/ledger.service';
 
 @Injectable()
 export class OrdersService {
@@ -26,6 +34,7 @@ export class OrdersService {
     private readonly notificationsService: NotificationsService,
     private readonly messagingService: MessagingService,
     private readonly idempotencyService: IdempotencyService,
+    private readonly ledgerService: LedgerService,
   ) {}
 
   /**
@@ -343,6 +352,11 @@ export class OrdersService {
           where: { id, status: OrderStatus.PENDING },
           data: {
             status: OrderStatus.PAID,
+            // Correctif C3 — la date de règlement fait partie de la preuve
+            // d'auditabilité : sans elle, la commande n'est pas datable et la
+            // réconciliation des paiements ne peut pas la rattacher au grand
+            // livre.
+            paidAt: new Date(),
             ...(dto.deliveryContact ? { deliveryContact: dto.deliveryContact } : {}),
           },
         });
@@ -639,10 +653,35 @@ export class OrdersService {
           order.commissionAmount != null
             ? Number(order.total) + Number(order.pointsUsed ?? 0) - Number(order.commissionAmount)
             : Number(order.total);
-        await tx.boutique.update({
-          where: { id: boutiqueId },
-          data: { balance: { decrement: credited } },
-        });
+
+        // === CORRECTIF C3 — DÉBIT DU SOLDLE + ÉCRITURE COMPTABLE ===
+        // La somme due au client est portée par le compte PLATFORM_CUSTOMER
+        // (dette de la plateforme envers ses clients) jusqu'au remboursement
+        // effectif par le PSP — traitement hors périmètre (finding H3).
+        // Une commande de montant nul ne produit aucun mouvement.
+        if (credited > 0) {
+          await this.ledgerService.debitBoutique(tx, boutiqueId, credited, {
+            counterpart: [
+              {
+                accountCode: LedgerAccounts.CUSTOMER,
+                direction: LedgerDirection.CREDIT,
+                amount: credited,
+              },
+            ],
+            description: `Annulation client — commande #${order.reference}`,
+            orderId: order.id,
+            payment: {
+              provider: 'PLATFORM',
+              providerRef: `CANCEL-${order.id}`,
+              kind: PaymentKind.REFUND,
+              direction: PaymentDirection.OUT,
+              grossAmount: credited,
+              netAmount: credited,
+              orderId: order.id,
+              boutiqueId,
+            },
+          });
+        }
 
         await tx.settlementAllocation.updateMany({
           where: { orderId: order.id },
@@ -1147,6 +1186,7 @@ export class OrdersService {
   private async creditSellerForPaidOrder(
     order: {
       id: string;
+      reference: string;
       boutiqueId: string;
       total: Prisma.Decimal;
       pointsUsed: number | null;
@@ -1199,9 +1239,45 @@ export class OrdersService {
     });
 
     // 1. Ajouter le solde NET au vendeur
-    await tx.boutique.update({
-      where: { id: order.boutiqueId },
-      data: { balance: { increment: netAmount } }
+    // === CORRECTIF C3 — CRÉDIT DU SOLDLE + ÉCRITURE COMPTABLE ===
+    // Même journal que l'encaissement PayDunya : fonds collectés au séquestre,
+    // coût des points de fidélité absorbé par la plateforme, commission en
+    // produit, dette envers le vendeur au crédit.
+    const cashCollected = Number(order.total);
+    const pointsUsed = Number(order.pointsUsed || 0);
+
+    await this.ledgerService.creditBoutique(tx, order.boutiqueId, netAmount, {
+      counterpart: [
+        {
+          accountCode: LedgerAccounts.ESCROW,
+          direction: LedgerDirection.DEBIT,
+          amount: cashCollected,
+        },
+        {
+          accountCode: LedgerAccounts.LOYALTY,
+          direction: LedgerDirection.DEBIT,
+          amount: pointsUsed,
+        },
+        {
+          accountCode: LedgerAccounts.REVENUE,
+          direction: LedgerDirection.CREDIT,
+          amount: commissionAmount,
+        },
+      ],
+      description: `Encaissement mobile money — commande #${order.reference}`,
+      orderId: order.id,
+      payment: {
+        provider: 'MOBILE_MONEY',
+        // Référence serveur : la référence déclarée par le client n'est pas
+        // fiable et ne doit pas servir de clé d'idempotence métier.
+        providerRef: `MM-${order.id}`,
+        kind: PaymentKind.CAPTURE,
+        direction: PaymentDirection.IN,
+        grossAmount: cashCollected,
+        netAmount,
+        orderId: order.id,
+        boutiqueId: order.boutiqueId,
+      },
     });
 
     // 1b. Synchroniser atomiquement l'allocation de séquestre (SettlementAllocation)

@@ -1,9 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  LedgerDirection,
+  PaymentDirection,
+  PaymentKind,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { LedgerAccounts, LedgerService } from '../common/services/ledger.service';
 
 @Injectable()
 export class RefundsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledgerService: LedgerService,
+  ) {}
 
   async createRequest(clientId: string, orderId: string, reason: string, description?: string, evidenceUrl?: string) {
     const order = await this.prisma.order.findUnique({
@@ -148,16 +157,58 @@ export class RefundsService {
           for (const alloc of sellerAllocs) {
             const deduction = Number(alloc.netAmountFcfa || 0);
             if (deduction > 0 && alloc.beneficiaryId) {
-              await tx.boutique.update({
-                where: { id: alloc.beneficiaryId },
-                data: { balance: { decrement: deduction } },
-              });
+              // === CORRECTIF C3 — DÉBIT DU SOLDLE + ÉCRITURE COMPTABLE ===
+              await this.ledgerService.debitBoutique(
+                tx,
+                alloc.beneficiaryId,
+                deduction,
+                {
+                  counterpart: [
+                    {
+                      accountCode: LedgerAccounts.CUSTOMER,
+                      direction: LedgerDirection.CREDIT,
+                      amount: deduction,
+                    },
+                  ],
+                  description: `Remboursement accepté — demande ${req.id}`,
+                  orderId: req.orderId,
+                  payment: {
+                    provider: 'PLATFORM',
+                    providerRef: `REFUND-${req.id}-${alloc.beneficiaryId}`,
+                    kind: PaymentKind.REFUND,
+                    direction: PaymentDirection.OUT,
+                    grossAmount: deduction,
+                    netAmount: deduction,
+                    orderId: req.orderId,
+                    boutiqueId: alloc.beneficiaryId,
+                  },
+                },
+              );
             }
           }
         } else if (req.order && Number(req.order.netAmount || 0) > 0) {
-          await tx.boutique.update({
-            where: { id: req.boutiqueId },
-            data: { balance: { decrement: Number(req.order.netAmount) } },
+          const deduction = Number(req.order.netAmount);
+          // === CORRECTIF C3 — DÉBIT DU SOLDLE + ÉCRITURE COMPTABLE ===
+          await this.ledgerService.debitBoutique(tx, req.boutiqueId, deduction, {
+            counterpart: [
+              {
+                accountCode: LedgerAccounts.CUSTOMER,
+                direction: LedgerDirection.CREDIT,
+                amount: deduction,
+              },
+            ],
+            description: `Remboursement accepté — demande ${req.id}`,
+            orderId: req.orderId,
+            payment: {
+              provider: 'PLATFORM',
+              providerRef: `REFUND-${req.id}`,
+              kind: PaymentKind.REFUND,
+              direction: PaymentDirection.OUT,
+              grossAmount: deduction,
+              netAmount: deduction,
+              orderId: req.orderId,
+              boutiqueId: req.boutiqueId,
+            },
           });
         }
       }

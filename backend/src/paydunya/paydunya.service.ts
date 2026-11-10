@@ -10,8 +10,16 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { IdempotencyService } from '../common/services/idempotency.service';
+import { LedgerAccounts, LedgerService } from '../common/services/ledger.service';
 import { CreatePayDunyaTransactionDto } from './dto/create-paydunya-transaction.dto';
-import { OrderStatus, PaymentMethod, SubscriptionStatus } from '@prisma/client';
+import {
+  LedgerDirection,
+  OrderStatus,
+  PaymentDirection,
+  PaymentKind,
+  PaymentMethod,
+  SubscriptionStatus,
+} from '@prisma/client';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 
 export interface PayDunyaCheckoutResponse {
@@ -42,6 +50,7 @@ export class PayDunyaService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly idempotencyService: IdempotencyService,
+    private readonly ledgerService: LedgerService,
   ) {}
 
   /**
@@ -779,6 +788,28 @@ export class PayDunyaService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // === CORRECTIF C3 — IDEMPOTENCE MÉTIER (AVANT TOUT CRÉDIT) ===
+      // Un règlement déjà enregistré pour cette facture (PSP, token, nature
+      // CAPTURE) interdit tout nouveau crédit. La contrainte UNIQUE
+      // (provider, providerRef, kind) de la table `Payment` en est la preuve :
+      // le double crédit devient IMPOSSIBLE, et pas seulement improbable.
+      const alreadyCaptured = await tx.payment.findUnique({
+        where: {
+          provider_ref_kind: {
+            provider: 'PAYDUNYA',
+            providerRef: transactionId,
+            kind: PaymentKind.CAPTURE,
+          },
+        },
+        select: { id: true },
+      });
+      if (alreadyCaptured) {
+        this.logger.log(
+          `[PayDunya] Règlement déjà enregistré pour la facture ${transactionId} — aucun nouveau crédit.`,
+        );
+        return;
+      }
+
       // Verrouillage optimiste sur le statut !== PAID pour éviter tout double crédit en concurrence IPN + Return URL
       const updatedCount = await tx.order.updateMany({
         where: { id: order.id, status: { not: OrderStatus.PAID } },
@@ -826,11 +857,52 @@ export class PayDunyaService {
         },
       });
 
-      // Crédit du solde NET de la boutique
-      await tx.boutique.update({
-        where: { id: order.boutiqueId },
-        data: {
-          balance: { increment: netAmount },
+      // === CORRECTIF C3 — CRÉDIT DU SOLDLE + ÉCRITURE COMPTABLE ===
+      // Le mouvement de solde et son écriture comptable (partie double) sont
+      // effectués dans la MÊME transaction : ils ne peuvent pas diverger.
+      //
+      // Journal de l'encaissement :
+      //   DÉBIT  PLATFORM_ESCROW  ← fonds collectés auprès du client
+      //   DÉBIT  PLATFORM_LOYALTY ← coût des points de fidélité, absorbé par
+      //                              la plateforme (« la plateforme absorbe le
+      //                              coût commercial des points »)
+      //   CRÉDIT BOUTIQUE:<id>     → dette de la plateforme envers le vendeur
+      //   CRÉDIT PLATFORM_REVENUE → commission de la plateforme
+      //
+      // Débit total = total + points ; crédit total = net + commission = total
+      // + points. L'écriture est équilibrée par construction.
+      const cashCollected = Number(order.total);
+      const pointsUsed = Number(order.pointsUsed || 0);
+
+      await this.ledgerService.creditBoutique(tx, order.boutiqueId, netAmount, {
+        counterpart: [
+          {
+            accountCode: LedgerAccounts.ESCROW,
+            direction: LedgerDirection.DEBIT,
+            amount: cashCollected,
+          },
+          {
+            accountCode: LedgerAccounts.LOYALTY,
+            direction: LedgerDirection.DEBIT,
+            amount: pointsUsed,
+          },
+          {
+            accountCode: LedgerAccounts.REVENUE,
+            direction: LedgerDirection.CREDIT,
+            amount: commissionAmount,
+          },
+        ],
+        description: `Encaissement PayDunya — commande #${order.reference}`,
+        orderId: order.id,
+        payment: {
+          provider: 'PAYDUNYA',
+          providerRef: transactionId,
+          kind: PaymentKind.CAPTURE,
+          direction: PaymentDirection.IN,
+          grossAmount: cashCollected,
+          netAmount,
+          orderId: order.id,
+          boutiqueId: order.boutiqueId,
         },
       });
 

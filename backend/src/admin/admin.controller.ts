@@ -12,6 +12,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { AdminService } from './admin.service';
+import { LedgerService } from '../common/services/ledger.service';
 import { AdminPeriodEnum, ListQueryDto } from './dto/list-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateNoteDto } from './dto/create-note.dto';
@@ -34,13 +35,41 @@ import { VerificationDecisionDto } from './dto/verification-decision.dto';
 @Roles('ADMIN')
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly ledgerService: LedgerService,
+  ) {}
 
   /** GET /admin/overview — Command Center (doc 03) */
   @Get('overview')
   @ApiOperation({ summary: 'Vue d’ensemble de la plateforme (admin)' })
   getOverview(@Query('period') period?: AdminPeriodEnum) {
     return this.adminService.getOverview(period ?? '30_days');
+  }
+
+  /* ===== Réconciliation financière (correctif C3) ===== */
+
+  /**
+   * GET /admin/reconciliation — Réconciliation des paiements.
+   * Compare le solde porté par le grand livre au solde réellement affiché aux
+   * vendeurs (`Boutique.balance`), et vérifie que toute commande réglée
+   * dispose d'un encaissement enregistré au montant attendu.
+   */
+  @Get('reconciliation')
+  @ApiOperation({ summary: 'Réconciliation financière (admin)' })
+  async getReconciliation() {
+    const [balances, payments] = await Promise.all([
+      this.ledgerService.reconcileAll(),
+      this.ledgerService.reconcilePayments(),
+    ]);
+    return { balances, payments };
+  }
+
+  /** GET /admin/reconciliation/boutique/:id — Réconciliation d'une boutique */
+  @Get('reconciliation/boutique/:id')
+  @ApiOperation({ summary: 'Réconciliation du solde d’une boutique (admin)' })
+  reconcileBoutique(@Param('id') id: string) {
+    return this.ledgerService.reconcileBoutique(id);
   }
 
   /* ===== Vérification (doc 04) ===== */
