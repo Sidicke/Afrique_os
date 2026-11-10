@@ -491,15 +491,25 @@ model WithdrawalRequest {
 /// *
 /// * Clés d'idempotence pour sécuriser les transactions financières (1er pilier de sécurité).
 /// * Empêche les réexécutions accidentelles ou les Webhooks répétés.
+///
+/// * ⚠️ L'unicité est COMPOSITE (key, path) et NON globale sur `key` seule.
+/// * Un même UUID peut légitimement être réutilisé par le client sur deux
+/// * endpoints différents (ex. : création de commande puis création de facture
+/// * de paiement depuis le même checkout). Avec une unicité globale sur `key`,
+/// * la 2e requête récupérait la réponse en cache de la 1re (réponse d'un autre
+/// * type) et ne créerait jamais la transaction de paiement — bug C1 de l'audit
+/// * de sécurité. Le scoping par `path` rend les caches indépendants tout en
+/// * conservant l'idempotence au sein d'un même endpoint.
 model IdempotencyKey {
   id           String   @id @default(cuid())
-  key          String   @unique
+  key          String
   path         String
   statusCode   Int
   responseBody Json
   createdAt    DateTime @default(now())
   expiresAt    DateTime
 
+  @@unique([key, path], name: "key_path")
   @@index([key])
   @@index([expiresAt])
 }

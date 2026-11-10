@@ -46,10 +46,27 @@ export class PayDunyaService {
     path = '/api/v1/payments/paydunya/create-transaction',
   ): Promise<PayDunyaCheckoutResponse> {
     // 1. Vérification de l'idempotence si une clé est fournie
+    //    ⚠️ Le cache est scopé par (key, path) : une clé partagée avec un autre
+    //    endpoint (ex. la création de commande) ne peut plus renvoyer ici une
+    //    charge utile de type « commande ». La garde ci-dessous est une
+    //    défense en profondeur : si la réponse en cache ne possède pas la
+    //    forme d'une réponse de création de transaction PayDunya, on la
+    //    rejette au lieu de la renvoyer au client (correctif C1).
     if (idempotencyKey) {
       const cached = await this.idempotencyService.getRecord(idempotencyKey, path);
       if (cached) {
-        return cached.responseBody as PayDunyaCheckoutResponse;
+        const body = cached.responseBody as PayDunyaCheckoutResponse;
+        if (
+          body &&
+          typeof body.checkoutUrl === 'string' &&
+          typeof body.token === 'string' &&
+          typeof body.amount === 'number'
+        ) {
+          return body;
+        }
+        this.logger.warn(
+          `[PayDunya] Réponse en cache invalide pour la clé "${idempotencyKey}" (${path}) — ignorée, la transaction sera créée.`,
+        );
       }
     }
 

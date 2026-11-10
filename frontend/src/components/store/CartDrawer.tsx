@@ -115,6 +115,17 @@ export default function CartDrawer() {
   /** Clé d'idempotence UUID générée à chaque ouverture du checkout —
    *  protège la création de commande contre les doubles envois réseau. */
   const checkoutKeyRef = useRef<string>("");
+  /** Clé d'idempotence UUID dédiée à la transaction de paiement PayDunya.
+   *
+   *  ⚠️ Elle doit être DISTINTE de `checkoutKeyRef` (correctif C1 de l'audit
+   *  de sécurité). Le backend identifie un enregistrement d'idempotence par
+   *  le couple (clé, endpoint) ; réutiliser la même UUID sur les deux routes
+   *  était source de confusion : la création de facture récupérait en cache
+   *  la réponse de la création de commande (d'un autre type) et ne créait
+   *  AUCUNE facture PayDunya — l'écran « Paiement confirmé » s'affichait sans
+   *  encaissement.
+   */
+  const paymentKeyRef = useRef<string>("");
 
   // Réinitialise le flux à chaque ouverture du tiroir (useRef + useEffect).
   // `initialStep` permet l'achat direct : « Commander » ouvre directement
@@ -125,6 +136,10 @@ export default function CartDrawer() {
     prevOpenRef.current = true;
     // Nouvelle clé UUID par session de checkout — idempotence anti-doublon réseau
     checkoutKeyRef.current = crypto.randomUUID();
+    // Clé distincte pour la transaction de paiement : le backend scope
+    // l'idempotence par (clé, endpoint), mais deux clés séparées rendent le
+    // contrat explicite et évitent tout couplage futur entre les deux flux.
+    paymentKeyRef.current = crypto.randomUUID();
     setStep(initialStep);
     setDeliveryError(false);
     setPlacing(false);
@@ -340,7 +355,7 @@ export default function CartDrawer() {
           customerPhone: effectivePhone,
           callbackUrl,
         },
-        checkoutKeyRef.current || undefined,
+        paymentKeyRef.current || undefined,
       );
       if (res.checkoutUrl && res.mode !== "sandbox_mock" && typeof window !== "undefined") {
         window.location.href = res.checkoutUrl;
