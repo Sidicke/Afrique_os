@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { products } from "@/constants/store";
-import { resetShopConfig, updateShopConfig } from "@/lib/shopConfig";
+import { formatPrice, products } from "@/constants/store";
+import {
+  getShopConfig,
+  productPrice,
+  resetShopConfig,
+  updateShopConfig,
+} from "@/lib/shopConfig";
 import CartProvider, { useCart } from "./CartProvider";
 import CartDrawer from "./CartDrawer";
 
@@ -33,14 +38,31 @@ function OpenCartButton() {
   );
 }
 
+/** Expose le contenu du panier pour l'asserter après un paiement */
+function CartState() {
+  const { lines } = useCart();
+  return (
+    <div data-testid="cart-state">
+      {lines.map((l) => l.product.name).join(", ")}
+    </div>
+  );
+}
+
 function renderDrawer() {
   return render(
     <CartProvider>
       <AddProduct productId="smartphone-pro" />
+      <AddProduct productId="ecouteurs-sans-fil" />
       <OpenCartButton />
       <CartDrawer />
     </CartProvider>
   );
+}
+
+/** Prix effectif d'un produit (promotions actives comprises) */
+function unitPrice(productId: string): number {
+  const product = products.find((p) => p.id === productId)!;
+  return productPrice(getShopConfig(), product).current;
 }
 
 /** Sélectionne le pack Premium puis passe à l'étape coordonnées */
@@ -206,5 +228,173 @@ describe("CartDrawer", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Payée")).toBeInTheDocument();
     expect(screen.getByText("Mobile Money")).toBeInTheDocument();
+  }, 20000);
+});
+
+/**
+ * Paiement PARTIEL : le client achète une partie de son panier, le reste
+ * reste dans le panier pour un prochain achat.
+ */
+describe("CartDrawer — sélection partielle", () => {
+  afterEach(() => {
+    resetShopConfig();
+    vi.useRealTimers();
   });
+
+  it("sélectionne tout le panier par défaut", async () => {
+    const user = userEvent.setup();
+    renderDrawer();
+
+    await user.click(screen.getByRole("button", { name: "add-smartphone-pro" }));
+    await user.click(
+      screen.getByRole("button", { name: "add-ecouteurs-sans-fil" })
+    );
+
+    expect(screen.getByText("2 / 2 articles sélectionnés")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Sélectionner Smartphone Pro" })
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Sélectionner Écouteurs Sans Fil" })
+    ).toBeChecked();
+    // Tout est sélectionné : le CTA reste le CTA historique
+    expect(
+      screen.getByRole("button", { name: "Passer la commande" })
+    ).toBeInTheDocument();
+  });
+
+  it("décocher un article le retire du total et propose la commande de la sélection", async () => {
+    const user = userEvent.setup();
+    renderDrawer();
+
+    await user.click(screen.getByRole("button", { name: "add-smartphone-pro" }));
+    await user.click(
+      screen.getByRole("button", { name: "add-ecouteurs-sans-fil" })
+    );
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "Sélectionner Smartphone Pro" })
+    );
+
+    // Le compteur de sélection ne compte plus que les écouteurs
+    expect(screen.getByText("1 / 2 articles sélectionnés")).toBeInTheDocument();
+    // Le CTA annonce la commande partielle
+    expect(
+      screen.getByRole("button", { name: /Commander la sélection \(1 article\)/ })
+    ).toBeInTheDocument();
+    // Les totaux ne portent QUE sur la sélection : le prix des écouteurs
+    // apparaît 3 fois (prix de ligne, sous-total, total), celui du smartphone
+    // désélectionné n'apparaît plus que comme prix de ligne.
+    expect(
+      screen.getAllByText(formatPrice(unitPrice("ecouteurs-sans-fil")))
+    ).toHaveLength(3);
+    expect(
+      screen.getAllByText(formatPrice(unitPrice("smartphone-pro")))
+    ).toHaveLength(1);
+  });
+
+  it("désactive le bouton de commande quand plus rien n'est sélectionné", async () => {
+    const user = userEvent.setup();
+    renderDrawer();
+
+    await user.click(screen.getByRole("button", { name: "add-smartphone-pro" }));
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "Sélectionner Smartphone Pro" })
+    );
+
+    const cta = screen.getByRole("button", {
+      name: "Sélectionnez au moins un article",
+    });
+    expect(cta).toBeDisabled();
+  });
+
+  it("« Tout désélectionner » vide la sélection, « Tout sélectionner » la rétablit", async () => {
+    const user = userEvent.setup();
+    renderDrawer();
+
+    await user.click(screen.getByRole("button", { name: "add-smartphone-pro" }));
+    await user.click(
+      screen.getByRole("button", { name: "add-ecouteurs-sans-fil" })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Tout désélectionner" }));
+    expect(screen.getByText("0 / 2 articles sélectionnés")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Sélectionnez au moins un article" })
+    ).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Tout sélectionner" }));
+    expect(screen.getByText("2 / 2 articles sélectionnés")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Passer la commande" })
+    ).toBeInTheDocument();
+  });
+
+  it("le récapitulatif ne liste que les articles sélectionnés", async () => {
+    const user = userEvent.setup();
+    renderDrawer();
+
+    await user.click(screen.getByRole("button", { name: "add-smartphone-pro" }));
+    await user.click(
+      screen.getByRole("button", { name: "add-ecouteurs-sans-fil" })
+    );
+    // On décoche le smartphone AVANT de passer au récapitulatif
+    await user.click(
+      screen.getByRole("checkbox", { name: "Sélectionner Smartphone Pro" })
+    );
+
+    const premiumBtn = screen.getByRole("button", { name: /Premium.*5 000 FCFA/ });
+    await user.click(premiumBtn);
+    await user.click(
+      screen.getByRole("button", { name: /Commander la sélection \(1 article\)/ })
+    );
+
+    expect(screen.getByText("Récapitulatif")).toBeInTheDocument();
+    // Le récapitulatif ne contient QUE l'article sélectionné
+    expect(screen.getByText(/1× Écouteurs Sans Fil/)).toBeInTheDocument();
+    expect(screen.queryByText(/Smartphone Pro/)).not.toBeInTheDocument();
+  });
+
+  it("après un paiement partiel, les articles non achetés restent dans le panier", async () => {
+    const user = userEvent.setup();
+    render(
+      <CartProvider>
+        <AddProduct productId="smartphone-pro" />
+        <AddProduct productId="ecouteurs-sans-fil" />
+        <OpenCartButton />
+        <CartState />
+        <CartDrawer />
+      </CartProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "add-smartphone-pro" }));
+    await user.click(
+      screen.getByRole("button", { name: "add-ecouteurs-sans-fil" })
+    );
+    // On n'achète QUE les écouteurs
+    await user.click(
+      screen.getByRole("checkbox", { name: "Sélectionner Smartphone Pro" })
+    );
+
+    const premiumBtn = screen.getByRole("button", { name: /Premium.*5 000 FCFA/ });
+    await user.click(premiumBtn);
+    await user.click(
+      screen.getByRole("button", { name: /Commander la sélection \(1 article\)/ })
+    );
+    await user.type(screen.getByLabelText("Votre téléphone"), "+2250700000000");
+    await user.click(screen.getByRole("button", { name: "Confirmer la commande" }));
+    await user.type(screen.getByLabelText("Numéro Mobile Money"), "+2250700000001");
+    await user.click(screen.getByRole("button", { name: /Payer/ }));
+
+    await screen.findByText("Paiement confirmé !", {}, { timeout: 10000 });
+
+    // Le panier conserve l'article NON acheté, et uniquement lui
+    expect(screen.getByTestId("cart-state")).toHaveTextContent(
+      "Smartphone Pro"
+    );
+    expect(screen.getByTestId("cart-state")).not.toHaveTextContent(
+      "Écouteurs Sans Fil"
+    );
+  }, 20000);
 });

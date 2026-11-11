@@ -135,3 +135,125 @@ describe("CartProvider", () => {
     expect(() => renderHook(() => useCart())).toThrow(/CartProvider/);
   });
 });
+
+/**
+ * Paiement PARTIEL : le client peut ne commander qu'une partie de son
+ * panier. La sélection détermine ce qui est commandé ET ce qui reste.
+ */
+describe("CartProvider — sélection partielle", () => {
+  it("sélectionne tout le panier par défaut", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    act(() => result.current.add(products[1]));
+
+    expect(result.current.selectedKeys).toHaveLength(2);
+    expect(result.current.selectedLines).toHaveLength(2);
+    expect(result.current.selectedCount).toBe(2);
+    expect(result.current.selectedSubtotal).toBe(result.current.subtotal);
+  });
+
+  it("décoche une ligne : elle sort de la sélection et du sous-total", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    act(() => result.current.add(products[1]));
+    const key = result.current.lines[0].key;
+    const priceOfFirst = result.current.lines[0].qty * smartphone.price;
+
+    act(() => result.current.toggleSelected(key));
+
+    expect(result.current.selectedKeys).not.toContain(key);
+    expect(result.current.selectedLines).toHaveLength(1);
+    expect(result.current.selectedCount).toBe(1);
+    expect(result.current.selectedSubtotal).toBe(
+      result.current.subtotal - priceOfFirst
+    );
+    // La ligne reste dans le panier : elle n'a pas été achetée
+    expect(result.current.lines).toHaveLength(2);
+  });
+
+  it("recoche une ligne décochée", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    const key = result.current.lines[0].key;
+    act(() => result.current.toggleSelected(key));
+    expect(result.current.selectedKeys).toHaveLength(0);
+
+    act(() => result.current.toggleSelected(key));
+    expect(result.current.selectedKeys).toContain(key);
+    expect(result.current.selectedCount).toBe(1);
+  });
+
+  it("décoche tout puis recoche tout", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    act(() => result.current.add(products[1]));
+
+    act(() => result.current.setAllSelected(false));
+    expect(result.current.selectedKeys).toHaveLength(0);
+    expect(result.current.selectedCount).toBe(0);
+    expect(result.current.selectedSubtotal).toBe(0);
+
+    act(() => result.current.setAllSelected(true));
+    expect(result.current.selectedKeys).toHaveLength(2);
+    expect(result.current.selectedCount).toBe(2);
+  });
+
+  it("retire du panier UNIQUEMENT les articles achetés", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    act(() => result.current.add(products[1]));
+    const boughtKey = result.current.lines[0].key;
+
+    // Paiement partiel : seul le premier article a été commandé
+    act(() => result.current.removeLines([boughtKey]));
+
+    expect(result.current.lines).toHaveLength(1);
+    expect(result.current.lines[0].product.id).toBe(products[1].id);
+    // Le reste du panier est conservé et toujours sélectionnable
+    expect(result.current.selectedKeys).toHaveLength(1);
+    expect(result.current.selectedCount).toBe(1);
+  });
+
+  it("un article ajouté est sélectionné automatiquement", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    const key = result.current.lines[0].key;
+
+    act(() => result.current.toggleSelected(key));
+    expect(result.current.selectedKeys).toHaveLength(0);
+
+    // Ré-ajouter le même produit (donc même clé) le re-sélectionne
+    act(() => result.current.add(smartphone));
+    expect(result.current.selectedKeys).toContain(key);
+  });
+
+  it("retirer une ligne du panier la retire aussi de la sélection", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    act(() => result.current.add(products[1]));
+    const key = result.current.lines[0].key;
+
+    act(() => result.current.remove(key));
+
+    expect(result.current.selectedKeys).not.toContain(key);
+    expect(result.current.selectedKeys).toHaveLength(1);
+  });
+
+  it("vider le panier vide aussi la sélection", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => result.current.add(smartphone));
+    act(() => result.current.clear());
+
+    expect(result.current.selectedKeys).toHaveLength(0);
+    expect(result.current.selectedLines).toHaveLength(0);
+    expect(result.current.selectedCount).toBe(0);
+  });
+});

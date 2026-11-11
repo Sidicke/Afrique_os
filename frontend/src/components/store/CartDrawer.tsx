@@ -77,10 +77,16 @@ export default function CartDrawer() {
     closeCart,
     remove,
     setQty,
-    subtotal,
+    removeLines,
+    selectedKeys,
+    selectedLines,
+    toggleSelected,
+    setAllSelected,
+    selectedCount,
+    selectedSubtotal,
+    selectedTotal,
+    count,
     deliveryPack,
-    total,
-    clear,
     initialStep,
   } = useCart();
   const config = useShopConfig();
@@ -203,14 +209,21 @@ export default function CartDrawer() {
       .catch(() => {});
   }, []);
 
-  // Prix remisés par ligne pour le récapitulatif
+  /** Vrai si toutes les lignes du panier sont sélectionnées */
+  const allSelected = useMemo(
+    () => lines.length > 0 && lines.every((l) => selectedKeys.includes(l.key)),
+    [lines, selectedKeys]
+  );
+
+  // Prix remisés par ligne pour le récapitulatif.
+  // Seules les lignes SÉLECTIONNÉES y figurent : c'est la commande en cours.
   const linePrices = useMemo(
     () =>
-      lines.map((l) => ({
+      selectedLines.map((l) => ({
         line: l,
         unit: l.negotiatedPrice ?? productPrice(config, l.product).current,
       })),
-    [lines, config]
+    [selectedLines, config]
   );
 
   // Numéro du compte client (pré-rempli au paiement Mobile Money)
@@ -246,8 +259,10 @@ export default function CartDrawer() {
     setOrderError(null);
     setPlacing(true);
 
-    // Instantané de la commande AVANT de vider le panier
-    const snapshotLines = lines;
+    // Instantané de la commande AVANT de retirer les articles achetés.
+    // Seules les lignes SÉLECTIONNÉES sont commandées : le client peut
+    // acheter une partie de son panier, le reste reste dans le panier.
+    const snapshotLines = selectedLines;
     const snapshotDelivery = deliveryPack;
 
     const items = snapshotLines.map(({ product, variant, qty }) => ({
@@ -294,7 +309,10 @@ export default function CartDrawer() {
           })
           .catch(() => {});
       }
-      clear();
+      // Paiement PARTIEL : on ne retire du panier que les articles
+      // réellement achetés. Les lignes non sélectionnées restent disponibles
+      // pour une commande ultérieure.
+      removeLines(snapshotLines.map((l) => l.key));
       setPlacing(false);
       setStep("payment");
     } catch (err) {
@@ -521,14 +539,54 @@ export default function CartDrawer() {
 
             {step === "cart" && lines.length > 0 && (
               <>
+                {/* ——— Barre de sélection : tout cocher / tout décocher ——— */}
+                <div className="flex items-center justify-between gap-3 border-b border-midnight-950/8 bg-ivory-50/40 px-6 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setAllSelected(!allSelected)}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-midnight-950/70 transition-colors hover:text-midnight-950 cursor-pointer"
+                  >
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                        allSelected
+                          ? "border-midnight-950 bg-midnight-950 text-white"
+                          : "border-midnight-950/25 bg-white"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {allSelected && <IconCheck className="h-3 w-3" />}
+                    </span>
+                    {allSelected ? "Tout désélectionner" : "Tout sélectionner"}
+                  </button>
+                  <span className="text-xs text-midnight-950/50">
+                    {selectedCount} / {count} article{count > 1 ? "s" : ""}{" "}
+                    sélectionné{count > 1 ? "s" : ""}
+                  </span>
+                </div>
+
                 <ul className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
                   {lines.map(({ key, product, variant, qty }) => {
                     const unit = productPrice(config, product).current;
+                    const isSelected = selectedKeys.includes(key);
                     return (
                       <li
                         key={key}
-                        className="flex gap-4 rounded-2xl border border-midnight-950/8 bg-ivory-50/60 p-3"
+                        className={`flex gap-4 rounded-2xl border p-3 transition-opacity ${
+                          isSelected
+                            ? "border-midnight-950/8 bg-ivory-50/60"
+                            : "border-midnight-950/8 bg-ivory-50/20 opacity-60"
+                        }`}
                       >
+                        {/* Case de sélection : l'article sera commandé s'il est coché */}
+                        <label className="flex shrink-0 cursor-pointer items-start pt-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelected(key)}
+                            aria-label={`Sélectionner ${product.name}`}
+                            className="h-4 w-4 cursor-pointer accent-midnight-950"
+                          />
+                        </label>
                         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-midnight-950">
                           <AssetImage
                             src={product.image}
@@ -606,8 +664,17 @@ export default function CartDrawer() {
 
                   <div className="mt-4 space-y-1.5 border-t border-midnight-950/5 pt-4">
                     <div className="flex items-center justify-between text-sm text-midnight-950/60">
-                      <span>Sous-total</span>
-                      <span className="font-medium text-midnight-950">{formatPrice(subtotal)}</span>
+                      <span>
+                        Sous-total
+                        {selectedCount < count && (
+                          <span className="ml-1 text-[11px] text-midnight-950/40">
+                            (sélection)
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-medium text-midnight-950">
+                        {formatPrice(selectedSubtotal)}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-sm text-midnight-950/60">
                       <span>Livraison</span>
@@ -622,7 +689,7 @@ export default function CartDrawer() {
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-sm font-medium text-midnight-950/70">Total</span>
                       <span className="font-display text-2xl font-semibold text-midnight-950">
-                        {formatPrice(total)}
+                        {formatPrice(selectedTotal)}
                       </span>
                     </div>
                   </div>
@@ -630,9 +697,14 @@ export default function CartDrawer() {
                   <button
                     type="button"
                     onClick={goCheckout}
-                    className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-xl bg-midnight-950 px-6 py-4 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-midnight-800 hover:shadow-lg cursor-pointer"
+                    disabled={selectedCount === 0}
+                    className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-xl bg-midnight-950 px-6 py-4 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-midnight-800 hover:shadow-lg cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:bg-midnight-950 disabled:hover:shadow-none"
                   >
-                    Passer la commande
+                    {selectedCount === 0
+                      ? "Sélectionnez au moins un article"
+                      : allSelected
+                        ? "Passer la commande"
+                        : `Commander la sélection (${selectedCount} article${selectedCount > 1 ? "s" : ""})`}
                   </button>
                   <p className="mt-3.5 flex items-center justify-center gap-4 text-[11px] text-midnight-950/50">
                     <span className="inline-flex items-center gap-1.5">
@@ -681,26 +753,26 @@ export default function CartDrawer() {
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="text-sm font-semibold text-midnight-950">Total</span>
                       <div className="text-right">
-                          {pointsToUse > 0 && <span className="block text-xs line-through text-ink-400">{formatPrice(total)}</span>}
+                          {pointsToUse > 0 && <span className="block text-xs line-through text-ink-400">{formatPrice(selectedTotal)}</span>}
                           <span className="font-display text-lg font-semibold text-gold-600">
-                            {formatPrice(total - pointsToUse)}
+                            {formatPrice(selectedTotal - pointsToUse)}
                           </span>
                         </div>
                     </div>
                   </div>
 
-                  
+
                   {customer.profile && (customer.profile?.pointsBalance || 0) > 0 && (
                     <div className="rounded-2xl border border-gold-400/30 bg-gold-400/10 p-4 mt-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-semibold text-gold-700">Utiliser mes points (Solde: {customer.profile?.pointsBalance} pts)</span>
                       </div>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        max={Math.min((customer.profile?.pointsBalance || 0), total)}
+                      <input
+                        type="number"
+                        min="0"
+                        max={Math.min((customer.profile?.pointsBalance || 0), selectedTotal)}
                         value={pointsToUse || ""}
-                        onChange={(e) => setPointsToUse(Math.min(Math.min(parseInt(e.target.value || "0", 10), (customer.profile?.pointsBalance || 0)), total))}
+                        onChange={(e) => setPointsToUse(Math.min(Math.min(parseInt(e.target.value || "0", 10), (customer.profile?.pointsBalance || 0)), selectedTotal))}
                         className="w-full rounded-lg border border-gold-400/20 px-3 py-2 text-sm focus:border-gold-400 focus:outline-none"
                         placeholder="Ex: 500"
                       />

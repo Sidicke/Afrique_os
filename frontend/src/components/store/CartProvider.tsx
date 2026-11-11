@@ -17,6 +17,23 @@ interface CartContextValue {
   remove: (lineKey: string) => void;
   setQty: (lineKey: string, qty: number) => void;
   clear: () => void;
+  /** Retire UNIQUEMENT les lignes indiquées — utilisé après un paiement
+   *  PARTIEL : les articles non achetés restent dans le panier. */
+  removeLines: (lineKeys: string[]) => void;
+  /** Clés des lignes sélectionnées (sous-ensemble du panier) */
+  selectedKeys: string[];
+  /** Lignes sélectionnées — c'est ce qui sera commandé */
+  selectedLines: CartLine[];
+  /** Bascule la sélection d'une ligne */
+  toggleSelected: (lineKey: string) => void;
+  /** Sélectionne tout le panier (true) ou le désélectionne entièrement (false) */
+  setAllSelected: (selected: boolean) => void;
+  /** Nombre d'articles sélectionnés */
+  selectedCount: number;
+  /** Sous-total des articles sélectionnés uniquement */
+  selectedSubtotal: number;
+  /** Total des articles sélectionnés + frais de livraison */
+  selectedTotal: number;
   /** Ouvre le panier sur l'étape panier (défaut) */
   openCart: () => void;
   /** Ouvre le panier DIRECTEMENT sur « Vos coordonnées » (achat direct) */
@@ -47,6 +64,10 @@ function lineKey(productId: string, variant: ProductVariant): string {
 
 export default function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
+  /** Clés des lignes sélectionnées — sous-ensemble du panier qui sera commandé.
+   *  Par défaut TOUT est sélectionné : le client peut désélectionner ce qu'il
+   *  ne veut pas acheter sans avoir à cocher quoi que ce soit. */
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [deliveryPackId, setDeliveryPackId] = useState<string | null>(null);
   const [initialStep, setInitialStep] = useState<"cart" | "checkout">("cart");
@@ -65,6 +86,17 @@ export default function CartProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(saved);
         if (parsed.boutiqueSlug === boutiqueSlug && Array.isArray(parsed.lines)) {
           setLines(parsed.lines);
+          // Sélection restaurée si elle a été mémorisée, sinon tout est
+          // sélectionné (comportement historique). Les clés qui ne
+          // correspondent plus à une ligne sont écartées.
+          if (Array.isArray(parsed.selectedKeys)) {
+            const valid = parsed.selectedKeys.filter((k: string) =>
+              parsed.lines.some((l: CartLine) => l.key === k)
+            );
+            setSelectedKeys(valid);
+          } else {
+            setSelectedKeys(parsed.lines.map((l: CartLine) => l.key));
+          }
         } else if (parsed.boutiqueSlug !== boutiqueSlug) {
           // Si on change de boutique, on vide le panier de l'ancienne boutique !
           localStorage.removeItem("zennshop_cart");
@@ -77,15 +109,18 @@ export default function CartProvider({ children }: { children: ReactNode }) {
   // Save cart to local storage on changes
   useEffect(() => {
     if (boutiqueSlug !== "unknown" && isLoaded) {
-      localStorage.setItem("zennshop_cart", JSON.stringify({ boutiqueSlug, lines }));
+      localStorage.setItem(
+        "zennshop_cart",
+        JSON.stringify({ boutiqueSlug, lines, selectedKeys })
+      );
     }
-  }, [lines, boutiqueSlug, isLoaded]);
+  }, [lines, selectedKeys, boutiqueSlug, isLoaded]);
 
 
   const add = useCallback((product: Product, variant?: ProductVariant, negotiatedPrice?: number, conversationId?: string) => {
     const chosen = variant ?? defaultVariant(product);
+    const key = lineKey(product.id, chosen);
     setLines((prev) => {
-      const key = lineKey(product.id, chosen);
       const existing = prev.find((l) => l.key === key);
       if (existing) {
         return prev.map((l) =>
@@ -94,10 +129,14 @@ export default function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, { key, product, variant: chosen, qty: 1, negotiatedPrice, conversationId }];
     });
+    // Un article qu'on vient d'ajouter est par défaut SÉLECTIONNÉ : le client
+    // l'a voulu, il ne doit pas avoir à le cocher.
+    setSelectedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
   }, []);
 
   const remove = useCallback((key: string) => {
     setLines((prev) => prev.filter((l) => l.key !== key));
+    setSelectedKeys((prev) => prev.filter((k) => k !== key));
   }, []);
 
   const setQty = useCallback((key: string, qty: number) => {
@@ -109,8 +148,29 @@ export default function CartProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => {
     setLines([]);
+    setSelectedKeys([]);
     setDeliveryPackId(null);
   }, []);
+
+  /** Retire uniquement les lignes indiquées (paiement PARTIEL) : les articles
+   *  non achetés restent dans le panier pour un prochain achat. */
+  const removeLines = useCallback((lineKeys: string[]) => {
+    const targeted = new Set(lineKeys);
+    setLines((prev) => prev.filter((l) => !targeted.has(l.key)));
+    setSelectedKeys((prev) => prev.filter((k) => !targeted.has(k)));
+  }, []);
+
+  /** Bascule la sélection d'une ligne */
+  const toggleSelected = useCallback((key: string) => {
+    setSelectedKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }, []);
+
+  /** Tout sélectionner / tout désélectionner */
+  const setAllSelected = useCallback((selected: boolean) => {
+    setSelectedKeys((prev) => (selected ? lines.map((l) => l.key) : []));
+  }, [lines]);
 
   const openCart = useCallback(() => {
     setInitialStep("cart");
@@ -148,6 +208,29 @@ export default function CartProvider({ children }: { children: ReactNode }) {
   const deliveryFee = deliveryPack?.price ?? 0;
   const total = subtotal + deliveryFee;
 
+  /* ——— Sélection : c'est elle qui détermine ce qui sera commandé ———
+     `subtotal` / `total` décrivent le panier ENTIER (badge, panier complet) ;
+     `selectedSubtotal` / `selectedTotal` décrivent la commande en cours. */
+  const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+
+  const selectedLines = useMemo(
+    () => lines.filter((l) => selectedSet.has(l.key)),
+    [lines, selectedSet]
+  );
+
+  const { selectedCount, selectedSubtotal } = useMemo(
+    () => ({
+      selectedCount: selectedLines.reduce((sum, l) => sum + l.qty, 0),
+      selectedSubtotal: selectedLines.reduce(
+        (sum, l) => sum + (l.negotiatedPrice ?? productPrice(config, l.product).current) * l.qty,
+        0
+      ),
+    }),
+    [selectedLines, config]
+  );
+
+  const selectedTotal = selectedSubtotal + deliveryFee;
+
   const value = useMemo(
     () => ({
       lines,
@@ -156,6 +239,14 @@ export default function CartProvider({ children }: { children: ReactNode }) {
       remove,
       setQty,
       clear,
+      removeLines,
+      selectedKeys,
+      selectedLines,
+      toggleSelected,
+      setAllSelected,
+      selectedCount,
+      selectedSubtotal,
+      selectedTotal,
       openCart,
       openCartAtCheckout,
       closeCart,
@@ -168,7 +259,7 @@ export default function CartProvider({ children }: { children: ReactNode }) {
       deliveryFee,
       total,
     }),
-    [lines, isOpen, add, remove, setQty, clear, openCart, openCartAtCheckout, closeCart, initialStep, count, subtotal, config, deliveryPack, deliveryFee, total]
+    [lines, isOpen, add, remove, setQty, clear, removeLines, selectedKeys, selectedLines, toggleSelected, setAllSelected, selectedCount, selectedSubtotal, selectedTotal, openCart, openCartAtCheckout, closeCart, initialStep, count, subtotal, config, deliveryPack, deliveryFee, total]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
