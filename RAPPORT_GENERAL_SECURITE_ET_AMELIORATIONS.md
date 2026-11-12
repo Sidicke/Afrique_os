@@ -52,7 +52,7 @@ Ce document récapitule l'ensemble des travaux réalisés sur la plateforme **Ze
 | **Race Condition 1** | Double-dépense sur retrait portefeuille (10 requêtes simultanées) | **1 succès (201), 9 rejetées (400)** | Transaction atomique `$transaction` |
 | **Race Condition 2** | Survente de stock avec stock = 1 (5 commandes simultanées) | **1 succès (201), 4 rejetées (400)** | Verrou d'inventaire atomique |
 | **Mass-Assignment** | Injection de champs protégés (`status: ACTIVE`, `pointsBalance`) | **400 Bad Request** | `ValidationPipe({ forbidNonWhitelisted: true })` |
-| **Webhooks Forgery** | Altération de signature HMAC SHA-256 sur paiement FedaPay | **400 Bad Request** | Validation timing-safe HMAC |
+| **Webhooks Forgery** | Altération de signature sur paiement PayDunya | **400 Bad Request** | Validation timing-safe (SHA-512 / HMAC) |
 | **XSS Transactionnel** | Injection de `<script>` dans les emails de notification | **Échappement HTML strict** | `escapeHtml()` systématique |
 | **Injection SQL** | Tentatives SQLi classiques | **0 vulnérabilité** | Prisma ORM typé (0 raw SQL non paramétré) |
 

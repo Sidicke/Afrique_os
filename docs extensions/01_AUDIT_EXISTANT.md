@@ -7,7 +7,7 @@ Inspecter l'arborescence, les migrations, la configuration, les services et les 
 - Identité utilisateur, rôles, vendeurs, boutiques, administration et permissions.
 - Commandes, lignes de commande, paiement, confirmation et annulation.
 - Packs/frais de livraison déjà définis par les vendeurs, et leur emploi au checkout.
-- Wallet vendeur, ledger, commissions, retraits, remboursements, intégration FedaPay ou autre PSP.
+- Wallet vendeur, ledger, commissions, retraits, remboursements, intégration PayDunya ou autre PSP.
 - Messagerie chiffrée/WebSocket, participants, historique, ACL, product/order context.
 - Notifications, tâches asynchrones, cron, événements, stockage fichiers.
 - Adresses existantes, géographie, taxes, analytics, reporting et modération.

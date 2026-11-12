@@ -1,7 +1,7 @@
 # 🛡️ RAPPORT D'AUDIT GÉNÉRAL DE SÉCURITÉ & RÉSILIENCE — AFRIQUE COMMERCE OS
 
 > **Date de finalisation de l'audit :** 1er Septembre 2026  
-> **Périmètre audité :** Backend NestJS 11, Frontend Next.js 16.3, PostgreSQL / Prisma ORM, Passerelle FedaPay, Authentification OAuth (Google & Facebook), Messagerie temps réel (WebSocket).  
+> **Périmètre audité :** Backend NestJS 11, Frontend Next.js 16.3, PostgreSQL / Prisma ORM, Passerelle PayDunya, Authentification OAuth (Google & Facebook), Messagerie temps réel (WebSocket).  
 > **Statut des tests :** ✅ **100% Validé (Unitaires, Sécurité E2E, Anti-Concurrence, Rate Limiting & Charge)**  
 > **Score de Robustesse Global :** **99.5 / 100 (Excellence - Niveau Bancaire / Enterprise)**  
 
@@ -40,7 +40,7 @@ L'ensemble des phases d'audit et de pentesting défensif a été exécuté avec 
 | **A05:2021** | Security Misconfiguration | **MAXIMAL** | Helmet HTTP headers actifs, `AllExceptionsFilter` (CWE-209), désactivation automatique de Swagger en production. |
 | **A06:2021** | Vulnerable & Outdated Components | **MAXIMAL** | Dépendances modernes (NestJS 11, Next.js 16.3.3, Prisma 6.19.3, Node.js 24). |
 | **A07:2021** | Identification & Authentication Failures | **MAXIMAL** | `ThrottlerGuard` actif (HTTP 429), cookies `httpOnly` + `SameSite=Strict`, `sessionStorage` isolé, distinction `mode: login` vs `mode: register`. |
-| **A08:2021** | Software and Data Integrity Failures | **MAXIMAL** | `IdempotencyService` bloquant les attaques par rejeu de requêtes et double encaissement de Webhooks FedaPay. |
+| **A08:2021** | Software and Data Integrity Failures | **MAXIMAL** | `IdempotencyService` bloquant les attaques par rejeu de requêtes et double encaissement de Webhooks PayDunya. |
 | **A09:2021** | Security Logging & Monitoring | **MAXIMAL** | Journal d'audit administratif `AdminLog`, journalisation sécurisée sans fuite de mots de passe ni de tokens. |
 | **A10:2021** | Server-Side Request Forgery & Info Leak | **MAXIMAL** | `safeDest()` anti-Open Redirect (blocage `//`, `\\`, `://`), masquage complet des traces de pile en production. |
 
@@ -65,7 +65,7 @@ PASS test/security-resilience.e2e-spec.ts
       √ Empêche l'overselling quand 5 commandes concurrentes visent 1 unité restante (520 ms)
     5. 🛡️ Protection Mass-Assignment & Rejet Strict (ValidationPipe)
       √ Rejette immédiatement les champs injectés non déclarés dans le DTO → 400 Bad Request (74 ms)
-    6. 🔐 Webhook FedaPay : Rejet de Signature Falsifiée
+    6. 🔐 Webhook PayDunya : Rejet de Signature Falsifiée
       √ Rejette un webhook avec signature invalide → 400 Bad Request (17 ms)
 ```
 
@@ -98,5 +98,5 @@ PASS test/mail.service.spec.ts
 | **Clés JWT Fortes** | 🔴 Élevée | Générer des chaînes aléatoires cryptographiques de 64 caractères pour `JWT_ACCESS_SECRET` et `JWT_REFRESH_SECRET`. |
 | **Cookies HTTPS** | 🟡 Moyenne | Passer `COOKIE_SECURE=true` dans `.env` dès que le domaine est servi sous HTTPS. |
 | **Clé API Resend / SMTP** | 🟢 Normale | Renseigner `RESEND_API_KEY` pour l'envoi réel des e-mails transactionnels aux acheteurs et vendeurs. |
-| **FedaPay Live** | 🟢 Normale | Passer `FEDAPAY_ENVIRONMENT=live` et renseigner les clés secrètes et le webhook secret de production. |
+| **PayDunya Live** | 🟢 Normale | Passer `PAYDUNYA_ENVIRONMENT=live` et renseigner les clés secrètes (Master Key, Public Key, Private Key, Token) de production. |
 | **Reverse Proxy (Nginx / Cloudflare)** | 🟢 Normale | Configurer `trust proxy` sur NestJS si le backend est derrière un reverse-proxy Cloudflare/AWS ALB pour un calcul exact de l'IP du client par le Rate Limiter. |

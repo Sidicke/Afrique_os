@@ -1,6 +1,6 @@
 # 🌍 ZennShop (v2)
 
-Plateforme e-commerce et marketplace modulaire, multi-vendeurs et haute performance conçue pour l'écosystème commercial africain (Mobile Money, paiements FedaPay, messagerie chiffrée, gestion de stocks temps réel et vitrines marchandes).
+Plateforme e-commerce et marketplace modulaire, multi-vendeurs et haute performance conçue pour l'écosystème commercial africain (Mobile Money, paiements PayDunya, messagerie chiffrée, gestion de stocks temps réel et vitrines marchandes).
 
 ---
 
@@ -30,7 +30,7 @@ ZennShop_v2/
 * **Messagerie Chiffrée (AES-256-GCM) :** Zéro message stocké en clair en base de données. Chaque message est protégé avec un vecteur d'initialisation unique (IV de 96 bits) et un tag d'authentification de 128 bits anti-falsification.
 * **Isolation Multi-Boutiques (Anti-BOLA / IDOR) :** Gardes stricts empêchant tout vendeur ou client d'accéder aux données d'autrui (`BoutiqueOwnerGuard` ➔ `403 Forbidden`).
 * **Protection Anti-Concurrence (Anti-Race Condition) :** Transactions atomiques isolées (`$transaction`) garantissant l'absence de double-dépense sur les retraits de portefeuille et de survente sur les stocks.
-* **Paiements Sécurisés :** Validation des webhooks FedaPay par signature cryptographique HMAC SHA-256 à temps constant.
+* **Paiements Sécurisés :** Validation des webhooks PayDunya par signature cryptographique (SHA-512 de la Master Key ou HMAC) à temps constant, en fail-closed.
 * **Protection Anti-DDoS :** Throttler actif (`ThrottlerGuard` ➔ `429 Too Many Requests`) bloquant les attaques de force brute et le scraping intensif.
 
 ---

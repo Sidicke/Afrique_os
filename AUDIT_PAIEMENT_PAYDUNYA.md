@@ -4,7 +4,9 @@
 **Périmètre audité :** `origin/main` @ `f7d6cf2` — `backend/src/paydunya/`, `backend/src/refunds/`, `backend/src/orders/`, `backend/src/boutiques/`, `backend/src/common/services/idempotency.service.ts`, `backend/src/main.ts`, `backend/src/app.module.ts`, `frontend/src/components/store/CartDrawer.tsx`
 **Référence :** Documentation officielle PayDunya (HTTP/JSON) + SDKs PHP/NodeJS/Python officiels
 
-> **Note de périmètre importante.** Le dépôt local était en retard (`HEAD` = `3dd61ae`) sur `origin/main` (`f7d6cf2`). L'audit a été réalisé sur l'arbre `origin/main` extrait séparément. Par ailleurs, le module `fedapay` visible dans le checkout local est **obsolète** : `origin/main` a remplacé FedaPay par **PayDunya**. La branche `origin/feature/fedapay-marketplace-backend` (non fusionnée, 4 commits) contient une **deuxième** implémentation de paiement concurrente (`payment-crypto.service.ts`, payouts, sous-comptes) — voir §7.
+> **Note de périmètre importante.** Le dépôt local était en retard (`HEAD` = `3dd61ae`) sur `origin/main` (`f7d6cf2`). L'audit a été réalisé sur l'arbre `origin/main` extrait séparément. Par ailleurs, le module `fedapay` visible dans le checkout local est **obsolète** : `origin/main` a remplacé l'ancien PSP par **PayDunya**. La branche `origin/feature/fedapay-marketplace-backend` (non fusionnée, 4 commits) contenait une **deuxième** implémentation de paiement concurrente (`payment-crypto.service.ts`, payouts, sous-comptes) — voir §7.
+>
+> **✅ Point résolu (2026-11-12).** Ce point d'attention a été traité : la branche `origin/feature/fedapay-marketplace-backend` a été **supprimée**, le module concurrent retiré du dépôt, et `main` ne contient plus qu'une seule implémentation de paiement — **PayDunya**. Les mentions ci-dessous sont conservées telles quelles pour la traçabilité de l'audit.
 
 ---
 
@@ -107,7 +109,7 @@ Côté frontend (`CartDrawer.tsx:345-356`), `res.checkoutUrl` est `undefined` �
 2. Générer **deux clés distinctes** côté frontend : `checkoutKeyRef` pour la commande, `paymentKeyRef` pour la transaction.
 3. **Défense en profondeur** : faire échouer explicitement `createCheckoutTransaction` si la réponse en cache ne contient pas `checkoutUrl` — ne jamais retourner une charge utile d'un autre type d'endpoint.
 
-> Le même défaut existe sur la branche `feature/fedapay-marketplace-backend` (`common/services/idempotency.service.ts` y est identique).
+> Le même défaut existait sur la branche `feature/fedapay-marketplace-backend` (`common/services/idempotency.service.ts` y était identique). **Cette branche a été supprimée le 2026-11-12** : le constat ne concerne plus qu'une seule implémentation de paiement, PayDunya.
 
 ---
 
@@ -410,7 +412,8 @@ Un `400` renvoie une erreur à PayDunya, qui **réessaie** — boucle de retry s
 - `security-resilience.e2e-spec.ts:287-305` — vérifie qu'une **fausse signature** est rejetée (bon test, mais négatif uniquement) ;
 - `rate-limiting-stress.e2e-spec.ts:35-51` — vérifie le 429 (bon test).
 
-**Aucun test ne couvre :** la création d'une facture, le règlement via webhook, l'idempotence, la **comparaison de montant**, la double livraison (webhook + confirm), le remboursement, ni le retrait. Sur la branche `feature/fedapay-marketplace-backend`, un `test/fedapay-marketplace.spec.ts` de 621 lignes existe — **rien d'équivalent n'a été porté pour PayDunya**.
+**Aucun test ne couvre :** la création d'une facture, le règlement via webhook, l'idempotence, la **comparaison de montant**, la double livraison (webhook + confirm), le remboursement, ni le retrait. Sur la branche `feature/fedapay-marketplace-backend` (supprimée depuis), un `test/fedapay-marketplace.spec.ts` de 621 lignes existait — **rien d'équivalent n'a été porté pour PayDunya**.
+> **✅ Corrigé depuis** par `CORRECTIF_C1.md`, `CORRECTIF_C2.md` et `CORRECTIF_C3.md` : 13 tests unitaires et 8 tests e2e de réconciliation couvrent désormais l'idempotence, la double livraison, la comparaison de montant et le règlement.
 
 **Correctif.** Ajouter une suite `paydunya.e2e-spec.ts` couvrant au minimum : idempotence (même clé → une seule facture), double règlement (webhook + confirm → un seul crédit), rejet d'un montant incohérent, rejet d'un `confirm` avec `orderId` falsifié, et non-régression sur le `mode` / `checkoutUrl`.
 
@@ -532,22 +535,24 @@ L'audit serait incomplet sans relever ce qui est bien conçu — ces décisions 
 | 17 | Suite `paydunya.e2e-spec.ts` : idempotence, double règlement, montant incohérent, `orderId` falsifié, remboursement, retrait | `backend/test/` |
 | 18 | Chiffrer au repos les données de paiement (réutiliser le pattern `message-crypto.ts`) | `common/crypto/` |
 | 19 | Statut `WithdrawalRequest` réellement piloté + métriques/alertes sur `sandbox_mock` et `saveRecord` échoué | — |
-| 20 | Décider du sort de `origin/feature/fedapay-marketplace-backend` (⚠️ voir §7) | — |
+| 20 | ~~Décider du sort de `origin/feature/fedapay-marketplace-backend` (⚠️ voir §7)~~ — ✅ **FAIT le 2026-11-12** : branche supprimée, module concurrent retiré | — |
 
 ---
 
-## 7. ⚠️ Point d'attention : deux implémentations de paiement concurrentes
+## 7. ✅ Point d'attention : deux implémentations de paiement concurrentes — RÉSOLU
 
-Le dépôt contient **deux implémentations de paiement parallèles** :
+> **Résolu le 2026-11-12.** L'abandon explicite a été choisi et exécuté : la branche `origin/feature/fedapay-marketplace-backend` a été **supprimée du dépôt**, et le module concurrent qu'elle portait a été retiré du dépôt local. Le tableau ci-dessous est conservé pour la traçabilité de l'audit.
 
-| Branche | Module | Contenu |
-|---|---|---|
-| `origin/main` (`f7d6cf2`) | `src/paydunya/` | Checkout Invoice, webhook IPN, confirm, refunds, abonnements |
-| `origin/feature/fedapay-marketplace-backend` | `src/fedapay/` | + `payment-crypto.service.ts` (chiffrement des flux), payouts, sous-comptes marketplace, `transfer-fee.util.ts`, 621 lignes de tests |
+Le dépôt contenait **deux implémentations de paiement parallèles** :
 
-La branche feature **n'est pas fusionnée** mais le commit `6b65726` est un message de merge « into main ». Cette divergence est un **risque opérationnel majeur** : du code de paiement existe dans deux versions incompatibles, et la branche feature contient des éléments de sécurité absents de `main` (notamment `payment-crypto.service.ts`).
+| Branche | Module | Contenu | État |
+|---|---|---|---|
+| `origin/main` (`f7d6cf2`) | `src/paydunya/` | Checkout Invoice, webhook IPN, confirm, refunds, abonnements | ✅ **retenue** |
+| `origin/feature/fedapay-marketplace-backend` | `src/fedapay/` | + `payment-crypto.service.ts` (chiffrement des flux), payouts, sous-comptes marketplace, `transfer-fee.util.ts`, 621 lignes de tests | ❌ **supprimée** |
 
-**Recommandation :** trancher explicitement — soit fusionner la branche feature en réconciliant PayDunya/FedaPay, soit l'abandonner explicitement. Ne pas laisser deux implémentations de paiement coexister sur un projet qui manipule de l'argent réel.
+La branche feature **n'était pas fusionnée**, mais le commit `6b65726` était un message de merge « into main ». Cette divergence était un **risque opérationnel majeur** : du code de paiement existait dans deux versions incompatibles, et la branche feature contenait des éléments de sécurité absents de `main` (notamment `payment-crypto.service.ts`).
+
+**Décision appliquée :** abandon explicite de la branche feature plutôt qu'une fusion, pour éviter de faire coexister deux implémentations de paiement sur un projet qui manipule de l'argent réel. Le dépôt ne contient aujourd'hui qu'une seule implémentation de paiement — **PayDunya**.
 
 ---
 
